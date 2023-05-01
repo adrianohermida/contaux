@@ -1,0 +1,124 @@
+/*======================================
+    Testimonial CSS
+========================================*/
+.testimonials {
+
+    padding-bottom: 150px;
+
+    .testimonial-inner {
+        position: relative;
+
+
+    }
+
+    #tns1>.tns-item {
+        transform: scale(0.9);
+    }
+
+
+}
+
+.testimonials .single-testimonial {
+
+    height: 100%;
+    width: 100%;
+    position: relative;
+    padding: 40px;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    background-color: $gray;
+    border-radius: 8px;
+
+
+    .review {
+        margin-bottom: 20px;
+
+        li {
+            display: inline-block;
+            margin-right: 3px;
+
+            &:last-child {
+                margin-right: 0;
+            }
+
+            i {
+                color: $theme-color;
+            }
+        }
+    }
+
+    .quote {
+        i {
+            font-size: 30px;
+            color: $theme-color;
+        }
+    }
+
+    p {
+        font-size: 15px;
+    }
+
+    .bottom {
+        position: relative;
+        margin-top: 40px;
+
+        .clien-image {
+            margin-right: 20px;
+
+
+            img {
+                height: 80px;
+                width: 80px;
+                border-radius: 100%;
+                margin-right: 22px;
+                float: left;
+            }
+        }
+
+        .name {
+            font-size: 17px;
+            position: relative;
+            top: 20px;
+
+            span {
+                font-size: 13px;
+                display: block;
+                margin-top: 5px;
+                color: #888;
+                font-weight: 400;
+            }
+        }
+    }
+}
+
+.testimonials .tns-nav button {
+    width: 10px;
+    height: 10px;
+    border-radius: 0;
+    -webkit-transition: all 0.3s ease;
+    -moz-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+    margin: 0;
+    background: $black;
+    display: inline-block;
+    border: none;
+    margin-right: 9px;
+    border-radius: 30px;
+}
+
+.testimonials .tns-nav button:last-child {
+    margin: 0;
+}
+
+.testimonials .tns-nav button.tns-nav-active {
+    width: 20px;
+    background-color: $theme-color !important;
+}
+
+.testimonials .tns-nav {
+    text-align: center;
+    position: absolute;
+    width: 100%;
+    bottom: -50px;
+    transform: translateX(5px);
+}
