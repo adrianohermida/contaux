@@ -51,11 +51,16 @@
   gtag('config', 'G-00DWDD32MT');
 </script>
 
-    <script type="text/javascript" src="https://s3.amazonaws.com/assets.freshdesk.com/widget/freshwidget.js"></script>
-    <style type="text/css" media="screen, projection">
-        @import url(https://s3.amazonaws.com/assets.freshdesk.com/widget/freshwidget.css); 
-    </style>
-</script>
+<!-- Freshdesk Widget Styles and Scripts -->
+<link rel="stylesheet" href="https://s3.amazonaws.com/assets.freshdesk.com/widget/freshwidget.css">
+<script type="text/javascript" src="https://s3.amazonaws.com/assets.freshdesk.com/widget/freshwidget.js"></script>
+<style>
+    .contact-us .single-head, .contact-us .form-main {
+        height: 300px; /* Manter a altura dos dois blocos iguais */
+    }
+</style>
+<!-- Freshdesk Widget Styles and Scripts -->
+
 
 
 
@@ -728,17 +733,16 @@ fwcrm.identify(identifier, new_contact);
     </div>
 </div>
 <!-- End Latest News Area -->
-
 <!-- Start Contact Area -->
 <section id="contact-us" class="contact-us section">
     <div class="container">
         <div class="contact-head wow fadeInUp">
             <div class="row">
-                <div class="col-lg-5 col-12">
+                <div class="col-lg-4 col-12">
                     <div class="single-head">
                         <div class="contant-inner-title">
                             <h4>Fale conosco</h4>
-                            <p>ContaxX Contabilidade.<br>CNPJ: 07.772.334/0001-22</p>
+                            <p>ContaUX Contabilidade.<br>CNPJ: 07.772.334/0001-22</p>
                         </div>
                         <div class="single-info">
                             <i class="lni lni-phone"></i>
@@ -760,10 +764,11 @@ fwcrm.identify(identifier, new_contact);
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-7 col-12">
+                <div class="col-lg-8 col-12">
                     <!-- Freshdesk Form -->
-                    <iframe title="Feedback Form" class="freshwidget-embedded-form" id="freshwidget-embedded-form" src="https://contauxcontabilidade.freshdesk.com/widgets/feedback_widget/new?&widgetType=embedded&formTitle=Ajuda+e+suporte&submitTitle=Enviar+mensagem&submitThanks=Obrigado!+Sua+mensagem+foi+enviada+com+sucesso.&searchArea=no" scrolling="no" height="300px" width="100%" frameborder="0"></iframe>
-                    </iframe>
+                    <div class="form-main">
+                        <iframe title="Feedback Form" class="freshwidget-embedded-form" id="freshwidget-embedded-form" src="https://contauxcontabilidade.freshdesk.com/widgets/feedback_widget/new?&widgetType=embedded&formTitle=Ajuda+e+suporte&submitTitle=Enviar+mensagem&submitThanks=Obrigado!+Sua+mensagem+foi+enviada+com+sucesso.&searchArea=no" scrolling="no" height="300px" width="100%" frameborder="0"></iframe>
+                    </div>
                     <!-- End Freshdesk Form -->
                 </div>
             </div>
