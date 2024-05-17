@@ -1742,6 +1742,8 @@ ol {
   margin: 0;
   padding: 0;
   top: -16px;
+  width: 50%;
+    height: auto; /* Mantém a proporção da imagem */
 }
 
 .header.index2 .logo img {
@@ -1755,6 +1757,8 @@ ol {
 .header.index2 .logo .logo1 {
   opacity: 0;
   visibility: hidden;
+  width: 50%;
+    height: auto; /* Mantém a proporção da imagem */
 }
 
 .header.index2 .navbar-nav .nav-item a {
