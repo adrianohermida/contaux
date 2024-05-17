@@ -1752,6 +1752,8 @@ ol {
   top: 0;
   -webkit-transition: all 0.4s ease;
   transition: all 0.4s ease;
+  width: 50%;
+    height: auto; /* Mantém a proporção da imagem */
 }
 
 .header.index2 .logo .logo1 {
@@ -1778,6 +1780,8 @@ ol {
 .header.index2 .sticky .logo .logo1 {
   opacity: 1;
   visibility: visible;
+  width: 50%;
+    height: auto; /* Mantém a proporção da imagem */
 }
 
 .header.index2 .sticky .logo .logo2 {
