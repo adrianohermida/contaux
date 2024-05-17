@@ -50,6 +50,29 @@
 
   gtag('config', 'G-00DWDD32MT');
 </script>
+<script
+src='//fw-cdn.com/11570402/4222579.js'
+chat='true'>
+  var new_contact = {
+	"First name": "John", //Replace with first name of the user
+	"Last name": "Doe", //Replace with last name of the user
+	"Email": "john.doe@example.com", //Replace with email of the user
+	"Alternate contact number": "98765432", //Replace with a custom field
+	"company": {
+		"Name": "Example.com", //Replace with company name
+		"Website": "www.example.com" //Replace with website of company
+	}
+};
+var identifier = "john.doe@example.com";
+fwcrm.identify(identifier, new_contact);
+  FM.trackCustomEvent("Added to cart", {
+	"email": "david.thompson@sample.com",
+	"price": 100.21,
+	"currency": "USD",
+	"is_mobile_transaction": true,
+	"return date": "2019-12-30"
+});
+</script>
 </head>
 
 <!-- End Google Tag Manager (noscript) -->
