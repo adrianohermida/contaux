@@ -4499,6 +4499,11 @@ blockquote span {
     font-size: 14px;
     font-weight: 500;
   }
+  .button .btn {
+    background-color: #3763EB;
+    color: #fff;
+    ...
+}
   #scrollUp {
     bottom: 55px;
   }
