@@ -1,0 +1,35 @@
+/*======================================
+	Mail Success CSS
+========================================*/
+.mail-success {
+    text-align: center;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+.mail-success .siccess-text {
+    display: inline-block;
+    text-align: left;
+    margin-top: 50px;
+    padding-left: 50px;
+}
+
+.mail-success .siccess-text h2 {
+    font-size: 30px;
+    display: block;
+    margin-bottom: 30px;
+    color: $black;
+    font-weight: 700;
+
+    span {
+        color: $theme-color;
+        display: block;
+        margin-bottom: 10px;
+        font-size: 25px;
+    }
+}
+
+.mail-success .siccess-text p {
+    display: block;
+    margin-bottom: 30px;
+}

@@ -1,0 +1,162 @@
+/*======================================
+	Team CSS
+========================================*/
+.team {
+    background-color: #ffffff;
+}
+
+.team .title-line {
+    margin-bottom: 40px;
+}
+
+.team .section-title {
+    margin-bottom: 50px;
+}
+
+.team .single-team {
+    margin-top: 30px;
+    position: relative;
+    -webkit-transition: all 500ms ease;
+    -moz-transition: all 500ms ease;
+    transition: all 500ms ease;
+    display: inline-block;
+    overflow: hidden;
+    text-align: center;
+    background: transparent;
+}
+
+.team .single-team .shapes {
+    position: relative;
+}
+
+.team .single-team .shapes .shape1 {
+    height: 50px;
+    width: 50px;
+    position: absolute;
+    left: 0;
+    top: 15px;
+    -webkit-transition: all 0.4s ease;
+    -moz-transition: all 0.4s ease;
+    transition: all 0.4s ease;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.team .single-team:hover .shapes .shape1 {
+    top: 0;
+    opacity: 1;
+    visibility: visible;
+}
+
+.team .single-team .shapes .shape2 {
+    height: 40px;
+    width: 40px;
+    position: absolute;
+    right: 0;
+    bottom: 3px;
+    -webkit-transition: all 0.4s ease;
+    -moz-transition: all 0.4s ease;
+    transition: all 0.4s ease;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0);
+}
+
+.team .single-team:hover .shapes .shape2 {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+}
+
+.team .single-team .info-head {
+    background: transparent;
+    position: relative;
+    z-index: 2;
+    -webkit-transition: all 0.4s ease;
+    -moz-transition: all 0.4s ease;
+    transition: all 0.4s ease;
+    margin-top: 20px;
+}
+
+.team .single-team:hover .info-head:before {
+    opacity: 1;
+    visibility: visible;
+    height: 100%;
+}
+
+.team .single-team:hover .info-head {
+    border-color: transparent;
+}
+
+.single-team .image {
+    height: 200px;
+    width: 200px;
+    border-radius: 50%;
+    overflow: hidden;
+}
+
+.team .single-team .image img {
+    height: 100%;
+    width: 100%;
+}
+
+.team .single-team .info-box {
+    text-align: center;
+}
+
+.team .single-team .info-box .name {
+    display: block;
+    font-size: 17px;
+    color: #333;
+    margin-bottom: 3px;
+    text-transform: capitalize;
+}
+
+.team .single-team .info-box .name a {
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.team .single-team .info-box .name a:hover {
+    color: $theme-color;
+}
+
+.team .single-team .info-box .designation {
+    color: #666;
+    font-size: 13px;
+    -webkit-transition: all 0.4s ease;
+    -moz-transition: all 0.4s ease;
+    transition: all 0.4s ease;
+}
+
+.team .single-team .social-links {
+    -webkit-transition: all 500ms ease;
+    -moz-transition: all 500ms ease;
+    transition: all 500ms ease;
+    margin-top: 15px;
+}
+
+.team .single-team .social-links .social li {
+    display: inline-block;
+    margin-right: 15px;
+}
+
+.team .single-team .social-links .social li:last-child {
+    margin-right: 0px;
+}
+
+.team .single-team .social-links .social {
+    border: 1px solid #d2d2d24a;
+    padding: 12px 30px;
+    border-radius: 30px;
+}
+
+.team .single-team .social-links .social li a {
+    color: #999;
+    display: block;
+    font-size: 14px;
+}
+
+.team .single-team .social-links .social li a:hover {
+    color: $theme-color;
+}
