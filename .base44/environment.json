@@ -2,5 +2,45 @@
   "previewPort": 3000,
   "healthPath": "/",
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
-  "secrets": []
+  "secrets": [
+    {
+      "name": "CLOUDFLARE_API_TOKEN",
+      "description": "API Token do Cloudflare com permissões de Email Routing e Workers",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_ACCOUNT_ID",
+      "description": "Account ID do Cloudflare",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_ZONE_ID",
+      "description": "Zone ID do domínio contaux.com.br no Cloudflare",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "SMTP_HOST",
+      "description": "Host SMTP para fallback de envio de emails",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "SMTP_PORT",
+      "description": "Porta SMTP para fallback de envio de emails",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "SMTP_USER",
+      "description": "Usuário SMTP para fallback de envio de emails",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "SMTP_PASS",
+      "description": "Senha SMTP para fallback de envio de emails",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    }
+  ]
 }
