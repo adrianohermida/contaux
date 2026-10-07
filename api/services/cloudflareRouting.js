@@ -4,7 +4,7 @@
  */
 
 const API_BASE = 'https://api.cloudflare.com/client/v4';
-const TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const TOKEN = process.env.CLOUDFLARE_API_TOKEN_ROUTING_MAIL || process.env.CLOUDFLARE_API_TOKEN;
 const ZONE_ID = process.env.CLOUDFLARE_ZONE_ID;
 
 function authHeaders() {

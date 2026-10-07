@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react'
 import AppLayout from '@/components/layout/AppLayout'
 
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage'))
+const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
 
 function Loading() {
   return (
@@ -24,7 +25,24 @@ export default function App() {
             </Suspense>
           }
         />
-        {/* Módulos futuros: /crm, /financeiro, /contabilidade, /suporte, /marketing, /admin */}
+        {/* CRM */}
+        <Route
+          path="/crm"
+          element={
+            <Suspense fallback={<Loading />}>
+              <CrmPage view="clients" />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/crm/contatos"
+          element={
+            <Suspense fallback={<Loading />}>
+              <CrmPage view="contacts" />
+            </Suspense>
+          }
+        />
+        {/* Módulos futuros: /financeiro, /contabilidade, /suporte, /marketing, /admin */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
