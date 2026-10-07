@@ -62,6 +62,14 @@ api/
 - **email-forwarder**: Worker with `fetch` handler — sends outbound emails via MailChannels API.
 - Deploy both via `POST /api/email/workers/deploy` (requires CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID).
 
+## Production Deployment
+- **Files**: `Dockerfile.prod`, `docker-compose.prod.yml`, `nginx/prod.conf`, `nginx/prod-routes.conf`, `.env.prod.example`, `docs/DEPLOYMENT.md`
+- **Build**: Multi-stage Dockerfile compiles the dashboard (`npm run build` with `base: '/dashboard/'`) and serves everything via nginx
+- **SSL**: Two options — Cloudflare proxy (SSL na edge, servidor HTTP only) or Let's Encrypt direct (certbot)
+- **Domains**: contaux.com.br (primary), www.contaux.com.br (redirects to non-www)
+- **Deploy**: `docker compose -f docker-compose.prod.yml up -d --build` on a VPS with DNS pointing to it
+- See `docs/DEPLOYMENT.md` for the full step-by-step guide
+
 ## Legacy Reference
 - `legacy/` contains the old React/Base44 app — reference for business rules and data models ONLY. Never import from it.
 - `docs/RECOVERY_PLAN.md` has the full modular migration plan.

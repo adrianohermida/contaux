@@ -351,3 +351,7 @@ MigrationBackup/
 
 # Legacy reference
 legacy/node_modules/
+
+# Production deploy
+.env.prod
+certbot/

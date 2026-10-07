@@ -2,8 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // Em produção (build), assets servidos a partir de /dashboard/
+  base: command === 'build' ? '/dashboard/' : '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -16,4 +18,4 @@ export default defineConfig({
     // Permite o hostname do preview via sandbox
     allowedHosts: true,
   },
-})
+}))
