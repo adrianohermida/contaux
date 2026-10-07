@@ -5,6 +5,11 @@ import AppLayout from '@/components/layout/AppLayout'
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage'))
 const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
 const FinanceiroPage = lazy(() => import('@/modules/financeiro/FinanceiroPage'))
+const InboxPage = lazy(() => import('@/modules/email/InboxPage'))
+const ContabilidadePage = lazy(() => import('@/modules/contabilidade/ContabilidadePage'))
+const SuportePage = lazy(() => import('@/modules/suporte/SuportePage'))
+const MarketingPage = lazy(() => import('@/modules/marketing/MarketingPage'))
+const AdminPage = lazy(() => import('@/modules/admin/AdminPage'))
 
 function Loading() {
   return (
@@ -14,61 +19,51 @@ function Loading() {
   )
 }
 
+function withSuspense(element) {
+  return <Suspense fallback={<Loading />}>{element}</Suspense>
+}
+
 export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route
-          path="/dashboard"
-          element={
-            <Suspense fallback={<Loading />}>
-              <DashboardPage />
-            </Suspense>
-          }
-        />
+        <Route path="/dashboard" element={withSuspense(<DashboardPage />)} />
+
+        {/* Caixa de Entrada */}
+        <Route path="/inbox" element={withSuspense(<InboxPage />)} />
+
         {/* CRM */}
-        <Route
-          path="/crm"
-          element={
-            <Suspense fallback={<Loading />}>
-              <CrmPage view="clients" />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/crm/contatos"
-          element={
-            <Suspense fallback={<Loading />}>
-              <CrmPage view="contacts" />
-            </Suspense>
-          }
-        />
+        <Route path="/crm" element={withSuspense(<CrmPage view="clients" />)} />
+        <Route path="/crm/contatos" element={withSuspense(<CrmPage view="contacts" />)} />
+
         {/* Financeiro */}
-        <Route
-          path="/financeiro"
-          element={
-            <Suspense fallback={<Loading />}>
-              <FinanceiroPage view="invoices" />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/financeiro/orcamentos"
-          element={
-            <Suspense fallback={<Loading />}>
-              <FinanceiroPage view="quotes" />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/financeiro/pagamentos"
-          element={
-            <Suspense fallback={<Loading />}>
-              <FinanceiroPage view="payments" />
-            </Suspense>
-          }
-        />
-        {/* Módulos futuros: /contabilidade, /suporte, /marketing, /admin */}
+        <Route path="/financeiro" element={withSuspense(<FinanceiroPage view="invoices" />)} />
+        <Route path="/financeiro/orcamentos" element={withSuspense(<FinanceiroPage view="quotes" />)} />
+        <Route path="/financeiro/pagamentos" element={withSuspense(<FinanceiroPage view="payments" />)} />
+
+        {/* Contabilidade */}
+        <Route path="/contabilidade" element={withSuspense(<ContabilidadePage view="accounts" />)} />
+        <Route path="/contabilidade/lancamentos" element={withSuspense(<ContabilidadePage view="journal" />)} />
+        <Route path="/contabilidade/notas-fiscais" element={withSuspense(<ContabilidadePage view="taxinvoices" />)} />
+        <Route path="/contabilidade/calendario" element={withSuspense(<ContabilidadePage view="calendar" />)} />
+
+        {/* Suporte */}
+        <Route path="/suporte" element={withSuspense(<SuportePage view="tickets" />)} />
+        <Route path="/suporte/processos" element={withSuspense(<SuportePage view="processes" />)} />
+
+        {/* Marketing */}
+        <Route path="/marketing" element={withSuspense(<MarketingPage view="campaigns" />)} />
+        <Route path="/marketing/blog" element={withSuspense(<MarketingPage view="blog" />)} />
+        <Route path="/marketing/fidelidade" element={withSuspense(<MarketingPage view="loyalty" />)} />
+
+        {/* Administração */}
+        <Route path="/admin" element={withSuspense(<AdminPage view="settings" />)} />
+        <Route path="/admin/seguranca" element={withSuspense(<AdminPage view="security" />)} />
+        <Route path="/admin/auditoria" element={withSuspense(<AdminPage view="audit" />)} />
+        <Route path="/admin/automacoes" element={withSuspense(<AdminPage view="automations" />)} />
+        <Route path="/admin/documentos" element={withSuspense(<AdminPage view="documents" />)} />
+        <Route path="/admin/relatorios" element={withSuspense(<AdminPage view="reports" />)} />
+
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

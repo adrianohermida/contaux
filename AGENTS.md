@@ -6,38 +6,61 @@ Static HTML marketing site ("Contaux Contadoria") + React dashboard app. The sta
 ## Architecture
 - **Static site**: Pure HTML/CSS/JS served by nginx (index.html, about-us.html, services.html, etc.)
 - **Dashboard app**: React 18 + Vite + Tailwind CSS in `dashboard/` directory, served by Vite dev server on port 5173 (internal)
-- **nginx** (port 3000) proxies `/dashboard`, `/crm`, `/financeiro`, `/contabilidade`, `/suporte`, `/marketing`, `/admin` and Vite module paths (`/src/`, `/@vite/`, `/node_modules/`) to the Vite dev server. All other routes serve static files.
+- **API backend**: Express + Nodemailer in `api/` directory, port 3001 (internal). Handles contact form, newsletter, email inbox CRUD, and Cloudflare Worker deployment.
+- **nginx** (port 3000) proxies `/dashboard`, `/inbox`, `/crm`, `/financeiro`, `/contabilidade`, `/suporte`, `/marketing`, `/admin`, `/api/` and Vite module paths (`/src/`, `/@vite/`, `/node_modules/`) to the appropriate service. All other routes serve static files.
 
 ## Setup
-- `docker compose -f docker-compose.base44.yml up -d` starts both nginx (port 3000) and the Vite dev server (port 5173 internal).
+- `docker compose -f docker-compose.base44.yml up -d` starts nginx (port 3000), Vite dev server (port 5173 internal), and Express API (port 3001 internal).
 - The Vite container installs npm deps on startup from `dashboard/package.json` (volume `dashboard_node_modules` keeps them).
-- No external credentials or secrets required.
+- The API container installs npm deps on startup from `api/package.json` (volume `api_node_modules` keeps them).
+- External secrets (Cloudflare tokens, SMTP credentials) are delivered via `/run/base44/app.env`.
 - Directory permissions: the repo root must be world-readable (`chmod 755 .`) or nginx's worker user returns 403.
 
 ## Verification
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/` → 200 (static site)
-- `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/inicio` → 200 (PT-BR home route)
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/dashboard` → 200 (Vite SPA)
+- `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health` → 200 (API health)
 - Edits to static HTML/CSS/JS appear immediately (nginx serves from bind mount).
 - Edits to dashboard React files appear via Vite HMR (or call `reload_preview` if HMR doesn't fire through the proxy).
 
 ## Dashboard App Structure
 ```
-dashboard/
-├── src/
-│   ├── main.jsx              # Entry point (BrowserRouter + App)
-│   ├── App.jsx               # Routes with lazy loading
-│   ├── index.css             # Tailwind + CSS variables (light/dark theme)
-│   ├── lib/utils.js          # cn() helper
-│   ├── components/
-│   │   ├── ui/               # Card, Button, Badge (shadcn-style)
-│   │   └── layout/           # AppLayout, Sidebar, Header, navItems
-│   └── modules/
-│       └── dashboard/        # DashboardPage, Stats, Activity, Alerts, Shortcuts
-├── tailwind.config.js
-├── vite.config.js
-└── package.json
+dashboard/src/
+├── main.jsx              # Entry point (BrowserRouter + App)
+├── App.jsx               # Routes with lazy loading
+├── index.css             # Tailwind + CSS variables (light/dark theme)
+├── lib/utils.js          # cn() helper
+├── components/
+│   ├── ui/               # Card, Button, Badge, Input, Select, Tabs, Dialog
+│   └── layout/           # AppLayout, Sidebar, Header, navItems
+└── modules/
+    ├── dashboard/        # DashboardPage, Stats, Activity, Alerts, Shortcuts
+    ├── email/            # InboxPage, EmailList, EmailDetail, ComposeForm
+    ├── crm/              # CrmPage, ClientList/Form/Detail, ContactsPage
+    ├── financeiro/       # FinanceiroPage, InvoiceList/Form, QuoteList/Form, PaymentList/Form
+    ├── contabilidade/    # ContabilidadePage, AccountList/Form, JournalList/Form, TaxInvoiceList/Form, CalendarPage
+    ├── suporte/          # SuportePage, TicketList/Form/Detail, ProcessList/Form
+    ├── marketing/        # MarketingPage, CampaignList/Form, BlogPostList/Form, FidelidadePage
+    └── admin/            # AdminPage, ConfiguracoesPage, SegurancaPage, AuditoriaPage, AutomacoesPage, DocumentosPage, RelatoriosPage
 ```
+
+## API Structure
+```
+api/
+├── server.js                    # Express server (port 3001)
+├── routes/
+│   ├── emailRoutes.js           # Cloudflare Email Routing + Workers management
+│   └── inboxRoutes.js           # Inbox CRUD + webhook + send
+└── services/
+    ├── cloudflareRouting.js     # Email Routing API (zones, rules, destinations)
+    ├── cloudflareWorker.js      # Legacy sender Worker (MailChannels)
+    └── emailWorkers.js          # email-router (inbound) + email-forwarder (outbound)
+```
+
+## Cloudflare Email Workers
+- **email-router**: Worker with `email` handler — receives inbound emails from Cloudflare Email Routing, extracts sender/subject/body, POSTs to `/api/inbox/webhook`.
+- **email-forwarder**: Worker with `fetch` handler — sends outbound emails via MailChannels API.
+- Deploy both via `POST /api/email/workers/deploy` (requires CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID).
 
 ## Legacy Reference
 - `legacy/` contains the old React/Base44 app — reference for business rules and data models ONLY. Never import from it.
@@ -50,3 +73,4 @@ dashboard/
 - Dark mode via `class="dark"` on `<html>`.
 - Mobile-first (373px) and desktop (1880px) responsive.
 - No imports from `legacy/` into the new dashboard app.
+- No unnecessary animations — keep UI clean and functional.

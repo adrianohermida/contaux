@@ -6,6 +6,7 @@ const router = express.Router();
 
 const routing = require('../services/cloudflareRouting');
 const worker = require('../services/cloudflareWorker');
+const emailWorkers = require('../services/emailWorkers');
 
 // ===== Email Routing (Recebimento) =====
 
@@ -110,7 +111,38 @@ router.get('/routing/dns', async (req, res) => {
   }
 });
 
-// ===== Email Worker (Envio) =====
+// ===== Email Workers (Router + Forwarder) =====
+
+// Deploya ambos os workers (router = recebimento, forwarder = envio)
+router.post('/workers/deploy', async (req, res) => {
+  try {
+    const routerResult = await emailWorkers.deployRouter();
+    const forwarderResult = await emailWorkers.deployForwarder();
+    const routerSubdomain = await emailWorkers.enableSubdomain(emailWorkers.ROUTER_NAME);
+    const forwarderSubdomain = await emailWorkers.enableSubdomain(emailWorkers.FORWARDER_NAME);
+
+    res.json({
+      success: true,
+      router: { name: emailWorkers.ROUTER_NAME, deploy: routerResult, subdomain: routerSubdomain },
+      forwarder: { name: emailWorkers.FORWARDER_NAME, deploy: forwarderResult, subdomain: forwarderSubdomain },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Status de ambos os workers
+router.get('/workers/status', async (req, res) => {
+  try {
+    const router = await emailWorkers.getWorkerStatus(emailWorkers.ROUTER_NAME);
+    const forwarder = await emailWorkers.getWorkerStatus(emailWorkers.FORWARDER_NAME);
+    res.json({ router, forwarder });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Worker legado (envio) — mantido para compatibilidade =====
 
 router.post('/worker/deploy', async (req, res) => {
   try {

@@ -2,6 +2,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
 const emailRoutes = require('./routes/emailRoutes');
+const inboxRoutes = require('./routes/inboxRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
 
 const app = express();
@@ -13,6 +14,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Rotas de gerenciamento de email (Cloudflare)
 app.use('/api/email', emailRoutes);
+
+// Rotas da caixa de entrada (inbox)
+app.use('/api/inbox', inboxRoutes);
 
 // Configuração do transportador SMTP
 // As credenciais vêm de variáveis de ambiente (delivered via /run/base44/app.env)
