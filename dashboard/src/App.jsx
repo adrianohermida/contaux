@@ -4,6 +4,7 @@ import AppLayout from '@/components/layout/AppLayout'
 
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage'))
 const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
+const FinanceiroPage = lazy(() => import('@/modules/financeiro/FinanceiroPage'))
 
 function Loading() {
   return (
@@ -42,7 +43,32 @@ export default function App() {
             </Suspense>
           }
         />
-        {/* Módulos futuros: /financeiro, /contabilidade, /suporte, /marketing, /admin */}
+        {/* Financeiro */}
+        <Route
+          path="/financeiro"
+          element={
+            <Suspense fallback={<Loading />}>
+              <FinanceiroPage view="invoices" />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/financeiro/orcamentos"
+          element={
+            <Suspense fallback={<Loading />}>
+              <FinanceiroPage view="quotes" />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/financeiro/pagamentos"
+          element={
+            <Suspense fallback={<Loading />}>
+              <FinanceiroPage view="payments" />
+            </Suspense>
+          }
+        />
+        {/* Módulos futuros: /contabilidade, /suporte, /marketing, /admin */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
