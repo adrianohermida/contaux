@@ -1,0 +1,14 @@
+{
+  "name": "contaux-api",
+  "version": "1.0.0",
+  "description": "API de envio de emails do formulário de contato Contaux",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "nodemailer": "^6.9.16",
+    "cors": "^2.8.5"
+  }
+}
