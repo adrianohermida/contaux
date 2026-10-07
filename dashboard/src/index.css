@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 98%;
+    --foreground: 20 14% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 12%;
+    --primary: 28 76% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 23% 94%;
+    --secondary-foreground: 20 14% 12%;
+    --muted: 40 23% 94%;
+    --muted-foreground: 20 5% 45%;
+    --accent: 28 60% 95%;
+    --accent-foreground: 28 76% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 28 76% 52%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 20 14% 35%;
+    --sidebar-primary: 28 76% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 28 60% 95%;
+    --sidebar-accent-foreground: 28 76% 40%;
+    --sidebar-border: 40 15% 90%;
+    --sidebar-ring: 28 76% 52%;
+  }
+
+  .dark {
+    --background: 20 14% 8%;
+    --foreground: 40 30% 96%;
+    --card: 20 14% 10%;
+    --card-foreground: 40 30% 96%;
+    --popover: 20 14% 10%;
+    --popover-foreground: 40 30% 96%;
+    --primary: 28 80% 58%;
+    --primary-foreground: 20 14% 8%;
+    --secondary: 20 10% 16%;
+    --secondary-foreground: 40 30% 96%;
+    --muted: 20 10% 16%;
+    --muted-foreground: 40 10% 60%;
+    --accent: 28 30% 20%;
+    --accent-foreground: 28 80% 70%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 20 10% 18%;
+    --input: 20 10% 18%;
+    --ring: 28 80% 58%;
+    --sidebar-background: 20 14% 6%;
+    --sidebar-foreground: 40 20% 65%;
+    --sidebar-primary: 28 80% 58%;
+    --sidebar-primary-foreground: 20 14% 8%;
+    --sidebar-accent: 20 10% 14%;
+    --sidebar-accent-foreground: 28 80% 70%;
+    --sidebar-border: 20 10% 14%;
+    --sidebar-ring: 28 80% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
