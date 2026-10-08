@@ -9,9 +9,15 @@ function createCrudRouter(table, opts = {}) {
   const express = require('express');
   const router = express.Router();
   const { query } = require('../db');
+  const { requireAuth, getAccessibleTenantIds } = require('../middleware/auth');
 
   const jsonbFields = new Set(opts.jsonbFields || []);
   const searchFields = opts.searchFields || ['name', 'client_name'];
+  // Tabelas que não têm tenant_id (ex: tabelas do sistema)
+  const noTenant = opts.noTenant === true;
+
+  // Todas as rotas CRUD exigem autenticação
+  router.use(requireAuth);
 
   // Palavras reservadas do PostgreSQL que precisam de aspas
   const reserved = new Set(['user', 'from', 'to', 'order', 'group', 'select', 'where', 'limit']);
@@ -21,19 +27,33 @@ function createCrudRouter(table, opts = {}) {
     return reserved.has(name) ? `"${name}"` : name;
   }
 
+  /** Constrói cláusula WHERE de tenant isolation */
+  async function buildTenantWhere(req) {
+    if (noTenant) return { clause: '', params: [] };
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    return { clause: `tenant_id = ANY($1::int[])`, params: [tenantIds] };
+  }
+
   // Listar (com busca opcional via ?q=)
   router.get('/', async (req, res) => {
     try {
       const { q } = req.query;
-      let sql = `SELECT * FROM ${table} ORDER BY id DESC`;
-      let params = [];
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      let sql, params;
 
       if (q && searchFields.length) {
-        const conditions = searchFields
-          .map((f, i) => `${col(f)} ILIKE $${i + 1}`)
-          .join(' OR ');
-        sql = `SELECT * FROM ${table} WHERE ${conditions} ORDER BY id DESC`;
-        params = searchFields.map(() => `%${q}%`);
+        const searchConds = searchFields.map((f, i) => `${col(f)} ILIKE $${i + (tenantClause ? 2 : 1)}`).join(' OR ');
+        const whereParts = [];
+        if (tenantClause) whereParts.push(tenantClause);
+        whereParts.push(`(${searchConds})`);
+        sql = `SELECT * FROM ${table} WHERE ${whereParts.join(' AND ')} ORDER BY id DESC`;
+        params = [...tenantParams, ...searchFields.map(() => `%${q}%`)];
+      } else if (tenantClause) {
+        sql = `SELECT * FROM ${table} WHERE ${tenantClause} ORDER BY id DESC`;
+        params = tenantParams;
+      } else {
+        sql = `SELECT * FROM ${table} ORDER BY id DESC`;
+        params = [];
       }
 
       const result = await query(sql, params);
@@ -48,7 +68,16 @@ function createCrudRouter(table, opts = {}) {
   // Buscar por ID
   router.get('/:id', async (req, res) => {
     try {
-      const result = await query(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      let sql, params;
+      if (tenantClause) {
+        sql = `SELECT * FROM ${table} WHERE id = $1 AND ${tenantClause}`;
+        params = [req.params.id, ...tenantParams];
+      } else {
+        sql = `SELECT * FROM ${table} WHERE id = $1`;
+        params = [req.params.id];
+      }
+      const result = await query(sql, params);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
       res.json(parseRow(result.rows[0]));
     } catch (err) {
@@ -61,6 +90,10 @@ function createCrudRouter(table, opts = {}) {
   router.post('/', async (req, res) => {
     try {
       const data = prepareData(req.body);
+      // Auto-set tenant_id se a tabela suportar e não vier no body
+      if (!noTenant && data.tenant_id === undefined) {
+        data.tenant_id = req.user.tenant_id;
+      }
       const fields = Object.keys(data);
       const values = Object.values(data);
       const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
@@ -82,16 +115,24 @@ function createCrudRouter(table, opts = {}) {
     try {
       const data = prepareData(req.body);
       delete data.id;
+      // Não permitir alterar tenant_id via CRUD
+      delete data.tenant_id;
       const fields = Object.keys(data);
       if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
 
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
       const sets = fields.map((f, i) => `${col(f)} = $${i + 1}`).join(', ');
       const values = Object.values(data);
 
-      const result = await query(
-        `UPDATE ${table} SET ${sets} WHERE id = $${fields.length + 1} RETURNING *`,
-        [...values, req.params.id],
-      );
+      let sql, params;
+      if (tenantClause) {
+        sql = `UPDATE ${table} SET ${sets} WHERE id = $${fields.length + 1} AND ${tenantClause} RETURNING *`;
+        params = [...values, req.params.id, ...tenantParams];
+      } else {
+        sql = `UPDATE ${table} SET ${sets} WHERE id = $${fields.length + 1} RETURNING *`;
+        params = [...values, req.params.id];
+      }
+      const result = await query(sql, params);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
       res.json(parseRow(result.rows[0]));
     } catch (err) {
@@ -103,7 +144,16 @@ function createCrudRouter(table, opts = {}) {
   // Deletar
   router.delete('/:id', async (req, res) => {
     try {
-      const result = await query(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [req.params.id]);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      let sql, params;
+      if (tenantClause) {
+        sql = `DELETE FROM ${table} WHERE id = $1 AND ${tenantClause} RETURNING id`;
+        params = [req.params.id, ...tenantParams];
+      } else {
+        sql = `DELETE FROM ${table} WHERE id = $1 RETURNING id`;
+        params = [req.params.id];
+      }
+      const result = await query(sql, params);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
       res.json({ success: true });
     } catch (err) {

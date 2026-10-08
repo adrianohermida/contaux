@@ -1,6 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import AppLayout from '@/components/layout/AppLayout'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import PortalRoute from '@/components/PortalRoute'
+import LoginPage from '@/pages/LoginPage'
 
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage'))
 const CrmPage = lazy(() => import('@/modules/crm/CrmPage'))
@@ -11,6 +14,13 @@ const SuportePage = lazy(() => import('@/modules/suporte/SuportePage'))
 const MarketingPage = lazy(() => import('@/modules/marketing/MarketingPage'))
 const AdminPage = lazy(() => import('@/modules/admin/AdminPage'))
 const ImportPage = lazy(() => import('@/modules/import/ImportPage'))
+
+// Portal do Cliente
+const PortalLayout = lazy(() => import('@/pages/portal/PortalLayout'))
+const PortalDashboard = lazy(() => import('@/pages/portal/PortalDashboard'))
+const PortalInvoices = lazy(() => import('@/pages/portal/PortalInvoices'))
+const PortalTickets = lazy(() => import('@/pages/portal/PortalTickets'))
+const PortalDocuments = lazy(() => import('@/pages/portal/PortalDocuments'))
 
 function Loading() {
   return (
@@ -27,7 +37,11 @@ function withSuspense(element) {
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      {/* Login público */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Dashboard interno (staff) */}
+      <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={withSuspense(<DashboardPage />)} />
 
         {/* Caixa de Entrada */}
@@ -69,9 +83,17 @@ export default function App() {
         <Route path="/admin/relatorios" element={withSuspense(<AdminPage view="reports" />)} />
         <Route path="/admin/email" element={withSuspense(<AdminPage view="email" />)} />
         <Route path="/admin/parceiros" element={withSuspense(<AdminPage view="partners" />)} />
-
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
+
+      {/* Portal do Cliente */}
+      <Route element={<PortalRoute><PortalLayout /></PortalRoute>}>
+        <Route path="/portal" element={withSuspense(<PortalDashboard />)} />
+        <Route path="/portal/faturas" element={withSuspense(<PortalInvoices />)} />
+        <Route path="/portal/documentos" element={withSuspense(<PortalDocuments />)} />
+        <Route path="/portal/suporte" element={withSuspense(<PortalTickets />)} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
