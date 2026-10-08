@@ -40,6 +40,14 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -54,6 +62,12 @@ export default {
           ring: 'hsl(var(--sidebar-ring))',
         },
       },
+    },
+    fontSize: {
+      'page-title': ['1.875rem', { lineHeight: '2.25rem', fontWeight: '700', letterSpacing: '-0.025em' }],
+      'section-heading': ['1.25rem', { lineHeight: '1.75rem', fontWeight: '600', letterSpacing: '-0.015em' }],
+      'body': ['0.875rem', { lineHeight: '1.25rem' }],
+      'metadata': ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.05em' }],
     },
   },
   plugins: [require('tailwindcss-animate')],

@@ -5,6 +5,7 @@ const variants = {
   outline: 'border border-border bg-transparent hover:bg-accent hover:text-accent-foreground',
   ghost: 'hover:bg-accent hover:text-accent-foreground',
   destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+  success: 'bg-success text-success-foreground hover:bg-success/90',
 }
 
 const sizes = {
