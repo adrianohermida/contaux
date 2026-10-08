@@ -98,6 +98,15 @@
   @apply bg-muted-foreground/50;
 }
 
+/* Animação de entrada do Toast */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(1rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-toast-in {
+  animation: slide-in-right 0.2s ease-out;
+}
+
 /* Acessibilidade: respeitar preferência de movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
   *,

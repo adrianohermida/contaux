@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { LifeBuoy, Send } from 'lucide-react'
 import { createApiClient } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/components/ui/toast'
 
 const ticketsApi = createApiClient('tickets')
 
@@ -16,6 +17,7 @@ const statusLabels = { open: 'Aberto', in_progress: 'Em Andamento', resolved: 'R
 
 export default function PortalTickets() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -25,7 +27,7 @@ export default function PortalTickets() {
   const load = () => {
     ticketsApi.list()
       .then(setTickets)
-      .catch((err) => console.error(err.message))
+      .catch((err) => toast(err.message || 'Erro ao carregar tickets', 'error'))
       .finally(() => setLoading(false))
   }
 
@@ -44,8 +46,9 @@ export default function PortalTickets() {
       setForm({ subject: '', description: '', priority: 'medium' })
       setShowForm(false)
       load()
+      toast('Ticket criado com sucesso!', 'success')
     } catch (err) {
-      console.error(err.message)
+      toast(err.message || 'Erro ao criar ticket', 'error')
     } finally {
       setSubmitting(false)
     }
