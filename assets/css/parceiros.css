@@ -1,30 +1,42 @@
 /* ===== Contaux Parceiros — Landing page ===== */
 
+/* Override section-title padding from main.css (0 300px is too tight) */
+.parceiros-steps .section-title,
+.parceiros-info .section-title,
+.parceiros-faq .section-title {
+  padding: 0 100px;
+}
+.parceiros-delegate .section-title.align-left {
+  padding: 0;
+  padding-right: 200px;
+}
+
 /* Hero */
 .parceiros-hero {
   background: #f6f9fc;
-  padding: 80px 0 60px;
+  padding: 140px 0 80px;
 }
 .parceiros-hero h1 {
-  font-size: 36px;
+  font-size: 42px;
   font-weight: 700;
-  line-height: 50px;
+  line-height: 56px;
   color: #081828;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
+  letter-spacing: -0.5px;
 }
 .parceiros-hero p.lead {
-  font-size: 15px;
-  line-height: 26px;
+  font-size: 17px;
+  line-height: 30px;
   color: #6e657e;
-  margin-bottom: 28px;
+  margin-bottom: 30px;
   max-width: 560px;
 }
 .parceiros-hero .cta-note {
-  font-size: 12px;
+  font-size: 13px;
   color: #9ca3af;
-  margin-top: 14px;
+  margin-top: 16px;
   max-width: 480px;
-  line-height: 20px;
+  line-height: 22px;
 }
 
 /* Steps */
@@ -33,7 +45,7 @@
 }
 .parceiros-steps .step-card {
   text-align: center;
-  padding: 30px 20px;
+  padding: 36px 24px;
   border-radius: 12px;
   border: 1px solid #eef0f4;
   transition: box-shadow 0.3s ease;
@@ -46,59 +58,58 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: #3763EB;
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .parceiros-steps .step-card h4 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: #081828;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  line-height: 26px;
 }
 .parceiros-steps .step-card p {
-  font-size: 13px;
-  line-height: 22px;
+  font-size: 14px;
+  line-height: 24px;
   color: #6e657e;
 }
 
 /* Info blocks */
-.parceiros-info {
-  background: #f6f9fc;
-}
 .parceiros-info .info-card {
-  padding: 36px;
+  padding: 40px;
   border-radius: 14px;
   background: #fff;
   border: 1px solid #eef0f4;
 }
 .parceiros-info .info-card h3 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   color: #081828;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  line-height: 32px;
 }
 .parceiros-info .info-card p {
-  font-size: 14px;
-  line-height: 26px;
+  font-size: 15px;
+  line-height: 28px;
   color: #6e657e;
 }
 .parceiros-info .info-warning {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-top: 18px;
-  padding: 14px 16px;
+  margin-top: 20px;
+  padding: 16px 18px;
   border-radius: 8px;
   background: #fff7ed;
   border: 1px solid #fed7aa;
-  font-size: 13px;
-  line-height: 22px;
+  font-size: 14px;
+  line-height: 24px;
   color: #9a3412;
 }
 .parceiros-info .info-warning i {
@@ -113,10 +124,11 @@
   border-radius: 10px;
   margin-bottom: 14px;
   overflow: hidden;
+  background: #fff;
 }
 .parceiros-faq .faq-item summary {
-  padding: 18px 24px;
-  font-size: 15px;
+  padding: 20px 24px;
+  font-size: 16px;
   font-weight: 600;
   color: #081828;
   cursor: pointer;
@@ -124,22 +136,25 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  line-height: 24px;
 }
 .parceiros-faq .faq-item summary::-webkit-details-marker { display: none; }
 .parceiros-faq .faq-item summary::after {
   content: '+';
-  font-size: 22px;
+  font-size: 24px;
   color: #3763EB;
   font-weight: 300;
   transition: transform 0.2s;
+  flex-shrink: 0;
+  margin-left: 16px;
 }
 .parceiros-faq .faq-item[open] summary::after {
   transform: rotate(45deg);
 }
 .parceiros-faq .faq-item .faq-answer {
-  padding: 0 24px 18px;
-  font-size: 14px;
-  line-height: 26px;
+  padding: 0 24px 20px;
+  font-size: 15px;
+  line-height: 28px;
   color: #6e657e;
 }
 
@@ -150,10 +165,11 @@
   text-align: center;
 }
 .parceiros-cta h2 {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
   color: #fff;
   margin-bottom: 24px;
+  line-height: 42px;
 }
 .parceiros-cta .btn {
   background: #fff;
@@ -167,36 +183,38 @@
 /* Form */
 .parceiros-form-section {
   background: #f6f9fc;
-  padding: 60px 0;
+  padding: 80px 0;
 }
 .parceiros-form-card {
   max-width: 640px;
   margin: 0 auto;
   background: #fff;
   border-radius: 16px;
-  padding: 40px;
+  padding: 48px;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
 }
 .parceiros-form-card h2 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   color: #081828;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  line-height: 36px;
 }
 .parceiros-form-card .form-subtitle {
-  font-size: 14px;
+  font-size: 15px;
   color: #6b7280;
-  margin-bottom: 28px;
+  margin-bottom: 30px;
+  line-height: 24px;
 }
 .parceiros-form-card .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 .parceiros-form-card label {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #374151;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .parceiros-form-card label .opt {
   font-weight: 400;
@@ -206,10 +224,10 @@
 .parceiros-form-card input[type="email"],
 .parceiros-form-card input[type="tel"] {
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 15px;
   font-family: inherit;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -222,9 +240,9 @@
   border-color: #ef4444;
 }
 .parceiros-form-card .field-error {
-  font-size: 12px;
+  font-size: 13px;
   color: #ef4444;
-  margin-top: 4px;
+  margin-top: 6px;
   display: none;
 }
 .parceiros-form-card .field-error.show {
@@ -247,7 +265,7 @@
   padding: 10px 20px;
   border: 1px solid #d1d5db;
   border-radius: 30px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #374151;
   cursor: pointer;
@@ -273,10 +291,10 @@
 }
 .parceiros-form-card .check-pill label {
   display: inline-block;
-  padding: 8px 16px;
+  padding: 10px 18px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #374151;
   cursor: pointer;
@@ -289,12 +307,12 @@
   border-color: #6366f1;
 }
 .parceiros-form-card .form-actions {
-  margin-top: 28px;
+  margin-top: 30px;
 }
 .parceiros-form-card .btn-submit {
   width: 100%;
-  padding: 14px;
-  font-size: 15px;
+  padding: 15px;
+  font-size: 16px;
   font-weight: 600;
   background: #3763EB;
   color: #fff;
@@ -333,15 +351,15 @@
   color: #059669;
 }
 .parceiros-form-card .form-success h3 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: #081828;
   margin-bottom: 10px;
 }
 .parceiros-form-card .form-success p {
-  font-size: 14px;
+  font-size: 15px;
   color: #6b7280;
-  line-height: 24px;
+  line-height: 26px;
   margin-bottom: 24px;
 }
 .parceiros-form-card .form-success .btn-secondary {
@@ -363,8 +381,9 @@
   display: none;
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 20px;
+  line-height: 22px;
 }
 .parceiros-form-card .form-alert.show {
   display: block;
@@ -375,10 +394,10 @@
   border: 1px solid #fecaca;
 }
 .parceiros-form-card .form-privacy {
-  font-size: 12px;
+  font-size: 13px;
   color: #9ca3af;
-  margin-top: 16px;
-  line-height: 20px;
+  margin-top: 18px;
+  line-height: 22px;
 }
 .parceiros-form-card .marketing-check {
   display: flex;
@@ -390,27 +409,28 @@
   margin-top: 3px;
 }
 .parceiros-form-card .marketing-check label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: #6b7280;
   margin-bottom: 0;
+  line-height: 22px;
 }
 
 /* Two-column info */
 .parceiros-delegate .delegate-item {
   display: flex;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 .parceiros-delegate .delegate-item i {
   color: #3763EB;
-  font-size: 20px;
+  font-size: 22px;
   flex-shrink: 0;
   margin-top: 2px;
 }
 .parceiros-delegate .delegate-item p {
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 28px;
   color: #6e657e;
   margin: 0;
 }
@@ -423,11 +443,19 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .parceiros-hero h1 { font-size: 26px; line-height: 38px; }
-  .parceiros-form-card { padding: 24px; }
-  .parceiros-info .info-card { padding: 24px; }
+  .parceiros-hero { padding: 110px 0 60px; }
+  .parceiros-hero h1 { font-size: 28px; line-height: 40px; }
+  .parceiros-hero p.lead { font-size: 15px; line-height: 26px; }
+  .parceiros-form-card { padding: 28px; }
+  .parceiros-info .info-card { padding: 28px; }
+  .parceiros-steps .section-title,
+  .parceiros-info .section-title,
+  .parceiros-faq .section-title { padding: 0 20px; }
+  .parceiros-delegate .section-title.align-left { padding: 0 20px; }
   .section { padding-top: 60px; padding-bottom: 60px; }
-  .section-title { padding: 0 20px; margin-bottom: 40px; }
+  .section-title { margin-bottom: 40px; }
   .section-title h2 { font-size: 24px; line-height: 36px; }
-  .parceiros-cta h2 { font-size: 22px; }
+  .parceiros-cta h2 { font-size: 24px; line-height: 34px; }
+  .parceiros-form-card h2 { font-size: 24px; }
+  .parceiros-info .info-card h3 { font-size: 20px; }
 }
