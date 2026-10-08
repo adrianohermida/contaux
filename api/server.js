@@ -6,6 +6,7 @@ const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
@@ -56,6 +57,9 @@ app.use('/api/settings', settingsRoutes);
 
 // Autenticação e gestão de usuários/tenants
 app.use('/api/auth', authRoutes);
+
+// Estatísticas agregadas (dashboard e segurança)
+app.use('/api/stats', statsRoutes);
 
 // Rotas públicas (site institucional: leads, newsletter, registro, reset de senha)
 app.use('/api/public', publicRoutes);

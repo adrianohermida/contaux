@@ -182,6 +182,7 @@ router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), asyn
   if (email) { sets.push(`email = $${idx++}`); vals.push(email.toLowerCase()); }
   if (role) { sets.push(`role = $${idx++}`); vals.push(role); }
   if (active !== undefined) { sets.push(`active = $${idx++}`); vals.push(active); }
+  if (mfa_enabled !== undefined) { sets.push(`mfa_enabled = $${idx++}`); vals.push(mfa_enabled); }
   if (tenant_id !== undefined) { sets.push(`tenant_id = $${idx++}`); vals.push(tenant_id); }
   if (password) {
     const hash = await bcrypt.hash(password, 10);
@@ -193,7 +194,7 @@ router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), asyn
   vals.push(req.params.id);
   try {
     const result = await query(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, active, tenant_id`,
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, active, mfa_enabled, tenant_id`,
       vals,
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });

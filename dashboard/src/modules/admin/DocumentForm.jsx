@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input, Label, Textarea } from '@/components/ui/input'
+import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 
 const emptyDoc = {
   name: '',
@@ -74,7 +75,12 @@ export default function DocumentForm({ open, onClose, onSave, editingDocument })
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="doc-content">Conteúdo / Descrição</Label>
-          <Textarea id="doc-content" placeholder="Conteúdo ou descrição do documento..." value={form.content} onChange={(e) => update('content', e.target.value)} rows={6} />
+          <RichTextEditor
+            value={form.content}
+            onChange={(html) => update('content', html)}
+            placeholder="Conteúdo ou descrição do documento..."
+            rows={6}
+          />
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
