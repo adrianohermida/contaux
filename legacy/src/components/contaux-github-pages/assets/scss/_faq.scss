@@ -1,0 +1,75 @@
+/*======================================
+    Faq CSS
+========================================*/
+.faq-area {
+    padding-bottom: 50px;
+    padding-top: 20px;
+    background-color: $gray;
+
+    .cercle {
+        span {
+            background-color: $theme-color;
+            color: $white;
+            height: 40px;
+            width: 40px;
+            line-height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 15px;
+            position: relative;
+            z-index: 5;
+
+            &::before {
+                position: absolute;
+                content: "";
+                left: 0;
+                top: 0;
+                height: 100%;
+                width: 100%;
+                background-color: $theme-color;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+                -webkit-transition: all 0.3s ease;
+                -moz-transition: all 0.3s ease;
+                border-radius: 50%;
+                transform: scale(0);
+                z-index: -1;
+            }
+        }
+    }
+
+    .content {
+        margin-left: 20px;
+    }
+
+    .single-faq {
+        margin-bottom: 60px;
+
+        &:hover .cercle span::before {
+            transform: scale(1.3);
+            opacity: 0.5;
+            visibility: visible;
+        }
+    }
+
+    .heading {
+        font-size: 20px;
+        color: $black;
+        display: block;
+        margin-bottom: 20px;
+    }
+
+    .text {
+        font-size: 14px;
+        margin-bottom: 20px;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+}
+
+.index2.faq-area {
+    padding-top: 100px;
+}

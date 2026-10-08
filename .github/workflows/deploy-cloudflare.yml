@@ -1,0 +1,43 @@
+# Deploy automático para Cloudflare Pages via GitHub Actions
+# Requer os secrets no repositório GitHub:
+#   CLOUDFLARE_API_TOKEN  — token com permissão de Pages (Account Settings → API Tokens)
+#   CLOUDFLARE_ACCOUNT_ID — Account ID do Cloudflare
+#   API_URL               — URL do backend (ex: https://api.contaux.com.br)
+#
+# Após o primeiro deploy, configure o domínio personalizado (contaux.com.br)
+# no dashboard do Cloudflare Pages → Custom domains.
+
+name: Deploy Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build para Cloudflare Pages
+        run: bash scripts/build-pages.sh
+
+      - name: Deploy via Wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist-pages --project-name=contaux
+        env:
+          API_URL: ${{ secrets.API_URL }}

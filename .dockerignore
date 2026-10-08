@@ -1,0 +1,13 @@
+dist-pages/
+node_modules/
+.git/
+legacy/
+docs/
+*.md
+.env
+.env.prod
+.env.base44-defaults
+wrangler.toml
+.github/
+scripts/
+functions/

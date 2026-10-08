@@ -7,7 +7,7 @@
     <title>Contato | Contaux Contadoria</title>
     <meta name="description" content="" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="shortcut icon" type="image/x-icon" href="/assets/images/contaux_blue.svg" />
+    <link rel="shortcut icon" type="image/x-icon" href="assets/images/favicon.svg" />
     <!-- Place contaux_blue.ico in the root directory -->
 
     <!-- Web Font -->
@@ -120,8 +120,9 @@ fwcrm.identify(identifier, new_contact);
                 <div class="row align-items-center">
                     <div class="col-lg-12">
                         <nav class="navbar navbar-expand-lg">
-                            <a class="navbar-brand logo" href="index.html">
-                                <img class="logo1" src="/assets/images/contaux_blue.svg" style="width: 15%; height: auto;"> Contaux Contadoria</a>
+                            <a class="navbar-brand logo d-flex align-items-center" href="index.html">
+                                <img class="logo1" src="assets/images/contaux_blue.png" alt="Logo Contaux" style="width: 40px; height: auto; margin-right: 10px;">
+                                <span class="brand-text" style="color: #0066ff; font-weight: 600;">Contaux Contadoria</span>
                             </a>
                             <button class="navbar-toggler" type="button" data-toggle="collapse"
                                 data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
@@ -134,9 +135,9 @@ fwcrm.identify(identifier, new_contact);
                             <div class="collapse navbar-collapse sub-menu-bar" id="navbarSupportedContent">
                                 <ul id="nav" class="navbar-nav ml-auto">
                                     <li class="nav-item"><a href="index.html">Início</a></li>
-                                    <li class="nav-item"><a href="#">Sobre</a></li>
-                                    <li class="nav-item"><a href="#">Serviços</a></li>
-                                    <li class="nav-item"><a href="#">Blog</a></li>
+                                    <li class="nav-item"><a href="about-us.html">Sobre</a></li>
+                                    <li class="nav-item"><a href="services.html">Serviços</a></li>
+                                    <li class="nav-item"><a href="blog-grid-sidebar.html">Blog</a></li>
                                     <li class="nav-item"><a href="contato.html">Contato</a></li>
                                 </ul>
                             </div>
@@ -238,7 +239,7 @@ fwcrm.identify(identifier, new_contact);
                     </div>
                     <div class="col-lg-7 col-12">
                         <div class="form-main">
-                            <form class="form" method="post" action="assets/mail/mail.php">
+                            <form class="form" id="contact-form" method="post" action="/api/contact">
                                 <div class="row">
                                     <div class="col-lg-6 col-12">
                                         <div class="form-group">
@@ -316,7 +317,7 @@ fwcrm.identify(identifier, new_contact);
                     <div class="subscribe-text wow fadeInLeft">
                         <h4>Boletim Informativo</h4>
                         <p class="">Inscreva-se e receba conteúdo exclusivo sobre contadoria especializada no setor jurídico</p>
-                        <form action="mail/mail.php" method="get" target="_blank" class="newsletter-inner">
+                        <form action="/api/newsletter" method="post" class="newsletter-inner" id="newsletter-form">
                             <input name="EMAIL" placeholder="Seu endereço de e-mail" class="common-input"
                                 onfocus="this.placeholder = ''" onblur="this.placeholder = 'Seu endereço de e-mail'"
                                 required="" type="email">
@@ -368,10 +369,10 @@ fwcrm.identify(identifier, new_contact);
                         <div class="single-footer f-link">
                             <h3>Menu</h3>
                             <ul>
-                                <li><a href="#">Sobre</a></li>
-                                <li><a href="#">Serviços</a></li>
-                                <li><a href="#">Blog</a></li>
-                                <li><a href="#">Contato</a></li>
+                                <li><a href="about-us.html">Sobre</a></li>
+                                <li><a href="services.html">Serviços</a></li>
+                                <li><a href="blog-grid-sidebar.html">Blog</a></li>
+                                <li><a href="contato.html">Contato</a></li>
                             </ul>
                         </div>
                         <!-- End Single Widget -->
@@ -382,10 +383,10 @@ fwcrm.identify(identifier, new_contact);
                         <div class="single-footer f-link">
                             <h3>Acordos</h3>
                             <ul>
-                                <li><a href="#">Níveis de SLA</a></li>
-                                <li><a href="#">Termos de uso</a></li>
-                                <li><a href="#">Política de Privacidade</a></li>
-                                <li><a href="#">Seguro de Responsabilidade</a></li>
+                                <li><a href="niveis-sla.html">Níveis de SLA</a></li>
+                                <li><a href="termos-de-uso.html">Termos de uso</a></li>
+                                <li><a href="politica-de-privacidade.html">Política de Privacidade</a></li>
+                                <li><a href="seguro-responsabilidade.html">Seguro de Responsabilidade</a></li>
                             </ul>
                         </div>
                         <!-- End Single Widget -->
@@ -503,11 +504,43 @@ fwcrm.identify(identifier, new_contact);
         });
     </script>
 
+<!-- Widget do WhatsApp oculto temporariamente
 <link rel="stylesheet" href="https://cdn.positus.global/production/resources/robbu/whatsapp-button/whatsapp-button.css">
 <a id="robbu-whatsapp-button" class="left" target="_blank" href="https://api.whatsapp.com/send?phone=555123911854&text=Ol%C3%A1,%20preciso%20falar%20com%20o%20contador">
   <div class="rwb-tooltip">Fale com um contador</div>
   <img src="https://cdn.positus.global/production/resources/robbu/whatsapp-button/whatsapp-icon.svg">
 </a>
+-->
+
+<!-- Script de envio do formulário de contato -->
+<script>
+document.getElementById('contact-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var btn = this.querySelector('button[type="submit"]');
+    var originalText = btn.textContent;
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+    try {
+        var formData = new FormData(this);
+        var response = await fetch('/api/contact', {
+            method: 'POST',
+            body: JSON.stringify(Object.fromEntries(formData)),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (response.ok) {
+            window.location.href = 'mail-success.html';
+        } else {
+            alert('Erro ao enviar mensagem. Tente novamente ou nos contate diretamente.');
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    } catch (err) {
+        alert('Erro de conexão. Verifique sua internet e tente novamente.');
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+});
+</script>
 </body>
 
 </html>

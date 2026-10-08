@@ -1,0 +1,83 @@
+services:
+  web:
+    image: nginx:alpine
+    restart: on-failure
+    ports:
+      - "3000:80"
+    volumes:
+      - ./:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - dashboard
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    volumes:
+      - ./dashboard:/app
+      - dashboard_node_modules:/app/node_modules
+    command: ["sh", "-ec", "npm install && exec npm run dev"]
+    environment:
+      - BASE44_PREVIEW_MODE=${BASE44_PREVIEW_MODE:-}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      - POSTGRES_DB=contaux
+      - POSTGRES_USER=contaux
+      - POSTGRES_PASSWORD=contaux123
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "contaux", "-d", "contaux"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    volumes:
+      - ./api:/app
+      - api_node_modules:/app/node_modules
+    command: ["sh", "-ec", "npm ci && exec node --watch server.js"]
+    env_file:
+      - /run/base44/app.env
+    environment:
+      - BASE44_PREVIEW_MODE=${BASE44_PREVIEW_MODE:-}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=contaux
+      - DB_USER=contaux
+      - DB_PASS=contaux123
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  dashboard_node_modules:
+  api_node_modules:
+  pg_data:
