@@ -130,8 +130,9 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
 // ===== Base de Conhecimento — Assistente de IA =====
 const aiService = require('./services/aiService');
 const { recordUsage, getBudgetStatus } = require('./services/assistantProactive');
+const { query } = require('./db');
 app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
-  const { question } = req.body;
+  const { question, conversation_id } = req.body;
   if (!question || !question.trim()) {
     return res.status(400).json({ error: 'Pergunta é obrigatória' });
   }
@@ -151,6 +152,20 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
     // Registra uso no orçamento (estimativa: ~500 tokens por requisição)
     const estimatedTokens = result.configured ? 500 : 200;
     await recordUsage(req.user.id, req.user.tenant_id, estimatedTokens, 0);
+
+    // Salva resposta do assistente na conversa (autoria definida pelo servidor)
+    if (conversation_id) {
+      try {
+        await query(
+          `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_name)
+           VALUES ($1, 'assistant', $2, $3, 'Assistente Contaux')`,
+          [conversation_id, result.answer, result.sources ? JSON.stringify(result.sources) : null],
+        );
+        await query(`UPDATE assistant_conversations SET updated_at = now() WHERE id = $1`, [conversation_id]);
+      } catch (e) {
+        // Não bloqueia a resposta se falhar ao salvar
+      }
+    }
 
     res.json({ ...result, budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens } });
   } catch (err) {

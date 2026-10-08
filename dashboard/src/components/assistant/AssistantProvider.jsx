@@ -213,13 +213,15 @@ export function AssistantProvider({ children }) {
     }
   }, [])
 
-  // Salva mensagem no backend
-  const saveMessage = useCallback(async (convId, role, text, sources = null) => {
+  // Salva mensagem do usuário no backend
+  // CORREÇÃO DE SEGURANÇA: o role é sempre 'user' — o servidor define a autoria.
+  // Mensagens 'assistant' e 'system' são salvas pelo servidor nos respectivos endpoints.
+  const saveUserMessage = useCallback(async (convId, text, sources = null) => {
     if (!convId) return
     try {
       await request(`/assistant/conversations/${convId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ role, text, sources }),
+        body: JSON.stringify({ text, sources }),
       })
     } catch {
       // Silencioso — a mensagem já está na UI
@@ -280,8 +282,8 @@ export function AssistantProvider({ children }) {
     const text = `🔧 **${toolName}**\n\n\`\`\`${summary}\`\`\``
     const msg = { id: genId(), role: 'assistant', text, sources: [] }
     setMessages((prev) => [...prev, msg])
-    if (convId) saveMessage(convId, 'assistant', text, [])
-  }, [activeConvId, saveMessage])
+    // O servidor salva a mensagem da tool — não enviamos role do cliente
+  }, [activeConvId])
 
   // ===== CQ-05: Ferramentas operacionais =====
 
@@ -463,14 +465,14 @@ export function AssistantProvider({ children }) {
       // Adiciona mensagem de sistema no chat
       const msg = { id: genId(), role: 'system', text: `📎 ${att.filename}`, event_type: 'attachment' }
       setMessages((prev) => [...prev, msg])
-      saveMessage(convId, 'system', `📎 ${att.filename}`)
+      // O servidor salva a mensagem de sistema do anexo — não enviamos role do cliente
       return att
     } catch (err) {
       const msg = { id: genId(), role: 'system', text: `❌ Erro: ${err.message}`, event_type: 'error' }
       setMessages((prev) => [...prev, msg])
       return null
     }
-  }, [activeConvId, startNewConversation, saveMessage])
+  }, [activeConvId, startNewConversation])
 
   // Carregar anexos de uma conversa
   const loadAttachments = useCallback(async (convId) => {
@@ -502,8 +504,8 @@ export function AssistantProvider({ children }) {
     if (!convId) {
       convId = await startNewConversation(question)
     }
-    // Salva mensagem do usuário
-    saveMessage(convId, 'user', question)
+    // Salva mensagem do usuário (role sempre 'user' — definido pelo servidor)
+    saveUserMessage(convId, question)
 
     // Se a conversa está com humano, não chama a IA — apenas envia a mensagem
     if (convStatus === 'with_human' || convStatus === 'waiting_human') {
@@ -516,9 +518,10 @@ export function AssistantProvider({ children }) {
     }
 
     try {
+      // Passa conversation_id para o servidor salvar a resposta do assistente
       const res = await request('/knowledge-base/ask', {
         method: 'POST',
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, conversation_id: convId }),
       })
       const assistantMsg = {
         id: genId(),
@@ -527,7 +530,7 @@ export function AssistantProvider({ children }) {
         sources: res.sources || [],
       }
       setMessages((prev) => [...prev, assistantMsg])
-      saveMessage(convId, 'assistant', res.answer, res.sources || [])
+      // O servidor salva a mensagem 'assistant' — não enviamos role do cliente
 
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
@@ -541,7 +544,7 @@ export function AssistantProvider({ children }) {
         sources: [],
       }
       setMessages((prev) => [...prev, errorMsg])
-      saveMessage(convId, 'assistant', `Erro ao consultar: ${err.message}`, [])
+      // Erro não é persistido — apenas exibido na UI
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
         return mode
@@ -549,7 +552,7 @@ export function AssistantProvider({ children }) {
     } finally {
       setStatus('idle')
     }
-  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user])
+  }, [status, activeConvId, startNewConversation, saveUserMessage, convStatus, user])
 
   // Contexto derivado: segue a tela (follow) ou usa o travado (fixed)
   const context = useMemo(() => {

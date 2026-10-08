@@ -267,7 +267,56 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Gate:** evento duplicado não repete ✓; orçamento bloqueia ✓; kill switch mantém portal ✓.
 
-## CQ-08 — QA ponta a ponta e piloto
+## CQ-07b — Correções de segurança (mini-onda 1)
+
+**Status:** Concluída.
+
+**Foco:** duas correções de segurança indispensáveis antes de liberar projetos privados e dots configuráveis.
+
+**Gate:** anexos exigem permissão na conversa (não apenas tenant); autoria de mensagens definida pelo servidor (cliente não pode forjar role).
+
+### Correção 1 — Anexos exigem permissão na conversa, não apenas pertencer à mesma empresa
+
+**Problema:** os endpoints de anexo já usavam `checkConversationAccess` (participante + tenant), mas as queries de download e delete do anexo não verificavam `a.tenant_id` contra o `tenant_id` da conversa verificada — uma inconsistência de dados poderia expor um anexo de outro tenant.
+
+**Solução:** defense-in-depth — adicionar `AND a.tenant_id = $3` (com `conv.tenant_id`) nas queries de download e delete de anexos. Agora há duas camadas: `checkConversationAccess` (participante + tenant) e a query do anexo (tenant match explícito).
+
+### Correção 2 — Autoria das mensagens definida pelo servidor
+
+**Problema:** o endpoint `POST /conversations/:id/messages` aceitava `role` do corpo da requisição (`user`/`assistant`/`system`). Um cliente malicioso poderia forjar mensagens como `assistant` ou `system`, impersonando o assistente ou o sistema.
+
+**Solução:** o servidor ignora `role` do body e sempre define `role = 'user'` com `author_id` e `author_name` do usuário autenticado. Mensagens `assistant` e `system` passam a ser criadas exclusivamente pelo servidor:
+- **`assistant`**: o endpoint `/api/knowledge-base/ask` agora aceita `conversation_id` e salva a resposta do assistente server-side.
+- **`system` (anexo)**: o endpoint de upload de anexos agora cria uma mensagem `system` com `event_type = 'attachment'`.
+- **`system` (tool)**: o endpoint `/assistant/tools/execute` agora cria uma mensagem `system` com `event_type = 'tool_result'` após executar a tool.
+- **`system` (handoff/close)**: já eram criadas server-side (pré-existente).
+
+**Arquivos alterados:**
+- `api/routes/assistantRoutes.js` — endpoint de mensagens ignora role do body; anexos com defense-in-depth; upload e tool execution salvam mensagens system server-side
+- `api/server.js` — `/knowledge-base/ask` aceita `conversation_id` e salva resposta assistant server-side; importa `query` de `./db`
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `saveMessage` → `saveUserMessage` (sem role); `sendMessage` passa `conversation_id` ao `/ask`; remove chamadas de save para assistant/system
+
+**Riscos:**
+- Se o `/knowledge-base/ask` falhar ao salvar a resposta do assistente, a mensagem aparece na UI mas não persiste. O erro é silencioso (logado no servidor) e não bloqueia a resposta ao usuário.
+- Mensagens de erro (quando o `/ask` retorna 500) não são mais persistidas — apenas exibidas na UI. Comportamento aceitável: erros transitórios não precisam de histórico.
+
+**Rollback:** reverter `assistantRoutes.js` (restaurar `role` do body), `server.js` (remover `conversation_id` do ask), `AssistantProvider.jsx` (restaurar `saveMessage` com role).
+
+## CQ-08 — Projetos privados e dots configuráveis
+
+**Status:** Planejada (próxima onda).
+
+**Foco:** organização de conversas em projetos privados, dots configuráveis (marcadores visuais com regras de governança), ACL por projeto.
+
+**Gate:** projeto privado isola conversas entre participantes não autorizados; dots configuráveis aplicam regras de visibilidade; ACL valida acesso antes de listar/abrir conversas de projeto.
+
+**Escopo previsto:**
+- Migração: tabela `assistant_projects` (id, tenant_id, name, description, visibility, created_by) e coluna `project_id` em `assistant_conversations`.
+- API: CRUD de projetos com ACL por tenant + participante; listar conversas por projeto.
+- UI: seletor de projeto na sidebar do workspace, dots configuráveis nas conversas.
+- Governança: dots aplicam regras de visibilidade (privado, compartilhado, interno).
+
+## CQ-09 — QA ponta a ponta e piloto
 
 **Foco:** regressão, testes E2E, documentação operacional, runbook, plano de rollout.
 
