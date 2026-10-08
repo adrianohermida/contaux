@@ -68,6 +68,7 @@ export default function App() {
         <Route path="/admin/documentos" element={withSuspense(<AdminPage view="documents" />)} />
         <Route path="/admin/relatorios" element={withSuspense(<AdminPage view="reports" />)} />
         <Route path="/admin/email" element={withSuspense(<AdminPage view="email" />)} />
+        <Route path="/admin/parceiros" element={withSuspense(<AdminPage view="partners" />)} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

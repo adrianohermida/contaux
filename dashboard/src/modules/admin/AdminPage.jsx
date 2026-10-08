@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { Settings, Shield, ScrollText, Zap, FolderOpen, BarChart3, Mail } from 'lucide-react'
+import { Settings, Shield, ScrollText, Zap, FolderOpen, BarChart3, Mail, Building2 } from 'lucide-react'
 
 const subTabs = [
   { to: '/admin', label: 'Configurações', icon: Settings, end: true },
@@ -10,6 +10,7 @@ const subTabs = [
   { to: '/admin/documentos', label: 'Documentos', icon: FolderOpen, end: false },
   { to: '/admin/relatorios', label: 'Relatórios', icon: BarChart3, end: false },
   { to: '/admin/email', label: 'Email', icon: Mail, end: false },
+  { to: '/admin/parceiros', label: 'Parceiros', icon: Building2, end: false },
 ]
 
 export default function AdminPage({ view }) {
@@ -36,7 +37,7 @@ export default function AdminPage({ view }) {
         ))}
       </div>
 
-      {view === 'security' ? <SegurancaView /> : view === 'audit' ? <AuditoriaView /> : view === 'automations' ? <AutomacoesView /> : view === 'documents' ? <DocumentosView /> : view === 'reports' ? <RelatoriosView /> : view === 'email' ? <EmailView /> : <ConfiguracoesView />}
+      {view === 'security' ? <SegurancaView /> : view === 'audit' ? <AuditoriaView /> : view === 'automations' ? <AutomacoesView /> : view === 'documents' ? <DocumentosView /> : view === 'reports' ? <RelatoriosView /> : view === 'email' ? <EmailView /> : view === 'partners' ? <ParceirosView /> : <ConfiguracoesView />}
     </div>
   )
 }
@@ -48,6 +49,7 @@ import AutomacoesPage from './AutomacoesPage'
 import DocumentosPage from './DocumentosPage'
 import RelatoriosPage from './RelatoriosPage'
 import EmailConfigPage from './EmailConfigPage'
+import ParceirosPage from './ParceirosPage'
 
 function ConfiguracoesView() { return <ConfiguracoesPage /> }
 function SegurancaView() { return <SegurancaPage /> }
@@ -56,3 +58,4 @@ function AutomacoesView() { return <AutomacoesPage /> }
 function DocumentosView() { return <DocumentosPage /> }
 function RelatoriosView() { return <RelatoriosPage /> }
 function EmailView() { return <EmailConfigPage /> }
+function ParceirosView() { return <ParceirosPage /> }

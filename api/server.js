@@ -5,6 +5,7 @@ const emailRoutes = require('./routes/emailRoutes');
 const inboxRoutes = require('./routes/inboxRoutes');
 const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const integrationRoutes = require('./routes/integrationRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
@@ -27,6 +28,9 @@ app.use('/api/import', importRoutes);
 
 // Configurações de branding (singleton)
 app.use('/api/settings', settingsRoutes);
+
+// Integração com escritórios parceiros (Hermida Maia e outros)
+app.use('/api/integration', integrationRoutes);
 
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {
