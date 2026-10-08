@@ -88,3 +88,55 @@ Data: 8 de outubro de 2026. Branch: `fix-main-2bf6db53fad0`, revisão `195f6b1b0
 ### Rollback
 
 CQ-01: remover a coluna docked do AppLayout e restaurar `<AssistantWidget />` como overlay fixo. Reverter `AssistantProvider` para `isOpen` boolean. Reimportar `ConhecimentoAssistant` em `ConhecimentoPage`. Nenhuma migração de banco envolvida.
+
+## CQ-01 — Shell docked persistente e responsivo
+
+**Status:** Concluída. Branch: `global-assistant-widget`.
+
+### Implementação
+
+| Item | Estado |
+|---|---|
+| Três estados (recolhido/expandido/fullscreen) | Implementado |
+| Rail desktop 56px (recolhido) sem sobreposição | Implementado |
+| Painel lateral docked 420px (expandido) | Implementado |
+| Fullscreen overlay em qualquer viewport | Implementado |
+| Orb flutuante mobile (recolhido) | Implementado |
+| Painel fullscreen mobile com safe areas | Implementado |
+| Persistência em localStorage (conversa, rascunho, modo, estado) | Implementado |
+| Contexto explícito (módulo, contador, empresa, competência) | Implementado |
+| Modo de contexto (acompanhar tela ↔ travar contexto) | Implementado |
+| Demonstrações identificadas (3 cards tracejados) | Implementado |
+| Badge de não lidas + indicador de atividade no recolhido | Implementado |
+| Launcher duplicado removido | Já removido (pré-CQ-01) |
+
+### Arquivos alterados
+
+- `dashboard/src/components/assistant/moduleContext.js` (novo) — resolução de módulo por rota + demonstrações
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — persistência, modo de contexto, não lidas, resolução de módulo
+- `dashboard/src/components/assistant/AssistantWidget.jsx` — badge de não lidas, indicador de atividade, safe areas
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — barra de contexto com modo, demonstrações, safe areas
+- `ONDAS.md` — CQ-01 marcada como concluída; bloqueios da Onda 2 documentados
+
+### Testes executados (preview)
+
+- Abrir painel a partir do rail desktop ✓
+- Ver contexto (módulo, contador, empresa, competência) ✓
+- Alternar modo de contexto (acompanhar ↔ travar) ✓
+- Navegar Dashboard → Financeiro: contexto atualizado, conversa preservada ✓
+- Tela cheia ✓
+- Fechar e voltar ao recolhido ✓
+- Mobile: orb flutuante ✓
+- Mobile: painel fullscreen com safe areas ✓
+- Persistência em localStorage confirmada ✓
+
+### Bloqueios da Onda 2 (CQ-02 / AC-GLOBAL-02+)
+
+1. **Rotas sem requireAuth** — `/api/email/*`, `/api/inbox/*`, `/api/settings/*`, `/api/integration/offices*` permitem acesso não autenticado. O assistente não pode buscar e-mails, configurações ou integrações sem autorização comprovada.
+2. **knowledge_base sem isolamento por tenant** — `noTenant: true` na configuração do CRUD. Buscas do assistente vazariam dados entre empresas.
+3. **CRUD genérico aceita tenant_id do corpo** — risco de injeção de tenant em criações/edições propostas pelo assistente.
+4. **JWT_SECRET com fallback hardcoded** — tokens forjáveis se o fallback estiver ativo.
+5. **Bug mfa_enabled** — `ReferenceError` em `PATCH /api/auth/users/:id` impede gestão de usuários.
+6. **IA não comprovada** — `aiService.js` tenta bridge LLM via Base44 com fallback PostgreSQL `configured: false`. Sem IA operacional, o assistente não responde além da base de conhecimento.
+7. **Sem endpoints de conversas** — não há persistência de conversas no backend; o histórico depende apenas de localStorage (não sobrevive a logout ou troca de dispositivo).
+8. **Sem mecanismo de tarefas duráveis** — não há fila ou executor para tarefas propostas pelo assistente.

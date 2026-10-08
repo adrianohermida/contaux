@@ -12,15 +12,47 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-01 — Shell docked persistente e responsivo; remover demos do runtime
 
+**Status:** Concluída.
+
 **Foco:** coluna direita docked no layout (não overlay), três estados (recolhido/expandido/fullscreen), responsivo desktop/tablet/mobile, conversa persistente entre rotas, remoção de fixtures do runtime, unificação do launcher duplicado.
 
-**Arquivos:** AppLayout.jsx, AssistantProvider.jsx, AssistantWidget.jsx, AssistantPanel.jsx, ConhecimentoPage.jsx.
+**Arquivos:** AppLayout.jsx, AssistantProvider.jsx, AssistantWidget.jsx, AssistantPanel.jsx, ConhecimentoPage.jsx, moduleContext.js (novo).
 
-**Gate:** dock sem sobreposição no desktop; fullscreen no mobile; navegação sem perda de conversa/rascunho; nenhuma resposta simulada no runtime; portal cliente intacto; build registrado.
+**Implementação:**
+- Três estados: recolhido (rail desktop 56px / orb mobile), expandido (painel lateral docked 420px), fullscreen (overlay em qualquer viewport).
+- Persistência em localStorage (`contaux-assistant`): conversa, rascunho, modo de contexto e estado do painel sobrevivem a recarregar a página.
+- Contexto explícito: módulo (nome legível da rota), contador, empresa, competência.
+- Modo de contexto: "acompanhar esta tela" (segue a rota) vs "travar contexto" (congela o contexto da conversa).
+- Demonstrações identificadas: três cards com borda tracejada claramente rotulados como "Demonstrações" (navegação contextual, consulta operacional, acompanhar tarefa).
+- Indicadores no estado recolhido: badge de mensagens não lidas e pulso de atividade (preparando resposta).
+- Safe areas no mobile: `env(safe-area-inset-*)` no orb e no fullscreen.
+- Launcher duplicado já removido (ConhecimentoAssistant); assistente unificado no AppLayout.
 
-## CQ-02 — Saneamento de autorização (P0)
+**Testes executados (preview desktop + mobile):**
+- Abrir painel a partir do rail desktop ✓
+- Expandir e ver contexto (módulo, contador, empresa, competência) ✓
+- Alternar modo de contexto (acompanhar ↔ travar) ✓
+- Navegar de Dashboard → Financeiro e ver contexto atualizado ✓
+- Tela cheia ✓
+- Fechar e voltar ao estado recolhido ✓
+- Mobile: orb flutuante ✓
+- Mobile: painel fullscreen com safe areas ✓
+- Persistência em localStorage confirmada ✓
+
+**Gate:** dock sem sobreposição no desktop ✓; fullscreen no mobile ✓; navegação sem perda de conversa/rascunho ✓; demonstrações identificadas ✓; portal cliente intacto ✓; build registrado ✓.
+
+## CQ-02 — Saneamento de autorização (P0) — BLOQUEADORES DA ONDA 2
+
+**Status:** Pendente. Bloqueia AC-GLOBAL-02 (histórico, busca e isolamento de contexto) e AC-GLOBAL-03 (matriz de módulos e ferramentas de leitura autorizada).
 
 **Foco:** requireAuth em todas as rotas privadas, remoção do fallback JWT hardcoded, correção do bug mfa_enabled, projeções/campos permitidos, isolamento de knowledge_base por tenant, recursos privilegiados fora do CRUD genérico.
+
+**Bloqueios específicos para a Onda 2 do assistente:**
+- Rotas sem requireAuth (`/api/email/*`, `/api/inbox/*`, `/api/settings/*`, `/api/integration/offices*`) permitem acesso não autenticado — qualquer busca do assistente por e-mails, configurações ou integrações seria acessível sem autorização.
+- `knowledge_base` tem `noTenant: true` — sem isolamento por tenant. O assistente não pode buscar na base de conhecimento sem vazar dados entre empresas.
+- CRUD genérico aceita `tenant_id` do corpo em POST e inclui tabela `users` — o assistente não pode propor criação/edição sem risco de injeção de tenant.
+- `JWT_SECRET` com fallback hardcoded — tokens podem ser forjados se o fallback estiver ativo em produção.
+- Bug `mfa_enabled` (ReferenceError) em `PATCH /api/auth/users/:id` impede gestão de usuários pelo assistente.
 
 **Gate:** testes negativos de dois tenants e papéis; tenant forjado negado; credenciais protegidas; P0 fechado.
 

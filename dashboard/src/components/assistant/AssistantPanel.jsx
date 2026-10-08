@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
-import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle } from 'lucide-react'
+import { useEffect } from 'react'
+import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
+import { DEMO_SUGGESTIONS } from './moduleContext'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -13,21 +14,13 @@ const typeIcons = {
 
 /**
  * Painel do Assistente Contaux.
- * Integração real com /api/knowledge-base/ask.
+ * Mostra contexto (módulo, empresa, competência), modo de contexto,
+ * demonstrações identificadas e integração real com /api/knowledge-base/ask.
  */
 export default function AssistantPanel({ onClose, onFullscreen, fullscreen = false }) {
-  const { messages, draft, setDraft, clearMessages, sendMessage, context, status } = useAssistant()
-  const inputRef = useRef(null)
-  const scrollRef = useRef(null)
+  const { messages, draft, setDraft, clearMessages, sendMessage, context, contextMode, toggleContextMode, status } = useAssistant()
   const preparing = status === 'preparing'
-
-  useEffect(() => {
-    if (!fullscreen) inputRef.current?.focus()
-  }, [fullscreen])
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, status])
+  const isFixed = contextMode === 'fixed'
 
   const handleSubmit = (e) => {
     e?.preventDefault()
@@ -41,8 +34,13 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     }
   }
 
+  const handleDemo = (prompt) => {
+    if (!preparing) sendMessage(prompt)
+  }
+
   return (
     <div className="flex h-full flex-col">
+      {/* Cabeçalho */}
       <header className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -75,7 +73,12 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
         </div>
       </header>
 
-      <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2 text-xs space-y-0.5">
+      {/* Barra de contexto com modo */}
+      <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2 text-xs space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Módulo:</span>
+          <span className="font-medium">{context.module}</span>
+        </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Contador:</span>
           <span className="font-medium">{context.actor}</span>
@@ -88,22 +91,54 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           <span className="text-muted-foreground">Competência:</span>
           <span className="font-medium text-muted-foreground">{context.period || 'Não informada'}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Rota atual:</span>
-          <span className="font-mono text-muted-foreground">{context.route}</span>
-        </div>
+        {/* Alternador de modo de contexto */}
+        <button
+          onClick={toggleContextMode}
+          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs font-medium transition-colors hover:bg-accent"
+          aria-label={isFixed ? 'Destravar contexto e acompanhar a tela' : 'Travar contexto da conversa'}
+        >
+          {isFixed ? (
+            <>
+              <PinOff className="h-3 w-3" />
+              Contexto travado — clicar para acompanhar a tela
+            </>
+          ) : (
+            <>
+              <Pin className="h-3 w-3" />
+              Acompanhando a tela — clicar para travar contexto
+            </>
+          )}
+        </button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {/* Área de mensagens */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Sparkles className="h-6 w-6" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium">Assistente Contaux</p>
-            <p className="text-xs text-muted-foreground max-w-[260px]">
-              Pergunte sobre legislação, normas contábeis (NBCs) ou artigos da base de conhecimento.
-            </p>
+            <div>
+              <p className="text-sm font-medium">Assistente Contaux</p>
+              <p className="text-xs text-muted-foreground max-w-[260px] mt-1">
+                Pergunte sobre legislação, normas contábeis (NBCs) ou artigos da base de conhecimento.
+              </p>
+            </div>
+            {/* Demonstrações identificadas */}
+            <div className="w-full space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Demonstrações</p>
+              {DEMO_SUGGESTIONS.map((demo) => (
+                <button
+                  key={demo.id}
+                  onClick={() => handleDemo(demo.prompt)}
+                  disabled={preparing}
+                  className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-left text-xs transition-colors hover:bg-primary/10 disabled:opacity-50"
+                >
+                  <span className="font-medium text-primary">{demo.label}</span>
+                  <span className="block text-muted-foreground mt-0.5">{demo.description}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           messages.map((msg) => (
@@ -137,15 +172,15 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
         {preparing && (
           <div className="flex justify-start">
             <div className="rounded-lg bg-muted px-3 py-2">
-              <Spinner />
+              <Spinner size="sm" />
             </div>
           </div>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3">
+      {/* Entrada */}
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <textarea
-          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
