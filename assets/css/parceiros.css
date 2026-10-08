@@ -1,5 +1,40 @@
 /* ===== Contaux Parceiros — Landing page ===== */
 
+/* ===== Header overrides ===== */
+/* Fix: main.css sets .header .button .btn width:150px which makes two buttons wrap */
+.parceiros-page .header .button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 30px;
+  flex-shrink: 0;
+}
+.parceiros-page .header .button .btn {
+  width: auto;
+  white-space: nowrap;
+  padding: 10px 22px;
+}
+.parceiros-page .header .button .btn.btn-dark {
+  background: #081828;
+  color: #fff;
+  border-color: #081828;
+}
+.parceiros-page .header .button .btn.btn-dark:hover {
+  background: #3763EB;
+  border-color: #3763EB;
+  color: #fff;
+}
+/* Ensure nav items keep consistent styling from main.css */
+.parceiros-page .navbar-nav .nav-item a {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  padding: 30px 0;
+}
+.parceiros-page .navbar-nav .nav-item a:hover {
+  color: #3763EB;
+}
+
 /* Override section-title padding from main.css (0 300px is too tight) */
 .parceiros-steps .section-title,
 .parceiros-info .section-title,
