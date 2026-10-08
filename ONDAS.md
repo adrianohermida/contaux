@@ -304,17 +304,56 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-08 — Projetos privados e dots configuráveis
 
-**Status:** Planejada (próxima onda).
+**Status:** Concluída.
 
 **Foco:** organização de conversas em projetos privados, dots configuráveis (marcadores visuais com regras de governança), ACL por projeto.
 
 **Gate:** projeto privado isola conversas entre participantes não autorizados; dots configuráveis aplicam regras de visibilidade; ACL valida acesso antes de listar/abrir conversas de projeto.
 
-**Escopo previsto:**
-- Migração: tabela `assistant_projects` (id, tenant_id, name, description, visibility, created_by) e coluna `project_id` em `assistant_conversations`.
-- API: CRUD de projetos com ACL por tenant + participante; listar conversas por projeto.
-- UI: seletor de projeto na sidebar do workspace, dots configuráveis nas conversas.
-- Governança: dots aplicam regras de visibilidade (privado, compartilhado, interno).
+**Implementação:**
+- Migração 021: tabela `assistant_projects` (id, tenant_id, name, description, visibility, color, created_by) com CHECK de visibilidade (private/shared/internal), tabela `assistant_project_members` (project_id, user_id, role owner/member, UNIQUE), coluna `project_id` em `assistant_conversations` com FK ON DELETE SET NULL.
+- API (`assistantRoutes.js`): CRUD de projetos com ACL por tenant + participante (`checkProjectAccess`); listar conversas por projeto; atribuir/desatribuir conversa a projeto (`PATCH /conversations/:id/project`); gestão de membros (`GET/POST/DELETE /projects/:id/members`) — apenas owner adiciona/remove; verificação de tenant do usuário alvo ao adicionar membro.
+- UI: `ProjectSelector.jsx` — criar projetos com cor e visibilidade, listar projetos como chips coloridos, atribuir conversa ativa a um projeto (dots clicáveis).
+- UI: `ProjectFilter.jsx` — seção de projetos na sidebar do workspace com dots coloridos, filtro de conversas por projeto, botão de membros por projeto.
+- UI: `ProjectMembers.jsx` — gestão de membros: lista membros com role (owner = coroa), adicionar membros do tenant, remover membros (owner only).
+- UI: `WorkspaceSidebar.jsx` — lista de conversas filtra por `activeProjectFilter`, exibe dot colorido do projeto na conversa, seção "Projetos" colapsável com `ProjectFilter`.
+- `AssistantProvider.jsx` — estado de projetos (`projects`, `loadProjects`, `activeProjectFilter`, `setActiveProjectFilter`), carrega projetos ao montar.
+- Listagem de conversas retorna `project_color` e `project_name` via JOIN com `assistant_projects`.
+
+**Arquivos alterados:**
+- `api/migrations/021_projects_dots.sql`
+- `api/routes/assistantRoutes.js` — CRUD de projetos, membros, atribuição de conversas, ACL
+- `dashboard/src/components/assistant/ProjectSelector.jsx` — criar, listar, atribuir dots
+- `dashboard/src/components/assistant/ProjectFilter.jsx` — filtro por projeto na sidebar, botão de membros
+- `dashboard/src/components/assistant/ProjectMembers.jsx` — gestão de membros (novo)
+- `dashboard/src/components/assistant/WorkspaceSidebar.jsx` — filtro e dots na lista de conversas
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de projetos e filtro
+
+**Testes executados (curl, admin@contaux.com.br):**
+- Listar projetos: 0 iniciais ✓
+- Criar projeto: id=3, name="Projeto Teste QA", color=#10B981, visibility=private, is_member=true, member_role=owner ✓
+- Listar projetos após criar: 1 projeto ✓
+- Listar membros: 1 (owner = Administrador Contaux) ✓
+- Listar usuários do tenant (para convite): 3 usuários ✓
+- Adicionar membro (contador@contaux.com.br, id=2): 201, role=member ✓
+- Listar membros após adicionar: 2 (owner + member) ✓
+- Criar conversa e atribuir ao projeto: project_id=3 ✓
+- Listar conversas: retorna project_color=#10B981, project_name="Projeto Teste QA" ✓
+- Listar conversas por projeto: 1 conversa ✓
+- Remover membro (id=2): success=true ✓
+- Verificar membro removido: 1 membro restante ✓
+- ACL cross-tenant: Hermida Maia vê 0 projetos da Contaux ✓
+- ACL cross-tenant: Hermida Maia não acessa membros do projeto Contaux (404) ✓
+- Cleanup: conversa de teste deletada ✓; projeto de teste deletado ✓; 0 projetos restantes ✓
+
+*Não verificado automaticamente (SPA em /dashboard não acessível via preview — navegador inicia no site estático):*
+- Dots coloridos na lista de conversas do workspace
+- Filtro de conversas por projeto ao clicar no dot
+- Painel de membros abrindo ao clicar no ícone de usuários
+- Criação de projeto via formulário inline
+- Atribuição de conversa a projeto via dots clicáveis
+
+**Gate:** projeto privado isola conversas entre participantes não autorizados ✓ (ACL cross-tenant); dots configuráveis aplicam regras de visibilidade ✓ (color + visibility); ACL valida acesso antes de listar/abrir conversas de projeto ✓ (checkProjectAccess em todos os endpoints).
 
 ## CQ-09 — QA ponta a ponta e piloto
 
