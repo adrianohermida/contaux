@@ -49,6 +49,8 @@ export function AssistantProvider({ children }) {
   const [attachments, setAttachments] = useState([])
   const [proactiveSuggestions, setProactiveSuggestions] = useState([])
   const [proactiveEnabled, setProactiveEnabled] = useState(true)
+  const [projects, setProjects] = useState([])
+  const [activeProjectId, setActiveProjectId] = useState(null)
 
   const location = useLocation()
   const { user } = useAuth()
@@ -157,6 +159,76 @@ export function AssistantProvider({ children }) {
     const interval = setInterval(() => generateProactiveSuggestions(), 5 * 60 * 1000)
     return () => { clearTimeout(genTimer); clearInterval(interval) }
   }, [user, loadProactiveSuggestions, generateProactiveSuggestions])
+
+  // ===== Projetos (agrupar conversas) =====
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const list = await request('/assistant/projects')
+      setProjects(list)
+    } catch {
+      setProjects([])
+    }
+  }, [])
+
+  const createProject = useCallback(async (name, description, color) => {
+    try {
+      const proj = await request('/assistant/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name, description, color }),
+      })
+      setProjects((prev) => [proj, ...prev])
+      return proj
+    } catch {
+      return null
+    }
+  }, [])
+
+  const updateProject = useCallback(async (projectId, data) => {
+    try {
+      const proj = await request(`/assistant/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...proj } : p)))
+      return proj
+    } catch {
+      return null
+    }
+  }, [])
+
+  const deleteProject = useCallback(async (projectId) => {
+    try {
+      await request(`/assistant/projects/${projectId}`, { method: 'DELETE' })
+      setProjects((prev) => prev.filter((p) => p.id !== projectId))
+      // Desvincula conversas do projeto removido
+      setConversations((prev) => prev.map((c) =>
+        c.project_id === projectId ? { ...c, project_id: null } : c,
+      ))
+      if (activeProjectId === projectId) setActiveProjectId(null)
+    } catch {
+      // Ignora
+    }
+  }, [activeProjectId])
+
+  const assignConversationToProject = useCallback(async (convId, projectId) => {
+    try {
+      await request(`/assistant/conversations/${convId}/project`, {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      setConversations((prev) => prev.map((c) =>
+        c.id === convId ? { ...c, project_id: projectId ? String(projectId) : null } : c,
+      ))
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Carrega projetos ao montar
+  useEffect(() => {
+    if (user) loadProjects()
+  }, [user, loadProjects])
 
   const expand = useCallback(() => {
     setPanelMode('expanded')
@@ -579,6 +651,8 @@ export function AssistantProvider({ children }) {
       handleVoiceTranscript,
       proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
       mobileView, setMobileView,
+      projects, loadProjects, createProject, updateProject, deleteProject,
+      assignConversationToProject, activeProjectId, setActiveProjectId,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -593,7 +667,9 @@ export function AssistantProvider({ children }) {
      attachments, uploadAttachment, loadAttachments,
      handleVoiceTranscript,
      proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
-     mobileView],
+     mobileView,
+     projects, loadProjects, createProject, updateProject, deleteProject,
+     assignConversationToProject, activeProjectId],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

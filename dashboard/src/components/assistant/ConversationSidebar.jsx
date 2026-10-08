@@ -1,23 +1,34 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Search, MessageSquare, Headphones, FolderClosed, Bot, Trash2, UserCheck, Clock, ArrowLeft } from 'lucide-react'
+import {
+  Plus, Search, MessageSquare, Headphones, FolderClosed, FolderOpen,
+  Bot, Trash2, UserCheck, Clock, ArrowLeft, ChevronRight, X,
+} from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { Button } from '@/components/ui/button'
 
 /**
  * Coluna esquerda do fullscreen — lista de conversas e navegação.
- * Seções: Projetos (placeholder), Conversas com IA, Atendimentos, Assistentes (placeholder).
+ * Seções: Projetos (com conversas agrupadas), Conversas com IA, Atendimentos, Assistentes.
  */
 export default function ConversationSidebar({ onClose }) {
   const {
     conversations, activeConvId, openConversation, deleteConversation, clearMessages,
     queue, loadQueue, acceptHandoff, setMobileView,
+    projects, createProject, deleteProject, assignConversationToProject,
+    activeProjectId, setActiveProjectId,
   } = useAssistant()
   const [search, setSearch] = useState('')
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [newProjName, setNewProjName] = useState('')
 
   const filtered = conversations.filter((c) =>
     !search || c.title?.toLowerCase().includes(search.toLowerCase()),
   )
-  const aiConvs = filtered.filter((c) => c.conversation_kind !== 'support')
+
+  // Conversas com IA sem projeto
+  const aiConvs = filtered.filter((c) => c.conversation_kind !== 'support' && !c.project_id)
+  // Conversas de IA com projeto ativo
+  const projectConvs = filtered.filter((c) => c.conversation_kind !== 'support' && c.project_id)
   const supportConvs = filtered.filter((c) => c.conversation_kind === 'support')
 
   const handleNew = useCallback(() => {
@@ -29,6 +40,13 @@ export default function ConversationSidebar({ onClose }) {
     openConversation(id)
     setMobileView('conversation')
   }, [openConversation, setMobileView])
+
+  const handleCreateProject = useCallback(async () => {
+    if (!newProjName.trim()) return
+    await createProject(newProjName.trim())
+    setNewProjName('')
+    setShowNewProject(false)
+  }, [createProject, newProjName])
 
   // Atualiza fila periodicamente
   useEffect(() => {
@@ -67,12 +85,95 @@ export default function ConversationSidebar({ onClose }) {
 
       {/* Seções scrolláveis */}
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
-        {/* Projetos — placeholder */}
-        <SidebarSection title="Projetos" icon={FolderClosed}>
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">Em breve</p>
+        {/* Projetos */}
+        <SidebarSection title="Projetos" icon={FolderClosed} action={
+          <button
+            onClick={() => setShowNewProject((s) => !s)}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label="Novo projeto"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        }>
+          {showNewProject && (
+            <div className="flex items-center gap-1 px-1 py-1">
+              <input
+                value={newProjName}
+                onChange={(e) => setNewProjName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+                placeholder="Nome do projeto"
+                autoFocus
+                className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <button onClick={handleCreateProject} className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground">
+                OK
+              </button>
+              <button onClick={() => setShowNewProject(false)} className="rounded p-1 text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          {projects.length === 0 && !showNewProject ? (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              Nenhum projeto. Clique em + para criar.
+            </p>
+          ) : (
+            projects.map((proj) => {
+              const projConvs = projectConvs.filter((c) => c.project_id === proj.id)
+              const isActive = activeProjectId === proj.id
+              return (
+                <div key={proj.id}>
+                  <div
+                    className={`group flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors ${
+                      isActive ? 'bg-accent' : 'hover:bg-accent/50'
+                    }`}
+                  >
+                    <button
+                      onClick={() => setActiveProjectId(isActive ? null : proj.id)}
+                      className="flex flex-1 items-center gap-1.5 text-left min-w-0"
+                    >
+                      <ChevronRight
+                        className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${isActive ? 'rotate-90' : ''}`}
+                      />
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: proj.color || '#3763EB' }}
+                      />
+                      <span className="truncate text-sm font-medium">{proj.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{projConvs.length}</span>
+                    </button>
+                    <button
+                      onClick={() => deleteProject(proj.id)}
+                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                      aria-label="Excluir projeto"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {isActive && (
+                    <div className="ml-4 space-y-0.5 border-l border-border pl-1">
+                      {projConvs.length === 0 ? (
+                        <p className="px-2 py-1 text-[11px] text-muted-foreground">Sem conversas</p>
+                      ) : (
+                        projConvs.map((conv) => (
+                          <ConvItem
+                            key={conv.id}
+                            conv={conv}
+                            active={activeConvId === conv.id}
+                            onOpen={() => handleOpen(conv.id)}
+                            onDelete={() => deleteConversation(conv.id)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
         </SidebarSection>
 
-        {/* Conversas com IA */}
+        {/* Conversas com IA (sem projeto) */}
         <SidebarSection title="Conversas com IA" icon={Bot}>
           {aiConvs.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma conversa</p>
@@ -126,12 +227,13 @@ export default function ConversationSidebar({ onClose }) {
 }
 
 /** Seção colapsável com título e ícone */
-function SidebarSection({ title, icon: Icon, children }) {
+function SidebarSection({ title, icon: Icon, children, action }) {
   return (
     <div>
       <div className="flex items-center gap-1.5 px-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         <Icon className="h-3 w-3" />
         {title}
+        <div className="ml-auto">{action}</div>
       </div>
       <div className="space-y-0.5">{children}</div>
     </div>

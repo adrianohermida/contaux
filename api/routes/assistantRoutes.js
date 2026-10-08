@@ -161,6 +161,129 @@ router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountan
   }
 });
 
+// ===== Projetos (agrupar conversas) =====
+
+// Listar projetos do tenant do usuário
+router.get('/projects', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `SELECT p.id, p.name, p.description, p.color, p.created_at, p.updated_at,
+              (SELECT count(*) FROM assistant_conversations c WHERE c.project_id = p.id) AS conversation_count
+       FROM assistant_projects p
+       WHERE p.tenant_id = ANY($1::int[])
+       ORDER BY p.updated_at DESC`,
+      [tenantIds],
+    );
+    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar projetos:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar projetos' });
+  }
+});
+
+// Criar projeto
+router.post('/projects', async (req, res) => {
+  try {
+    const { name, description, color } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
+
+    const result = await query(
+      `INSERT INTO assistant_projects (tenant_id, created_by, name, description, color)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, description, color, created_at, updated_at`,
+      [req.user.tenant_id, req.user.id, name.trim(), description || null, color || '#3763EB'],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, id: String(row.id), conversation_count: 0 });
+  } catch (err) {
+    console.error('[assistant] Erro ao criar projeto:', err.message);
+    res.status(500).json({ error: 'Erro ao criar projeto' });
+  }
+});
+
+// Atualizar projeto
+router.patch('/projects/:id', async (req, res) => {
+  try {
+    const { name, description, color } = req.body;
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { fields.push(`description = $${idx++}`); values.push(description); }
+    if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
+
+    if (fields.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+
+    fields.push(`updated_at = now()`);
+    values.push(req.params.id, tenantIds);
+
+    const result = await query(
+      `UPDATE assistant_projects SET ${fields.join(', ')}
+       WHERE id = $${idx++} AND tenant_id = ANY($${idx++}::int[])
+       RETURNING id, name, description, color, created_at, updated_at`,
+      values,
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Projeto não encontrado' });
+    const row = result.rows[0];
+    res.json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao atualizar projeto:', err.message);
+    res.status(500).json({ error: 'Erro ao atualizar projeto' });
+  }
+});
+
+// Deletar projeto (desvincula conversas)
+router.delete('/projects/:id', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `DELETE FROM assistant_projects WHERE id = $1 AND tenant_id = ANY($2::int[]) RETURNING id`,
+      [req.params.id, tenantIds],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Projeto não encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao deletar projeto:', err.message);
+    res.status(500).json({ error: 'Erro ao deletar projeto' });
+  }
+});
+
+// Atribuir conversa a um projeto
+router.post('/conversations/:id/project', async (req, res) => {
+  try {
+    const { project_id } = req.body;
+    const convCheck = await query(
+      `SELECT id FROM assistant_conversations
+       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
+        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
+      [req.params.id, req.user.id],
+    );
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Valida que o projeto pertence ao tenant do usuário (ou null para desvincular)
+    if (project_id !== null) {
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      const projCheck = await query(
+        `SELECT id FROM assistant_projects WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+        [project_id, tenantIds],
+      );
+      if (projCheck.rows.length === 0) return res.status(403).json({ error: 'Projeto não autorizado' });
+    }
+
+    await query(
+      `UPDATE assistant_conversations SET project_id = $2, updated_at = now() WHERE id = $1`,
+      [req.params.id, project_id],
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao vincular conversa ao projeto:', err.message);
+    res.status(500).json({ error: 'Erro ao vincular conversa' });
+  }
+});
+
 // ===== Conversas =====
 
 // Listar conversas do usuário (mais recentes primeiro)
@@ -169,7 +292,7 @@ router.get('/conversations', async (req, res) => {
   try {
     const result = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
-              c.created_at, c.updated_at,
+              c.project_id, c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id) AS message_count
        FROM assistant_conversations c
        WHERE c.user_id = $1 OR c.assigned_to = $1
@@ -181,6 +304,7 @@ router.get('/conversations', async (req, res) => {
     res.json(result.rows.map((r) => ({
       ...r,
       id: String(r.id),
+      project_id: r.project_id ? String(r.project_id) : null,
       context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
     })));
   } catch (err) {
@@ -192,12 +316,24 @@ router.get('/conversations', async (req, res) => {
 // Criar nova conversa
 router.post('/conversations', async (req, res) => {
   try {
-    const { title, context } = req.body;
+    const { title, context, project_id } = req.body;
+
+    // Valida project_id se fornecido
+    let validProjectId = null;
+    if (project_id) {
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      const projCheck = await query(
+        `SELECT id FROM assistant_projects WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+        [project_id, tenantIds],
+      );
+      if (projCheck.rows.length > 0) validProjectId = projCheck.rows[0].id;
+    }
+
     const result = await query(
-      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind)
-       VALUES ($1, $2, $3, $4, 'internal', 'ai')
-       RETURNING id, title, context, status, origin, conversation_kind, created_at, updated_at`,
-      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null],
+      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind, project_id)
+       VALUES ($1, $2, $3, $4, 'internal', 'ai', $5)
+       RETURNING id, title, context, status, origin, conversation_kind, project_id, created_at, updated_at`,
+      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, validProjectId],
     );
     const row = result.rows[0];
 
@@ -211,6 +347,7 @@ router.post('/conversations', async (req, res) => {
     res.status(201).json({
       ...row,
       id: String(row.id),
+      project_id: row.project_id ? String(row.project_id) : null,
       context: typeof row.context === 'string' ? JSON.parse(row.context) : row.context,
     });
   } catch (err) {
@@ -224,7 +361,7 @@ router.get('/conversations/:id', async (req, res) => {
   try {
     const convResult = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
-              c.handoff_reason, c.visitor_name, c.created_at, c.updated_at
+              c.handoff_reason, c.visitor_name, c.project_id, c.created_at, c.updated_at
        FROM assistant_conversations c
        WHERE c.id = $1 AND (c.user_id = $2 OR c.assigned_to = $2
         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2))`,
@@ -253,6 +390,7 @@ router.get('/conversations/:id', async (req, res) => {
     res.json({
       ...conv,
       id: String(conv.id),
+      project_id: conv.project_id ? String(conv.project_id) : null,
       context: typeof conv.context === 'string' ? JSON.parse(conv.context) : conv.context,
       messages: msgResult.rows.map((m) => ({
         ...m,
