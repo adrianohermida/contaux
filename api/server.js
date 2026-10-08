@@ -4,6 +4,7 @@ const cors = require('cors');
 const emailRoutes = require('./routes/emailRoutes');
 const inboxRoutes = require('./routes/inboxRoutes');
 const importRoutes = require('./routes/importRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
@@ -23,6 +24,9 @@ app.use('/api/inbox', inboxRoutes);
 
 // Rotas de importação em massa
 app.use('/api/import', importRoutes);
+
+// Configurações de branding (singleton)
+app.use('/api/settings', settingsRoutes);
 
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {

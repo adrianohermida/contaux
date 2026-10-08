@@ -12,7 +12,89 @@ Guia passo a passo para publicar o app em **contaux.com.br** e **www.contaux.com
 
 ---
 
-## Opção A — Behind Cloudflare (mais simples, recomendado)
+## Opção 0 — Cloudflare Pages (recomendado para o frontend)
+
+Deploy do site estático + dashboard via Cloudflare Pages, com API em VPS separada.
+O Pages Function em `functions/api/[[path]].js` faz proxy das requisições `/api/*`
+para o backend, mantendo tudo no mesmo domínio (sem CORS).
+
+### Arquitetura
+
+```
+contaux.com.br (Cloudflare Pages)
+├── Site estático (HTML/CSS/JS)      → servido diretamente pela edge
+├── /dashboard, /crm, /admin, ...   → SPA React (dashboard compilado)
+├── /api/*                          → Pages Function → proxy para VPS
+└── functions/api/[[path]].js       → proxy para ${API_URL}/api/*
+```
+
+### Passo 1: Deploy do backend (VPS)
+
+Suba o backend em uma VPS (ver Opção A ou B abaixo). O backend roda na porta 80 ou 3001.
+Certifique-se de que `https://api.contaux.com.br` (ou o IP da VPS) responde no `/api/health`.
+
+### Passo 2: Deploy do frontend (Cloudflare Pages)
+
+**Opção 2a — GitHub Integration (auto-deploy on push):**
+
+1. Acesse o dashboard do Cloudflare → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. Selecione o repositório `contaux` (privado)
+3. Configure:
+   - **Build command**: `bash scripts/build-pages.sh`
+   - **Build output directory**: `dist-pages`
+   - **Environment variables**:
+     - `API_URL` = `https://api.contaux.com.br` (URL do seu backend)
+4. **Save and Deploy**
+
+**Opção 2b — Wrangler CLI (manual):**
+
+```bash
+# Instalar wrangler
+npm install -g wrangler
+
+# Autenticar
+wrangler login
+
+# Criar o projeto (primeira vez)
+wrangler pages project create contaux
+
+# Buildar
+bash scripts/build-pages.sh
+
+# Deploy
+wrangler pages deploy dist-pages --project-name=contaux
+
+# Configurar a variável API_URL (secret)
+wrangler pages secret put API_URL --project-name=contaux
+# Digite: https://api.contaux.com.br
+```
+
+### Passo 3: Configurar domínio personalizado
+
+1. No dashboard do Cloudflare Pages → **contaux** → **Custom domains** → **Set up a custom domain**
+2. Adicione `contaux.com.br`
+3. Adicione `www.contaux.com.br` (redirecionamento automático)
+4. O Cloudflare configura o DNS automaticamente
+
+### Passo 4: GitHub Actions (opcional, CI/CD)
+
+O workflow `.github/workflows/deploy-cloudflare.yml` faz deploy automático em cada push para `main`.
+Configure os secrets no GitHub:
+- `CLOUDFLARE_API_TOKEN` — token com permissão de Pages
+- `CLOUDFLARE_ACCOUNT_ID` — Account ID
+- `API_URL` — URL do backend
+
+### Passo 5: Verificar
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://contaux.com.br/           # → 200
+curl -s -o /dev/null -w "%{http_code}" https://contaux.com.br/dashboard  # → 200
+curl -s https://contaux.com.br/api/health                                # → {"status":"ok"}
+```
+
+---
+
+## Opção A — VPS com Cloudflare Proxy (frontend + backend no mesmo servidor)
 
 A Cloudflare fornece SSL na edge automaticamente. O servidor roda apenas HTTP.
 

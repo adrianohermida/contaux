@@ -82,3 +82,19 @@ api/
 - Mobile-first (373px) and desktop (1880px) responsive.
 - No imports from `legacy/` into the new dashboard app.
 - No unnecessary animations — keep UI clean and functional.
+
+## Branding & Theme System
+- A cor primária da marca é persistida na tabela `settings` (singleton, id=1) no PostgreSQL.
+- Endpoint: `GET /api/settings` (ler) e `PUT /api/settings` (salvar).
+- O hook `useTheme` (`dashboard/src/hooks/useTheme.js`) carrega do backend, cacheia em `localStorage` (`contaux-settings`) e aplica via `applyBrandTheme()`.
+- `dashboard/src/lib/theme.js` converte hex → HSL e expande a cadência de cores: primary, ring, accent, sidebar-* (10 vars para light + 10 para dark) a partir de uma única cor primária.
+- `main.jsx` aplica o tema imediatamente na inicialização (lê do localStorage) para evitar flash.
+- A cor padrão da marca Contaux é `#3763EB` (azul, HSL 225 82% 57%).
+- As CSS vars base em `index.css` também usam essa cor como padrão.
+
+## Cloudflare Pages Deployment
+- `wrangler.toml` — configuração do projeto Pages.
+- `scripts/build-pages.sh` — compila o dashboard e monta `dist-pages/` (site estático + SPA + `_redirects`).
+- `functions/api/[[path]].js` — Pages Function que faz proxy de `/api/*` para o backend (VPS) via env `API_URL`.
+- `.github/workflows/deploy-cloudflare.yml` — GitHub Actions para deploy automático.
+- Ver `docs/DEPLOYMENT.md` → "Opção 0 — Cloudflare Pages" para o passo a passo completo.

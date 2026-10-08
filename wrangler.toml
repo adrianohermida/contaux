@@ -1,0 +1,14 @@
+# Wrangler — Cloudflare Pages (Contaux)
+# Deploy: wrangler pages deploy dist-pages --project-name=contaux
+# Ou conecte este repositório no dashboard do Cloudflare Pages para auto-deploy.
+
+name = "contaux"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = "dist-pages"
+
+# URL do backend da API (VPS ou outro host onde o Express roda).
+# Defina via: wrangler pages secret put API_URL --project-name=contaux
+# ou no dashboard do Cloudflare Pages → Settings → Environment Variables.
+# Em desenvolvimento local, o Pages Function faz proxy para esta URL.
+[vars]
+API_URL = "https://api.contaux.com.br"
