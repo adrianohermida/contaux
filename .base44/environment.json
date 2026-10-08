@@ -25,6 +25,11 @@
       "requiredAtBoot": false
     },
     {
+      "name": "CLOUDFLARE_API_TOKEN_ROUTING_MAIL",
+      "description": "API Token específico do Cloudflare para Email Routing (permissões separadas do token principal)",
+      "requiredAtBoot": false
+    },
+    {
       "name": "SMTP_HOST",
       "description": "Host SMTP para fallback de envio de emails",
       "requiredAtBoot": false,
@@ -47,6 +52,29 @@
       "description": "Senha SMTP para fallback de envio de emails",
       "requiredAtBoot": false,
       "generatedForDevelopment": true
+    },
+    {
+      "name": "CONTACT_EMAIL",
+      "description": "Email de destino para mensagens do formulário de contato (ex: contato@contaux.com.br)",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "FROM_EMAIL",
+      "description": "Email remetente para emails transacionais enviados pelo sistema (ex: no-reply@contaux.com.br)",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "SITE_URL",
+      "description": "URL base do site para links em emails de reset/verificação (ex: https://contaux.com.br)",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "GITHUB_CLONE_TOKEN",
+      "description": "Token de acesso para clonar repositórios privados do GitHub",
+      "requiredAtBoot": false
     }
   ]
 }

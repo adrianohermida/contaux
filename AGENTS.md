@@ -14,8 +14,7 @@ Static HTML marketing site ("Contaux Contadoria") + React dashboard app. The sta
 - The Vite container installs npm deps on startup from `dashboard/package.json` (volume `dashboard_node_modules` keeps them).
 - The API container installs npm deps on startup with `npm install` (volume `api_node_modules` keeps them), then runs `node --watch server.js`. Source edits reload automatically.
 - External secrets (Cloudflare tokens, SMTP credentials, JWT_SECRET) are delivered via `/run/base44/app.env`.
-- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root so they can read the bind-mounted source regardless. No manual `chmod` is needed.
-- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["nginx", "-g", "daemon off; user root;"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
+- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["sh", "-c", "sed -i 's/^user.*/user root;/' /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
 
 ## Verification
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/` → 200 (static site)
