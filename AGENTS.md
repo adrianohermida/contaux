@@ -14,7 +14,7 @@ Static HTML marketing site ("Contaux Contadoria") + React dashboard app. The sta
 - The Vite container installs npm deps on startup from `dashboard/package.json` (volume `dashboard_node_modules` keeps them).
 - The API container syncs dependencies with `npm ci` from `api/package-lock.json` (volume `api_node_modules` keeps them), then runs `node --watch server.js` directly. Source edits reload automatically; container shutdown no longer goes through npm's script wrapper (which reported expected SIGTERM as an npm error). This Compose-only development command does not change production startup.
 - External secrets (Cloudflare tokens, SMTP credentials) are delivered via `/run/base44/app.env`.
-- Directory permissions: the repo root must be world-readable (`chmod 755 .`) or nginx's worker user returns 403.
+- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["nginx", "-g", "daemon off; user root;"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
 
 ## Verification
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/` → 200 (static site)

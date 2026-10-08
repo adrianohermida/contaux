@@ -7,6 +7,9 @@ services:
     volumes:
       - ./:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    # Run nginx workers as root so they can read the bind-mounted source
+    # even when the sandbox repo directory has restrictive (700) permissions.
+    command: ["sh", "-c", "sed -i 's/^user.*/user root;/' /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"]
     depends_on:
       - dashboard
       - api
