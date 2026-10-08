@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input, Label, Textarea } from '@/components/ui/input'
+import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Mail } from 'lucide-react'
+import { request } from '@/lib/api'
 
 const triggerLabels = {
   event: 'Evento',
@@ -22,6 +23,7 @@ const emptyWorkflow = {
 
 export default function WorkflowForm({ open, onClose, onSave, editingWorkflow }) {
   const [form, setForm] = useState(emptyWorkflow)
+  const [emailTemplates, setEmailTemplates] = useState([])
 
   useEffect(() => {
     if (editingWorkflow) {
@@ -37,15 +39,28 @@ export default function WorkflowForm({ open, onClose, onSave, editingWorkflow })
     }
   }, [editingWorkflow, open])
 
+  // Carrega templates de email disponíveis para a ação "Enviar email"
+  useEffect(() => {
+    if (open && emailTemplates.length === 0) {
+      request('/email/templates')
+        .then((d) => setEmailTemplates(d.templates || []))
+        .catch(() => {})
+    }
+  }, [open])
+
   const update = (field, value) => setForm((f) => ({ ...f, [field]: value }))
 
   const updateCondition = (idx, value) => {
     setForm((f) => ({ ...f, conditions: f.conditions.map((c, i) => (i === idx ? value : c)) }))
   }
-  const addAction = () => setForm((f) => ({ ...f, actions: [...f.actions, ''] }))
+  const addAction = () => setForm((f) => ({ ...f, actions: [...f.actions, { type: 'custom', value: '' }] }))
   const removeAction = (idx) => setForm((f) => ({ ...f, actions: f.actions.filter((_, i) => i !== idx) }))
-  const updateAction = (idx, value) => {
-    setForm((f) => ({ ...f, actions: f.actions.map((a, i) => (i === idx ? value : a)) }))
+
+  const updateActionType = (idx, type) => {
+    setForm((f) => ({ ...f, actions: f.actions.map((a, i) => (i === idx ? { type, value: type === 'email' ? '' : (a.value || '') } : a)) }))
+  }
+  const updateActionValue = (idx, value) => {
+    setForm((f) => ({ ...f, actions: f.actions.map((a, i) => (i === idx ? { ...a, value } : a)) }))
   }
   const addCondition = () => setForm((f) => ({ ...f, conditions: [...f.conditions, ''] }))
   const removeCondition = (idx) => setForm((f) => ({ ...f, conditions: f.conditions.filter((_, i) => i !== idx) }))
@@ -55,7 +70,9 @@ export default function WorkflowForm({ open, onClose, onSave, editingWorkflow })
     onSave({
       ...form,
       conditions: form.conditions.filter((c) => c.trim()),
-      actions: form.actions.filter((a) => a.trim()),
+      actions: form.actions
+        .filter((a) => a.type === 'email' ? a.value : (typeof a === 'string' ? a.trim() : a.value?.trim()))
+        .map((a) => a.type === 'email' ? `Enviar email: ${a.value}` : (typeof a === 'string' ? a : a.value)),
     })
   }
 
@@ -109,21 +126,46 @@ export default function WorkflowForm({ open, onClose, onSave, editingWorkflow })
         {/* Ações */}
         <div className="space-y-2">
           <Label>Ações</Label>
-          {form.actions.map((action, idx) => (
-            <div key={idx} className="flex gap-2">
-              <Input
-                placeholder="Ex: Enviar email"
-                value={action}
-                onChange={(e) => updateAction(idx, e.target.value)}
-                className="flex-1"
-              />
-              {form.actions.length > 1 && (
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeAction(idx)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+          {form.actions.map((action, idx) => {
+            const actionType = action.type || 'custom'
+            const actionValue = typeof action === 'string' ? action : (action.value || '')
+            return (
+              <div key={idx} className="flex gap-2 items-start">
+                <Select
+                  value={actionType}
+                  onChange={(e) => updateActionType(idx, e.target.value)}
+                  className="w-[140px] shrink-0"
+                >
+                  <option value="custom">Ação livre</option>
+                  <option value="email">Enviar email</option>
+                </Select>
+                {actionType === 'email' ? (
+                  <Select
+                    value={actionValue}
+                    onChange={(e) => updateActionValue(idx, e.target.value)}
+                    className="flex-1"
+                  >
+                    <option value="">Selecione um template...</option>
+                    {emailTemplates.map((tpl) => (
+                      <option key={tpl.key} value={tpl.name}>{tpl.name}</option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="Ex: Notificar equipe"
+                    value={actionValue}
+                    onChange={(e) => updateActionValue(idx, e.target.value)}
+                    className="flex-1"
+                  />
+                )}
+                {form.actions.length > 1 && (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeAction(idx)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )
+          })}
           <Button type="button" variant="outline" size="sm" onClick={addAction}>
             <Plus className="h-4 w-4" /> Adicionar Ação
           </Button>

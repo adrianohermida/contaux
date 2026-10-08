@@ -172,6 +172,34 @@ async function render(templateKey, data = {}) {
         <p style="font-size:13px;color:#64748b;">Recomendamos que você altere sua senha após o primeiro acesso.</p>`,
       text: `Olá ${data.name},\n\nVocê foi convidado para acessar o sistema da ${brand} com o perfil de ${data.role || 'usuário'}.\n\nEmail: ${data.email}\nSenha temporária: ${data.tempPassword || ''}\n\nAcesse: ${data.loginUrl || 'https://contaux.com.br/login'}\n\nRecomendamos que você altere sua senha após o primeiro acesso.\n\n${brand}`,
     },
+
+    email_verification: {
+      subject: 'Verifique seu email — ' + brand,
+      preheader: 'Confirme seu endereço de email',
+      content: `
+        <h2>Verificação de email</h2>
+        <p>Olá ${data.name},</p>
+        <p>Use o código abaixo para confirmar seu endereço de email:</p>
+        <p style="text-align:center;margin:24px 0;">
+          <span style="display:inline-block;padding:12px 28px;background:#f1f5f9;border-radius:8px;font-family:monospace;font-size:24px;font-weight:700;letter-spacing:4px;">${data.code || '000000'}</span>
+        </p>
+        <p style="font-size:13px;color:#64748b;">Este código expira em 10 minutos. Se você não criou uma conta, ignore este email.</p>`,
+      text: `Olá ${data.name},\n\nUse o código abaixo para confirmar seu endereço de email:\n\n${data.code || '000000'}\n\nEste código expira em 10 minutos.\n\nSe você não criou uma conta, ignore este email.\n\n${brand}`,
+    },
+
+    access_approved: {
+      subject: 'Acesso aprovado — ' + brand,
+      preheader: 'Seu acesso ao sistema foi aprovado',
+      content: `
+        <h2>Acesso aprovado!</h2>
+        <p>Olá ${data.name},</p>
+        <p>Seu pedido de acesso ao sistema da ${brand} foi aprovado.</p>
+        <p>Você já pode fazer login e utilizar o sistema com seu email <strong>${data.email}</strong>.</p>
+        <p style="text-align:center;margin:24px 0;">
+          <a href="${data.loginUrl || 'https://contaux.com.br/login'}" class="btn">Acessar o sistema</a>
+        </p>`,
+      text: `Olá ${data.name},\n\nSeu pedido de acesso ao sistema da ${brand} foi aprovado.\n\nVocê já pode fazer login e utilizar o sistema com seu email ${data.email}.\n\nAcesse: ${data.loginUrl || 'https://contaux.com.br/login'}\n\n${brand}`,
+    },
   };
 
   const tpl = templates[templateKey];
@@ -192,6 +220,8 @@ function listTemplates() {
     { key: 'password_reset', name: 'Redefinição de senha', description: 'Email enviado ao usuário que solicitou reset de senha' },
     { key: 'welcome', name: 'Boas-vindas', description: 'Email de boas-vindas enviado no registro de nova conta' },
     { key: 'invitation', name: 'Convite de usuário', description: 'Email enviado quando um admin convida um novo usuário' },
+    { key: 'email_verification', name: 'Verificação de email', description: 'Email com código de verificação de endereço de email' },
+    { key: 'access_approved', name: 'Acesso aprovado', description: 'Email enviado quando um pedido de acesso é aprovado' },
   ];
 }
 
@@ -202,6 +232,8 @@ const SAMPLE_DATA = {
   password_reset: { name: 'João Silva', resetUrl: 'https://contaux.com.br/reset-password.html?token=exemplo' },
   welcome: { name: 'João Silva', loginUrl: 'https://contaux.com.br/login' },
   invitation: { name: 'Maria Santos', email: 'maria@exemplo.com', role: 'contador', tempPassword: 'Contaux2024', loginUrl: 'https://contaux.com.br/login' },
+  email_verification: { name: 'João Silva', code: '842916' },
+  access_approved: { name: 'João Silva', email: 'joao@exemplo.com', loginUrl: 'https://contaux.com.br/login' },
 };
 
 module.exports = { render, listTemplates, SAMPLE_DATA, getSettings };
