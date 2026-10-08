@@ -1,29 +1,19 @@
 /**
  * Serviço de IA — Assistente da Base de Conhecimento.
  *
- * Faz busca inteligente na base de conhecimento e retorna resultados relevantes
- * formatados como resposta. Usa ranking por relevância (ts_rank do PostgreSQL)
- * e extrai trechos do conteúdo que correspondem à pergunta.
- *
- * Para ativar respostas com LLM, deploy a backend function "aiAsk":
- *   npx base44 functions deploy aiAsk
+ * RAG (Retrieval-Augmented Generation): busca itens relevantes na base de
+ * conhecimento via PostgreSQL e usa o OpenAI Chat Completions API para gerar
+ * uma resposta natural em português. Sem OPENAI_API_KEY, cai para busca textual.
  */
 const { query } = require('../db');
 
-/** Extrai o App ID do BASE44_PUBLIC_HOST_SUFFIX (formato: {appId}--b-{branchId}...) */
-function getAppId() {
-  const suffix = process.env.BASE44_PUBLIC_HOST_SUFFIX || '';
-  return suffix.split('--')[0] || process.env.BASE44_APP_ID || '';
-}
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
-/** Token de autenticação do serviço (service role) */
-function getServiceToken() {
-  return process.env.BASE44_SERVICE_TOKEN || '';
-}
-
-/** Verifica se o LLM via backend function está configurado */
+/** Verifica se o LLM (OpenAI) está configurado */
 function isLLMConfigured() {
-  return !!getAppId() && !!getServiceToken();
+  return !!OPENAI_API_KEY;
 }
 
 /**
@@ -70,35 +60,53 @@ async function searchKnowledgeBase(question, tenantIds = null, limit = 5) {
   return ilikeResult.rows;
 }
 
+const SYSTEM_PROMPT = `Você é o Assistente Contaux, um assistente de contabilidade brasileira integrado à plataforma Contaux Contadoria.
+Responda em português do Brasil, de forma clara e objetiva, com base exclusivamente no contexto fornecido da Base de Conhecimento.
+Se o contexto não contiver informação suficiente, diga que não encontrou dados sobre o tema e sugira termos mais específicos.
+Cite as fontes pelo título quando relevante. Não invente informações.`;
+
 /**
- * Tenta chamar a backend function "aiAsk" deployada na Base44.
- * Retorna null se a função não estiver deployada ou falhar.
+ * Chama a API do OpenAI (Chat Completions) com o contexto da base de conhecimento.
+ * Retorna null se a API não estiver configurada ou falhar.
  */
 async function tryLLMResponse(question, contextText) {
   if (!isLLMConfigured()) return null;
 
-  const appId = getAppId();
-  const serviceToken = getServiceToken();
-  const serverUrl = process.env.BASE44_API_URL || 'https://base44.app';
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: contextText
+        ? `Contexto da Base de Conhecimento:\n\n${contextText}\n\n---\n\nPergunta: ${question}`
+        : `Pergunta: ${question}\n\n(Obs: nenhum item relevante foi encontrado na base de conhecimento para esta pergunta.)`,
+    },
+  ];
 
   try {
-    const response = await fetch(`${serverUrl}/api/apps/${appId}/functions/aiAsk`, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${serviceToken}`,
-        'X-App-Id': appId,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({ question, context: contextText }),
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages,
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error('[aiService] OpenAI API erro:', response.status, await response.text());
+      return null;
+    }
 
     const data = await response.json();
-    if (data.error) return null;
-
-    return typeof data.answer === 'string' ? data.answer : JSON.stringify(data.answer);
-  } catch {
+    const answer = data.choices?.[0]?.message?.content;
+    return answer || null;
+  } catch (err) {
+    console.error('[aiService] Erro ao chamar OpenAI:', err.message);
     return null;
   }
 }
