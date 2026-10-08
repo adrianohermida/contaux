@@ -79,9 +79,15 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
+  // Valida se o parâmetro id é um inteiro válido
+  function isValidId(id) {
+    return /^\d+$/.test(id);
+  }
+
   // Buscar por ID
   router.get('/:id', async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {
@@ -136,6 +142,7 @@ function createCrudRouter(table, opts = {}) {
   // Atualizar
   router.patch('/:id', async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const data = prepareData(req.body);
       delete data.id;
       // Não permitir alterar tenant_id via CRUD
@@ -167,6 +174,7 @@ function createCrudRouter(table, opts = {}) {
   // Deletar — se pinProtectedDelete, exige X-PIN-Token válido
   const deleteHandler = async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {

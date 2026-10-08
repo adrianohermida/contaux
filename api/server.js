@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
 const workflowEngine = require('./services/workflowEngine');
@@ -69,6 +70,9 @@ app.use('/api/public', publicRoutes);
 
 // Integração com escritórios parceiros (Hermida Maia e outros)
 app.use('/api/integration', integrationRoutes);
+
+// Assistente — conversas persistentes (AC-GLOBAL-02)
+app.use('/api/assistant', assistantRoutes);
 
 // ===== Workflow Engine — execução de automações =====
 const { requireAuth, getAccessibleTenantIds } = require('./middleware/auth');
