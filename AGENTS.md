@@ -14,8 +14,7 @@ Static HTML marketing site ("Contaux Contadoria") + React dashboard app. The sta
 - The Vite container installs npm deps on startup from `dashboard/package.json` (volume `dashboard_node_modules` keeps them).
 - The API container installs npm deps on startup with `npm install` (volume `api_node_modules` keeps them), then runs `node --watch server.js`. Source edits reload automatically.
 - External secrets (Cloudflare tokens, SMTP credentials, JWT_SECRET) are delivered via `/run/base44/app.env`.
-- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root so they can read the bind-mounted source regardless. No manual `chmod` is needed.
-- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["nginx", "-g", "daemon off; user root;"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
+- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["sh", "-c", "sed -i 's/^user.*/user root;/' /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
 
 ## Verification
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/` → 200 (static site)
@@ -79,6 +78,15 @@ api/
 - **Contas de demo**: admin@contaux.com.br / contaux123 (superadmin), contador@contaux.com.br / contaux123 (accountant), admin@hermidamaia.com.br / contaux123 (admin Hermida Maia).
 - **JWT_SECRET**: variável de ambiente obrigatória, entregue via `/run/base44/app.env`.
 
+## Email Template System
+- **Módulo**: `api/services/emailTemplates.js` — gera HTML branded e responsivo para todos os emails do app.
+- **Branding dinâmico**: cores e nome da marca vêm da tabela `settings` (singleton), com cache de 1 minuto.
+- **Templates disponíveis**: `contact`, `newsletter`, `password_reset`, `welcome`, `invitation`.
+- **Endpoints**: `GET /api/email/templates` (listar), `POST /api/email/templates/preview` (preview com dados de exemplo), `POST /api/email/templates/test` (enviar teste).
+- **Uso**: `emailTemplates.render(templateKey, data)` → retorna `{ subject, text, html }`.
+- **Emails transacionais**: boas-vindas no registro (`publicRoutes.js`), convite de usuário (`authRoutes.js`), reset de senha (`publicRoutes.js`) — todos branded, não bloqueiam o fluxo principal se o envio falhar.
+- **sendMail consolidado**: `api/services/mailService.js` é a única fonte de envio (Cloudflare Worker → SMTP fallback). O `sendMail` duplicado em `server.js` foi removido.
+
 ## Cloudflare Email Workers
 - **email-router**: Worker with `email` handler — receives inbound emails from Cloudflare Email Routing, extracts sender/subject/body, POSTs to `/api/inbox/webhook`.
 - **email-forwarder**: Worker with `fetch` handler — sends outbound emails via MailChannels API.
@@ -120,3 +128,10 @@ api/
 - `functions/api/[[path]].js` — Pages Function que faz proxy de `/api/*` para o backend (VPS) via env `API_URL`.
 - `.github/workflows/deploy-cloudflare.yml` — GitHub Actions para deploy automático.
 - Ver `docs/DEPLOYMENT.md` → "Opção 0 — Cloudflare Pages" para o passo a passo completo.
+
+## Sincronização das NBCs (CFC) → Base de Conhecimento
+- `api/services/cfcSync.js` rastreia `cfc.org.br/tecnica/normas-brasileiras-de-contabilidade/` (+ categorias), baixa PDFs/DOCX do SRE, extrai o texto (pdf-parse/mammoth) e grava em `knowledge_base` (`external_code` único, `source_url`). Migração `008`.
+- Endpoints: `POST /api/knowledge-base/sync` (`{mode:'full'|'incremental'}`, admin+) e `GET /api/knowledge-base/sync/status`. Botão "Sincronizar NBCs (CFC)" na página.
+- Agendamento: checagem diária de normas novas e reprocessamento completo a cada 365 dias. Desligado no sandbox (`BASE44_PREVIEW_MODE=1`) ou com `KB_SYNC_AUTO=0`.
+- A extração é textual (sem LLM); resumo vem do campo "Descrição:" do SRE. Arquivos `.doc` binários não têm texto extraído (só o link).
+- **Correção de URL**: páginas SRE em `www1.cfc.org.br` retornam tabela vazia — o código converte para `www2.cfc.org.br` antes de buscar. Título extraído do campo "Descrição:" (não "Ementa:"). Fallback de URL de download via parâmetro `arquivo` da URL quando a página SRE não tem links de download.

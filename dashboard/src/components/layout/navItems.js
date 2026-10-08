@@ -8,6 +8,7 @@ import {
   Megaphone,
   Settings,
   UploadCloud,
+  Library,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
@@ -18,6 +19,7 @@ export const NAV_ITEMS = [
   { icon: Calculator, label: 'Contabilidade', path: '/contabilidade' },
   { icon: LifeBuoy, label: 'Suporte', path: '/suporte' },
   { icon: Megaphone, label: 'Marketing', path: '/marketing' },
+  { icon: Library, label: 'Base de Conhecimento', path: '/conhecimento' },
   { icon: Settings, label: 'Administração', path: '/admin' },
   { icon: UploadCloud, label: 'Importar Dados', path: '/importar' },
 ]

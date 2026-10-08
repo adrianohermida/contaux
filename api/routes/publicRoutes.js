@@ -9,6 +9,36 @@ const crypto = require('crypto');
 const { query } = require('../db');
 const { signToken, JWT_SECRET } = require('../middleware/auth');
 
+// ===== LEADS DE PARCEIROS — interesse sem compromisso =====
+router.post('/partner-leads', async (req, res) => {
+  const { name, email, phone, profile, interest, marketing_opt_in } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Nome e email são obrigatórios' });
+  }
+  if (!profile || !['autonomo', 'escritorio'].includes(profile)) {
+    return res.status(400).json({ error: 'Perfil é obrigatório' });
+  }
+
+  const interests = Array.isArray(interest) ? interest : [];
+  const validInterests = ['calculos', 'guias', 'contabilidade', 'abertura'];
+  const filtered = interests.filter((i) => validInterests.includes(i));
+
+  try {
+    await query(
+      `INSERT INTO partner_leads (name, email, phone, profile, interest, marketing_opt_in)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [name.trim(), email.toLowerCase().trim(), phone || null, profile, filtered, !!marketing_opt_in],
+    );
+    res.status(201).json({
+      success: true,
+      message: 'Recebemos seu interesse. Conheça as condições e complete seu cadastro quando quiser.',
+    });
+  } catch (err) {
+    console.error('Erro ao registrar lead de parceiro:', err.message);
+    res.status(500).json({ error: 'Erro ao registrar interesse' });
+  }
+});
+
 // ===== LEADS — captação no site =====
 router.post('/leads', async (req, res) => {
   const { name, email, phone, service_interest, message } = req.body;
@@ -91,6 +121,25 @@ router.post('/register', async (req, res) => {
     const user = userResult.rows[0];
     const token = signToken({ id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id, name: user.name });
 
+    // Envia email de boas-vindas branded — não bloqueia o registro se falhar
+    const { sendMail, emailTemplates } = req.app.locals;
+    if (sendMail && emailTemplates) {
+      try {
+        const tpl = await emailTemplates.render('welcome', {
+          name: user.name,
+          loginUrl: `${process.env.SITE_URL || 'https://contaux.com.br'}/login`,
+        });
+        await sendMail({
+          to: email.toLowerCase(),
+          subject: tpl.subject,
+          text: tpl.text,
+          html: tpl.html,
+        });
+      } catch (mailErr) {
+        console.warn('Aviso: email de boas-vindas não enviado:', mailErr.message);
+      }
+    }
+
     res.status(201).json({
       success: true,
       token,
@@ -125,16 +174,17 @@ router.post('/forgot-password', async (req, res) => {
       [token, expires, user.id],
     );
 
-    // Envia email com link de reset (usa sendMail do server) — não bloqueia se falhar
-    const resetUrl = `${process.env.SITE_URL || ''}/reset-password.html?token=${token}`;
-    const { sendMail } = req.app.locals;
-    if (sendMail) {
+    // Envia email branded com link de reset — não bloqueia se falhar
+    const resetUrl = `${process.env.SITE_URL || 'https://contaux.com.br'}/reset-password.html?token=${token}`;
+    const { sendMail, emailTemplates } = req.app.locals;
+    if (sendMail && emailTemplates) {
       try {
+        const tpl = await emailTemplates.render('password_reset', { name: user.name, resetUrl });
         await sendMail({
           to: email.toLowerCase(),
-          subject: 'Redefinição de senha — Contaux Contadoria',
-          text: `Olá ${user.name},\n\nVocê solicitou a redefinição de sua senha.\n\nAcesse o link abaixo para definir uma nova senha:\n${resetUrl}\n\nO link expira em 1 hora.\n\nSe você não solicitou esta redefinição, ignore este email.\n\nContaux Contadoria`,
-          html: `<h2>Redefinição de senha</h2><p>Olá ${user.name},</p><p>Você solicitou a redefinição de sua senha.</p><p>Clique no botão abaixo para definir uma nova senha:</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 30px;background:#3763EB;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Redefinir senha</a></p><p>O link expira em 1 hora.</p><p>Se você não solicitou esta redefinição, ignore este email.</p><hr><p style="color:#999;font-size:13px;">Contaux Contadoria</p>`,
+          subject: tpl.subject,
+          text: tpl.text,
+          html: tpl.html,
         });
       } catch (mailErr) {
         console.warn('Aviso: email de reset não enviado:', mailErr.message);

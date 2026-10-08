@@ -1,0 +1,25 @@
+# Contaux Contadoria
+
+> Soluções contábeis e empresariais para advogados e escritórios de advocacia. Cálculos judiciais, pareceres técnicos, emissão de guias e planos de pagamento.
+
+Contaux Contadoria é uma plataforma de gestão contábil especializada no setor jurídico, atendendo advogados e escritórios de advocacia em todo o Brasil. Oferece cálculos judiciais, pareceres contábeis, emissão de guias, planos de pagamento e gestão financeira integrada.
+
+## Páginas principais
+
+- [Início](https://contaux.com.br/): Página principal com visão geral dos serviços
+- [Serviços](https://contaux.com.br/services.html): Lista de serviços contábeis especializados
+- [Planos](https://contaux.com.br/pricing.html): Planos e preços de contadoria personalizada
+- [Sobre Nós](https://contaux.com.br/about-us.html): História e equipe da Contaux Contadoria
+- [Contato](https://contaux.com.br/contato.html): Canais de atendimento — chat, e-mail, telefone e WhatsApp
+
+## Recursos
+
+- [Portfólio](https://contaux.com.br/portfolio.html): Casos de sucesso em contabilidade jurídica
+- [Blog](https://contaux.com.br/blog-grid-sidebar.html): Artigos e novidades sobre contabilidade no setor jurídico
+- [Níveis de SLA](https://contaux.com.br/niveis-sla.html): Prazos de resposta, disponibilidade e garantias de serviço
+- [Seguro de Responsabilidade](https://contaux.com.br/seguro-responsabilidade.html): Cobertura e proteção para clientes
+
+## Legal
+
+- [Política de Privacidade](https://contaux.com.br/politica-de-privacidade.html): Tratamento de dados pessoais
+- [Termos de Uso](https://contaux.com.br/termos-de-uso.html): Regras e condições de uso da plataforma
