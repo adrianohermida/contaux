@@ -49,7 +49,7 @@ export default function EmailDetail({ email, onBack, onReply, onDelete, onToggle
             {getInitials(email.from)}
           </div>
           <div className="text-xs text-muted-foreground">
-            {formatFullDate(email.receivedAt)}
+            {formatFullDate(email.received_at)}
           </div>
           {email.folder === 'sent' && <Badge variant="outline" className="text-xs">Enviado</Badge>}
         </div>

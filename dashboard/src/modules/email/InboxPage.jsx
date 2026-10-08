@@ -3,16 +3,14 @@ import EmailList from './EmailList'
 import EmailDetail from './EmailDetail'
 import ComposeForm from './ComposeForm'
 import { useCollection } from '@/hooks/useCollection'
-import { createApiClient } from '@/lib/api'
-
-const inboxApi = createApiClient('inbox')
 
 export default function InboxPage() {
-  const { items: emails, update, remove, loading } = useCollection('emails')
+  const { items: emails, update, remove, reload, loading } = useCollection('emails')
   const [selectedId, setSelectedId] = useState(null)
   const [folder, setFolder] = useState('inbox')
   const [composeOpen, setComposeOpen] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
+  const [sendError, setSendError] = useState(null)
 
   const folderEmails = useMemo(() => emails.filter((e) => e.folder === folder), [emails, folder])
 
@@ -45,19 +43,21 @@ export default function InboxPage() {
   }
 
   const handleSend = async ({ to, subject, text }) => {
+    setSendError(null)
     try {
-      await inboxApi.create({ to, subject, text })
-    } catch {
-      // Fallback: cria registro local via emails CRUD
-      await update(Date.now(), {
-        from: 'contato@contaux.com.br',
-        to,
-        subject,
-        body: text,
-        read: true,
-        starred: false,
-        folder: 'sent',
+      const res = await fetch('/api/inbox/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, text }),
       })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || 'Erro ao enviar email')
+      }
+      await reload()
+    } catch (err) {
+      setSendError(err.message)
+      return
     }
     setComposeOpen(false)
     setReplyTo(null)
@@ -91,9 +91,15 @@ export default function InboxPage() {
         />
       </div>
 
+      {sendError && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {sendError}
+        </div>
+      )}
+
       <ComposeForm
         open={composeOpen}
-        onClose={() => { setComposeOpen(false); setReplyTo(null) }}
+        onClose={() => { setComposeOpen(false); setReplyTo(null); setSendError(null) }}
         onSend={handleSend}
         replyTo={replyTo}
       />

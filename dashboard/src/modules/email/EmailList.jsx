@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { formatEmailDate, getInitials } from './lib/format'
 import { Search, Star, Mail, MailOpen, Plus, Inbox, Send } from 'lucide-react'
 
-export default function EmailList({ emails, selectedId, onSelect, onCompose, folder, onFolderChange }) {
+export default function EmailList({ emails, loading, selectedId, onSelect, onCompose, folder, onFolderChange }) {
   const [search, setSearch] = useState('')
   const [starredOnly, setStarredOnly] = useState(false)
 
@@ -106,7 +106,7 @@ export default function EmailList({ emails, selectedId, onSelect, onCompose, fol
                         {email.from}
                       </span>
                       <span className="text-xs text-muted-foreground shrink-0">
-                        {formatEmailDate(email.receivedAt)}
+                        {formatEmailDate(email.received_at)}
                       </span>
                     </div>
                     <p className={cn('text-sm truncate', !email.read && 'font-medium')}>
@@ -122,7 +122,12 @@ export default function EmailList({ emails, selectedId, onSelect, onCompose, fol
                   </div>
                 </button>
               ))}
-              {filtered.length === 0 && (
+              {loading && filtered.length === 0 && (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Carregando emails...
+                </div>
+              )}
+              {!loading && filtered.length === 0 && (
                 <div className="py-12 text-center text-sm text-muted-foreground">
                   Nenhum email encontrado.
                 </div>

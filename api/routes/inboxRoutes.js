@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db');
-const emailWorkers = require('../services/emailWorkers');
+const { sendMail, FROM_EMAIL } = require('../services/mailService');
 
 const WEBHOOK_KEY = process.env.CLOUDFLARE_WORKER_API_KEY || 'contaux-mail-2024';
 
@@ -111,26 +111,19 @@ router.post('/send', async (req, res) => {
   }
 
   try {
-    const result = await emailWorkers.sendEmail({
-      to,
-      from: process.env.FROM_EMAIL || 'contato@contaux.com.br',
-      subject,
-      text,
-      html,
-      replyTo,
-    });
+    const result = await sendMail({ to, subject, text, html, replyTo });
 
     // Armazena cópia enviada no banco
     await query(
       `INSERT INTO emails ("from", "to", subject, body, received_at, read, starred, folder)
        VALUES ($1, $2, $3, $4, now(), true, false, 'sent')`,
-      [process.env.FROM_EMAIL || 'contato@contaux.com.br', to, subject, text || ''],
+      [FROM_EMAIL, to, subject, text || ''],
     );
 
-    return res.json({ success: true, method: result.method || 'cloudflare-worker' });
+    return res.json({ success: true, method: result.method });
   } catch (err) {
     console.error('Erro ao enviar email:', err.message);
-    return res.status(500).json({ error: 'Erro ao enviar email' });
+    return res.status(500).json({ error: 'Erro ao enviar email: ' + err.message });
   }
 });
 
