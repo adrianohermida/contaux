@@ -111,6 +111,11 @@
       "name": "GITHUB_CLONE_TOKEN",
       "description": "Token de acesso para clonar repositórios privados do GitHub",
       "requiredAtBoot": false
+    },
+    {
+      "name": "BASE44_SERVICE_TOKEN",
+      "description": "Token de serviço (service role) do Base44 AI Gateway. Necessário para que o backend use a IA nativa da Base44 no assistente da Base de Conhecimento, em vez da OpenAI.",
+      "requiredAtBoot": false
     }
   ]
 }
