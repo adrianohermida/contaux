@@ -357,6 +357,37 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-09 — QA ponta a ponta e piloto
 
+**Status:** Em andamento.
+
 **Foco:** regressão, testes E2E, documentação operacional, runbook, plano de rollout.
 
 **Gate:** zero P0; fluxos de valor demonstrados; orçamento definido; aceite humano.
+
+**Implementação:**
+- Script de regressão automatizada (25 testes, CQ-01 a CQ-08): login, tenant isolation, conversas, mensagens (role enforcement), tools (5), memória, proatividade, projetos (CRUD + membros + ACL), handoff (fila + aceitar + fechar).
+- `docs/RUNBOOK.md` — documentação operacional completa: arquitetura, setup, migrações, endpoints, segurança, troubleshooting, plano de rollout em 3 fases, critérios de aceite.
+
+**Testes executados (regressão automatizada, curl):**
+- CQ-03: Login admin → token ✓; /me retorna usuário ✓
+- CQ-02: Tenant forjado (99999) negado (403) ✓
+- CQ-01: Listar conversas ✓; Criar conversa ✓; Buscar com mensagens ✓
+- CQ-07b: Mensagem forçada como 'user' (role=user) ✓
+- CQ-05: Listar tools (5) ✓; get_dashboard_summary ✓; create_task (admin) ✓
+- CQ-06: Criar memória ✓; Deletar memória ✓
+- CQ-07: Proatividade status (enabled=true) ✓
+- CQ-08: Criar projeto ✓; Atribuir conversa ✓; Dot colorido (#EF4444) ✓; Listar membros ✓; Adicionar membro ✓; Remover membro ✓; ACL cross-tenant (Hermida vê 0) ✓; ACL acesso projeto (404) ✓
+- CQ-04: Handoff → waiting_human ✓; Fila (1) ✓; Aceitar → with_human ✓; Fechar → closed ✓
+- Cleanup: dados de teste removidos ✓
+- **Resultado: 25 pass | 0 fail | 1 skip** (refresh token não testável via curl simples)
+
+**Critérios de aceite:**
+- [x] Zero P0 (segurança: tenant isolation, role enforcement, MIME validation, ACL projetos)
+- [x] Fluxos de valor demonstrados (conversas, handoff, ferramentas, projetos, membros)
+- [ ] Orçamento de tokens definido (configurar em settings — pendente decisão humana)
+- [ ] Aceite humano (piloto interno — pendente validação manual da UI)
+
+**Pendências manuais:**
+- Verificação visual dos dots coloridos no workspace fullscreen (SPA não acessível via preview automatizado)
+- Validação do fluxo de criação de projeto e atribuição de conversa na UI
+- Configuração do orçamento de tokens diário em produção
+- Treinamento da equipe para o piloto interno
