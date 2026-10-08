@@ -1,40 +1,62 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-
-const ACTIVITIES = [
-  { type: 'client', text: 'Novo cliente cadastrado: Padaria São João', time: 'há 5 min', badge: 'CRM' },
-  { type: 'payment', text: 'Pagamento recebido: R$ 2.400,00 — Silva ME', time: 'há 22 min', badge: 'Financeiro' },
-  { type: 'ticket', text: 'Ticket #1042 aberto: Dúvida sobre DCTF', time: 'há 1 h', badge: 'Suporte' },
-  { type: 'invoice', text: 'Fatura #2891 emitida: R$ 1.800,00', time: 'há 2 h', badge: 'Financeiro' },
-  { type: 'client', text: 'Cliente atualizado: Transportes Rápido Ltda', time: 'há 3 h', badge: 'CRM' },
-  { type: 'alert', text: 'Obrigação fiscal vence amanhã: DCTF Web', time: 'há 4 h', badge: 'Fiscal' },
-  { type: 'payment', text: 'Pagamento recebido: R$ 950,00 — Mercado do Bento', time: 'há 6 h', badge: 'Financeiro' },
-  { type: 'ticket', text: 'Ticket #1041 resolvido: Acesso ao portal', time: 'há 8 h', badge: 'Suporte' },
-  { type: 'invoice', text: 'Fatura #2890 vencida: R$ 1.200,00', time: 'há 12 h', badge: 'Financeiro' },
-  { type: 'client', text: 'Novo cliente cadastrado: Auto Peças Turbo', time: 'há 1 d', badge: 'CRM' },
-]
+import { useCollection } from '@/hooks/useCollection'
+import { formatCurrency } from '@/modules/financeiro/lib/format'
 
 export default function DashboardActivity() {
+  const { items: clients } = useCollection('clients')
+  const { items: payments } = useCollection('payments')
+  const { items: invoices } = useCollection('invoices')
+  const { items: tickets } = useCollection('tickets')
+
+  const activities = [
+    ...clients.slice(0, 3).map((c) => ({
+      text: `Cliente: ${c.name}`,
+      badge: 'CRM',
+      date: c.created,
+    })),
+    ...payments.slice(0, 3).map((p) => ({
+      text: `Pagamento: ${formatCurrency(Number(p.amount || 0))} — ${p.client_name}`,
+      badge: 'Financeiro',
+      date: p.payment_date,
+    })),
+    ...invoices.slice(0, 2).map((i) => ({
+      text: `Fatura ${i.number}: ${formatCurrency(Number(i.items?.reduce((s, it) => s + (it.quantity * it.unit_price), 0) || 0))}`,
+      badge: 'Financeiro',
+      date: i.issue_date,
+    })),
+    ...tickets.slice(0, 2).map((t) => ({
+      text: `Ticket: ${t.subject}`,
+      badge: 'Suporte',
+      date: t.created_date,
+    })),
+  ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 8)
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Atividades Recentes</CardTitle>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-3">
-          {ACTIVITIES.map((item, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary/40" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm leading-snug">{item.text}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge variant="outline">{item.badge}</Badge>
-                  <span className="text-xs text-muted-foreground">{item.time}</span>
+        {activities.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Nenhuma atividade recente. Use a página de Importação para cadastrar seus dados.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {activities.map((item, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary/40" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-snug">{item.text}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge variant="outline">{item.badge}</Badge>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   )

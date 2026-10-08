@@ -5,6 +5,7 @@ import { useCollection } from '@/hooks/useCollection'
 
 export default function QuotesPage() {
   const { items: quotes, create, update, loading } = useCollection('quotes')
+  const { items: clients } = useCollection('clients')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -52,6 +53,7 @@ export default function QuotesPage() {
         onClose={() => setFormOpen(false)}
         onSave={handleSave}
         editingQuote={editing}
+        clientNames={clients.map((c) => c.name)}
       />
     </>
   )

@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { mockClients } from './lib/mockData'
 import { Search, Mail, Phone, Briefcase } from 'lucide-react'
 
 export default function ContactList({ contacts, clients }) {

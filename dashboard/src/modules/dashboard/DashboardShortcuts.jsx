@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { UserPlus, FilePlus, Ticket as TicketIcon, Calculator } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
@@ -17,14 +18,15 @@ export default function DashboardShortcuts() {
       <CardContent>
         <div className="grid grid-cols-2 gap-3">
           {SHORTCUTS.map((sc) => (
-            <a
+            <Link
               key={sc.label}
-              href={sc.path}
+              to={sc.path}
               className="flex flex-col items-center gap-2 rounded-lg border border-border p-4 text-center transition-colors hover:border-primary/40 hover:bg-accent"
+              aria-label={sc.label}
             >
-              <sc.icon className="h-6 w-6 text-primary" />
+              <sc.icon className="h-6 w-6 text-primary" aria-hidden="true" />
               <span className="text-sm font-medium">{sc.label}</span>
-            </a>
+            </Link>
           ))}
         </div>
       </CardContent>

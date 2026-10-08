@@ -13,7 +13,7 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
           onClick={onMenuClick}
           aria-label="Abrir menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
         <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
       </div>
@@ -26,7 +26,7 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
           disabled={refreshing}
           className="hidden sm:inline-flex"
         >
-          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden="true" />
           Atualizar
         </Button>
         <Button
@@ -35,7 +35,7 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
           onClick={onToggleTheme}
           aria-label="Alternar tema"
         >
-          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          {isDark ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
         </Button>
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
           AD

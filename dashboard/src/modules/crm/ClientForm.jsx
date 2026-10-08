@@ -7,8 +7,7 @@ import { validateDocument, formatDocument, formatPhone, formatCEP } from './lib/
 import { lookupCEP } from './lib/cep'
 
 const emptyClient = {
-  name: '', type: 'PJ', document: '', email: '', phone: '',
-  status: 'active', tags: '',
+  name: '', type: 'PJ', document: '', email: '', phone: '', status: 'active', tags: '',
   address: { street: '', number: '', city: '', state: '', zip: '', complement: '' },
   fiscal: { inscricao_estadual: '', inscricao_municipal: '', regime_tributario: 'Simples Nacional' },
 }

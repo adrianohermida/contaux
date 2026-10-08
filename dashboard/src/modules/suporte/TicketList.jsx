@@ -85,8 +85,8 @@ export default function TicketList({ tickets, onNew, onEdit, onView }) {
                     <td className="px-4 py-3 text-muted-foreground">{t.assigned_to || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => onView(t.id)}><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(t)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => onView(t.id)} aria-label="Ver detalhes do ticket"><Eye className="h-4 w-4" aria-hidden="true" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => onEdit(t)} aria-label="Editar ticket"><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                       </div>
                     </td>
                   </tr>

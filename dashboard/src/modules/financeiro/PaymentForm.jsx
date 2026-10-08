@@ -3,10 +3,10 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { mockClients, paymentMethodLabels } from './lib/mockData'
+import { paymentMethodLabels } from './lib/mockData'
 import { formatCurrency, todayISO } from './lib/format'
 
-export default function PaymentForm({ open, onClose, onSave }) {
+export default function PaymentForm({ open, onClose, onSave, clientNames = [] }) {
   const [form, setForm] = useState({
     client_name: '',
     invoice_number: '',
@@ -55,7 +55,7 @@ export default function PaymentForm({ open, onClose, onSave }) {
             <Label>Cliente *</Label>
             <Select value={form.client_name} onChange={(e) => update('client_name', e.target.value)}>
               <option value="">Selecione...</option>
-              {mockClients.map((c) => <option key={c} value={c}>{c}</option>)}
+              {clientNames.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           </div>
           <div className="flex flex-col gap-1">

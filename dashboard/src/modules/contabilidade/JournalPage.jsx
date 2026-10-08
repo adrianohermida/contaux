@@ -5,6 +5,7 @@ import { useCollection } from '@/hooks/useCollection'
 
 export default function JournalPage() {
   const { items: entries, create, update, loading } = useCollection('journal_entries')
+  const { items: accounts } = useCollection('accounts')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -35,7 +36,7 @@ export default function JournalPage() {
         <p className="text-sm text-muted-foreground">Registros de partidas dobradas (débito = crédito)</p>
       </div>
       <JournalList entries={entries} loading={loading} onNew={handleNew} onEdit={handleEdit} onPost={handlePost} onCancel={handleCancel} />
-      <JournalForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingEntry={editing} />
+      <JournalForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingEntry={editing} accounts={accounts} />
     </>
   )
 }

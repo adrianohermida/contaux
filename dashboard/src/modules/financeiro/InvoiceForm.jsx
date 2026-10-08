@@ -3,11 +3,11 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { mockClients, invoiceStatusLabels } from './lib/mockData'
+import { invoiceStatusLabels } from './lib/mockData'
 import { calcTotals, formatCurrency, todayISO, addDaysISO } from './lib/format'
 import { Plus, Trash2 } from 'lucide-react'
 
-export default function InvoiceForm({ open, onClose, onSave, editingInvoice }) {
+export default function InvoiceForm({ open, onClose, onSave, editingInvoice, clientNames = [] }) {
   const [form, setForm] = useState({
     client_name: '',
     issue_date: todayISO(),
@@ -84,7 +84,7 @@ export default function InvoiceForm({ open, onClose, onSave, editingInvoice }) {
             <Label>Cliente</Label>
             <Select value={form.client_name} onChange={(e) => update('client_name', e.target.value)}>
               <option value="">Selecione...</option>
-              {mockClients.map((c) => <option key={c} value={c}>{c}</option>)}
+              {clientNames.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           </div>
           <div className="flex flex-col gap-1">

@@ -95,12 +95,12 @@ export default function InvoiceList({ invoices, onNew, onEdit, onCancel }) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => onEdit(inv)}>
-                            <Pencil className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" onClick={() => onEdit(inv)} aria-label="Editar fatura">
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
                           {inv.status !== 'cancelled' && inv.status !== 'paid' && (
-                            <Button variant="ghost" size="icon" onClick={() => onCancel(inv.id)}>
-                              <Ban className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" onClick={() => onCancel(inv.id)} aria-label="Cancelar fatura">
+                              <Ban className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           )}
                         </div>

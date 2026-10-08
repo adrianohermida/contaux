@@ -68,7 +68,7 @@ export default function BlogPostList({ posts, onNew, onEdit }) {
                     <td className="px-4 py-3 text-right font-mono">{p.views}</td>
                     <td className="px-4 py-3"><Badge variant={blogStatusVariants[p.status]}>{blogStatusLabels[p.status]}</Badge></td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="icon" onClick={() => onEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(p)} aria-label="Editar post"><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                     </td>
                   </tr>
                 ))}

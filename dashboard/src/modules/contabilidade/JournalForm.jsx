@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogFooter, Button } from '@/components/ui/dialog'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { mockAccounts } from './lib/mockData'
+
 import { formatCurrency } from './lib/format'
 import { Plus, Trash2 } from 'lucide-react'
 
-export default function JournalForm({ open, onClose, onSave, editingEntry }) {
+export default function JournalForm({ open, onClose, onSave, editingEntry, accounts = [] }) {
   const [date, setDate] = useState('')
   const [description, setDescription] = useState('')
   const [reference, setReference] = useState('')
@@ -47,7 +47,7 @@ export default function JournalForm({ open, onClose, onSave, editingEntry }) {
       .filter((l) => l.account_code)
       .map((l) => ({
         ...l,
-        account_name: mockAccounts.find((a) => a.code === l.account_code)?.name || '',
+        account_name: accounts.find((a) => a.code === l.account_code)?.name || '',
         debit: Number(l.debit) || 0,
         credit: Number(l.credit) || 0,
       }))
@@ -79,7 +79,7 @@ export default function JournalForm({ open, onClose, onSave, editingEntry }) {
               <div className="flex-1 min-w-[140px]">
                 <Select value={line.account_code} onChange={(e) => updateLine(idx, 'account_code', e.target.value)}>
                   <option value="">Selecione a conta</option>
-                  {mockAccounts.filter((a) => a.level >= 2).map((a) => (
+                  {accounts.filter((a) => a.level >= 2).map((a) => (
                     <option key={a.id} value={a.code}>{a.code} - {a.name}</option>
                   ))}
                 </Select>

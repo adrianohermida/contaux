@@ -98,8 +98,8 @@ export default function QuoteList({ quotes, onNew, onEdit, onConvert }) {
                               <ArrowRight className="h-3 w-3" /> Faturar
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => onEdit(q)}>
-                            <Pencil className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" onClick={() => onEdit(q)} aria-label="Editar orçamento">
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </div>
                       </td>

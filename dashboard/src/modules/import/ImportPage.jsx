@@ -1,124 +1,15 @@
 import { useState } from 'react'
 import { UploadCloud, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const TABS = [
-  {
-    key: 'clients',
-    label: 'Clientes',
-    endpoint: '/api/import/clients',
-    template: `[
-  {
-    "name": "Empresa XYZ LTDA",
-    "type": "PJ",
-    "document": "12.345.678/0001-90",
-    "email": "contato@xyz.com.br",
-    "phone": "(11) 99999-9999",
-    "status": "active",
-    "tags": ["Mensal", "Premium"],
-    "address": {
-      "street": "Rua Exemplo",
-      "number": "100",
-      "city": "São Paulo",
-      "state": "SP",
-      "zip": "01000-000"
-    },
-    "fiscal": {
-      "regime_tributario": "Simples Nacional",
-      "inscricao_estadual": "123.456.789",
-      "inscricao_municipal": "1234567"
-    }
-  }
-]`,
-  },
-  {
-    key: 'invoices',
-    label: 'Faturas',
-    endpoint: '/api/import/invoices',
-    template: `[
-  {
-    "number": "NF-2026-001",
-    "client_name": "Empresa XYZ LTDA",
-    "issue_date": "2026-10-01",
-    "due_date": "2026-10-15",
-    "items": [
-      { "description": "Serviços contábeis mensais", "quantity": 1, "unit_price": 2500 }
-    ],
-    "discount": 0,
-    "status": "sent"
-  }
-]`,
-  },
-  {
-    key: 'payments',
-    label: 'Pagamentos',
-    endpoint: '/api/import/payments',
-    template: `[
-  {
-    "invoice_number": "NF-2026-001",
-    "client_name": "Empresa XYZ LTDA",
-    "amount": 2500,
-    "payment_date": "2026-10-10",
-    "method": "pix",
-    "status": "confirmed",
-    "reference": "PIX-12345"
-  }
-]`,
-  },
-  {
-    key: 'accounts',
-    label: 'Plano de Contas',
-    endpoint: '/api/import/accounts',
-    template: `[
-  { "code": "1", "name": "Ativo", "type": "asset", "level": 1 },
-  { "code": "1.1", "name": "Ativo Circulante", "type": "asset", "level": 2 },
-  { "code": "1.1.1", "name": "Caixa", "type": "asset", "level": 3 },
-  { "code": "2", "name": "Passivo", "type": "liability", "level": 1 },
-  { "code": "3", "name": "Receitas", "type": "revenue", "level": 1 },
-  { "code": "4", "name": "Despesas", "type": "expense", "level": 1 }
-]`,
-  },
-  {
-    key: 'journal',
-    label: 'Lançamentos',
-    endpoint: '/api/import/journal-entries',
-    template: `[
-  {
-    "date": "2026-10-01",
-    "description": "Recebimento de cliente",
-    "reference": "NF-001",
-    "status": "posted",
-    "lines": [
-      { "account_code": "1.1.2", "account_name": "Bancos", "debit": 2500, "credit": 0 },
-      { "account_code": "1.1.3", "account_name": "Clientes a Receber", "debit": 0, "credit": 2500 }
-    ]
-  }
-]`,
-  },
-  {
-    key: 'obligations',
-    label: 'Obrigações',
-    endpoint: '/api/import/obligations',
-    template: `[
-  {
-    "title": "DCTF Outubro",
-    "description": "Declaração de Débitos e Créditos Tributários Federais",
-    "due_date": "2026-10-15",
-    "type": "federal",
-    "frequency": "monthly",
-    "status": "pending"
-  }
-]`,
-  },
-]
+import { IMPORT_TABS } from './importTemplates'
 
 export default function ImportPage() {
-  const [activeTab, setActiveTab] = useState(TABS[0].key)
+  const [activeTab, setActiveTab] = useState(IMPORT_TABS[0].key)
   const [jsonText, setJsonText] = useState('')
-  const [status, setStatus] = useState(null) // { type: 'success' | 'error', message }
+  const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const tab = TABS.find((t) => t.key === activeTab)
+  const tab = IMPORT_TABS.find((t) => t.key === activeTab)
 
   const handleImport = async () => {
     setStatus(null)
@@ -157,10 +48,12 @@ export default function ImportPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex flex-wrap gap-1 border-b border-border">
-        {TABS.map((t) => (
+      <div className="mb-4 flex flex-wrap gap-1 border-b border-border" role="tablist">
+        {IMPORT_TABS.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={activeTab === t.key}
             onClick={() => { setActiveTab(t.key); setJsonText(''); setStatus(null) }}
             className={cn(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
@@ -176,9 +69,7 @@ export default function ImportPage() {
 
       {/* Template button */}
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Formato: array JSON de objetos
-        </p>
+        <p className="text-xs text-muted-foreground">Formato: array JSON de objetos</p>
         <button
           onClick={loadTemplate}
           className="text-xs font-medium text-primary hover:underline"
@@ -191,17 +82,21 @@ export default function ImportPage() {
       <textarea
         value={jsonText}
         onChange={(e) => setJsonText(e.target.value)}
-        placeholder="[&#10;  { ... }&#10;]"
+        placeholder="[\n  { ... }\n]"
+        aria-label="Dados JSON para importação"
         className="h-72 w-full rounded-lg border border-border bg-background p-4 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
       />
 
       {/* Feedback */}
       {status && (
-        <div className={cn(
-          'mt-3 flex items-center gap-2 rounded-lg p-3 text-sm',
-          status.type === 'success' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-600 dark:text-red-400',
-        )}>
-          {status.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+        <div
+          role="alert"
+          className={cn(
+            'mt-3 flex items-center gap-2 rounded-lg p-3 text-sm',
+            status.type === 'success' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-600 dark:text-red-400',
+          )}
+        >
+          {status.type === 'success' ? <CheckCircle className="h-4 w-4" aria-hidden="true" /> : <AlertCircle className="h-4 w-4" aria-hidden="true" />}
           {status.message}
         </div>
       )}
@@ -213,7 +108,7 @@ export default function ImportPage() {
           disabled={!jsonText.trim() || loading}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UploadCloud className="h-4 w-4" aria-hidden="true" />}
           Importar
         </button>
       </div>

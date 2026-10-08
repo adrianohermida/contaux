@@ -39,7 +39,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* Navegação */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Navegação principal">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 )
               }
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span>{item.label}</span>
             </NavLink>
           ))}

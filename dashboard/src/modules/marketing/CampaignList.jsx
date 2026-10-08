@@ -70,7 +70,7 @@ export default function CampaignList({ campaigns, onNew, onEdit }) {
                     <td className="px-4 py-3 text-right font-mono">{c.metrics.converted}</td>
                     <td className="px-4 py-3"><Badge variant={campaignStatusVariants[c.status]}>{campaignStatusLabels[c.status]}</Badge></td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="icon" onClick={() => onEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(c)} aria-label="Editar campanha"><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                     </td>
                   </tr>
                 ))}

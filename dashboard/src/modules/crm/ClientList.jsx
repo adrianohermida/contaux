@@ -130,11 +130,11 @@ export default function ClientList({ clients, onNew, onEdit, onView }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => onView(c.id)}>
-                          <Eye className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" onClick={() => onView(c.id)} aria-label="Ver detalhes do cliente">
+                          <Eye className="h-4 w-4" aria-hidden="true" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(c)}>
-                          <Pencil className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" onClick={() => onEdit(c)} aria-label="Editar cliente">
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>
                     </td>

@@ -15,6 +15,7 @@ function applyOverdue(invoices) {
 
 export default function InvoicesPage() {
   const { items: invoices, create, update, loading } = useCollection('invoices')
+  const { items: clients } = useCollection('clients')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -62,6 +63,7 @@ export default function InvoicesPage() {
         onClose={() => setFormOpen(false)}
         onSave={handleSave}
         editingInvoice={editing}
+        clientNames={clients.map((c) => c.name)}
       />
     </>
   )

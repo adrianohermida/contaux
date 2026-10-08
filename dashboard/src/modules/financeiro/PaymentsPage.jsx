@@ -5,6 +5,7 @@ import { useCollection } from '@/hooks/useCollection'
 
 export default function PaymentsPage() {
   const { items: payments, create, update, loading } = useCollection('payments')
+  const { items: clients } = useCollection('clients')
   const [formOpen, setFormOpen] = useState(false)
 
   const handleNew = () => setFormOpen(true)
@@ -25,7 +26,7 @@ export default function PaymentsPage() {
         <p className="text-sm text-muted-foreground">Registro e acompanhamento de pagamentos recebidos</p>
       </div>
       <PaymentList payments={payments} loading={loading} onNew={handleNew} onConfirm={handleConfirm} />
-      <PaymentForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} />
+      <PaymentForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} clientNames={clients.map((c) => c.name)} />
     </>
   )
 }
