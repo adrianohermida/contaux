@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ticketPriorityLabels, ticketPriorityVariants, ticketStatusLabels, ticketStatusVariants } from './lib/mockData'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, Eye, Ticket } from 'lucide-react'
 
 export default function TicketList({ tickets, onNew, onEdit, onView }) {
@@ -117,7 +118,7 @@ export default function TicketList({ tickets, onNew, onEdit, onView }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum ticket encontrado.</div>
+            <EmptyState icon={Ticket} title="Nenhum ticket encontrado" />
           )}
         </CardContent>
       </Card>

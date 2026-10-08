@@ -10,11 +10,12 @@ Static HTML marketing site ("Contaux Contadoria") + React dashboard app. The sta
 - **nginx** (port 3000) proxies `/dashboard`, `/inbox`, `/crm`, `/financeiro`, `/contabilidade`, `/suporte`, `/marketing`, `/admin`, `/api/` and Vite module paths (`/src/`, `/@vite/`, `/node_modules/`) to the appropriate service. All other routes serve static files.
 
 ## Setup
-- `docker compose -f docker-compose.base44.yml up -d` starts nginx (port 3000), Vite dev server (port 5173 internal), and Express API (port 3001 internal).
+- `docker compose -f docker-compose.base44.yml up -d` starts nginx (port 3000), Vite dev server (port 5173 internal), Express API (port 3001 internal), and PostgreSQL (port 5432 internal).
 - The Vite container installs npm deps on startup from `dashboard/package.json` (volume `dashboard_node_modules` keeps them).
-- The API container syncs dependencies with `npm ci` from `api/package-lock.json` (volume `api_node_modules` keeps them), then runs `node --watch server.js` directly. Source edits reload automatically; container shutdown no longer goes through npm's script wrapper (which reported expected SIGTERM as an npm error). This Compose-only development command does not change production startup.
-- External secrets (Cloudflare tokens, SMTP credentials) are delivered via `/run/base44/app.env`.
-- Directory permissions: the repo root must be world-readable (`chmod 755 .`) or nginx's worker user returns 403.
+- The API container installs npm deps on startup with `npm install` (volume `api_node_modules` keeps them), then runs `node --watch server.js`. Source edits reload automatically.
+- External secrets (Cloudflare tokens, SMTP credentials, JWT_SECRET) are delivered via `/run/base44/app.env`.
+- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root so they can read the bind-mounted source regardless. No manual `chmod` is needed.
+- Directory permissions: the sandbox may create the repo root with mode 700. The web service runs nginx workers as root (`command: ["nginx", "-g", "daemon off; user root;"]`) so they can read the bind-mounted source regardless. No manual `chmod` is needed.
 
 ## Verification
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/` → 200 (static site)
@@ -49,13 +50,34 @@ dashboard/src/
 api/
 ├── server.js                    # Express server (port 3001)
 ├── routes/
+│   ├── authRoutes.js            # Login, /me, gestão de usuários e tenants
 │   ├── emailRoutes.js           # Cloudflare Email Routing + Workers management
-│   └── inboxRoutes.js           # Inbox CRUD + webhook + send
+│   ├── inboxRoutes.js           # Inbox CRUD + webhook + send
+│   ├── integrationRoutes.js     # Integração multi-tenant com escritórios parceiros
+│   ├── crud.js                  # Fábrica de rotas CRUD com isolamento por tenant
+│   ├── importRoutes.js          # Importação em massa
+│   └── settingsRoutes.js        # Configurações de branding
+├── middleware/
+│   ├── auth.js                  # JWT + isolamento multi-tenant (requireAuth, requireRole, getAccessibleTenantIds)
+│   └── partnerAuth.js           # API key para escritórios parceiros (X-Partner-Key)
 └── services/
     ├── cloudflareRouting.js     # Email Routing API (zones, rules, destinations)
     ├── cloudflareWorker.js      # Legacy sender Worker (MailChannels)
     └── emailWorkers.js          # email-router (inbound) + email-forwarder (outbound)
 ```
+
+## Authentication & Multi-Tenant System
+- **Auth**: JWT (jsonwebtoken + bcryptjs). Token enviado como `Authorization: Bearer <token>`.
+- **Rotas de auth**: `POST /api/auth/login` (email+senha → token), `GET /api/auth/me`, `GET/POST /api/auth/users` (admin+), `GET/POST /api/auth/tenants` (admin+).
+- **Roles**: `superadmin` (acesso total), `admin` (tenant admin), `accountant` (contador), `viewer` (leitura), `client` (portal do cliente).
+- **Tenants**: tabela `tenants` com hierarquia — `type='office'` (Contaux, Hermida Maia) ou `type='client'` (empresas cliente). `parent_id` liga cliente → escritório.
+- **Isolamento**: todas as tabelas de dados têm `tenant_id`. O CRUD router filtra automaticamente por `getAccessibleTenantIds()`:
+  - superadmin vê todos os tenants
+  - admin de office vê próprio tenant + filhos (clients)
+  - accountant/viewer/client vê apenas próprio tenant
+- **Frontend**: `AuthContext` (login/logout/token), `ProtectedRoute` (staff), `PortalRoute` (client). Login em `/login`, dashboard em `/dashboard`, portal em `/portal`.
+- **Contas de demo**: admin@contaux.com.br / contaux123 (superadmin), contador@contaux.com.br / contaux123 (accountant), admin@hermidamaia.com.br / contaux123 (admin Hermida Maia).
+- **JWT_SECRET**: variável de ambiente obrigatória, entregue via `/run/base44/app.env`.
 
 ## Cloudflare Email Workers
 - **email-router**: Worker with `email` handler — receives inbound emails from Cloudflare Email Routing, extracts sender/subject/body, POSTs to `/api/inbox/webhook`.

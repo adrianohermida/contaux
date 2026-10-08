@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCollection } from '@/hooks/useCollection'
 import WorkflowForm from './WorkflowForm'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
 import { Zap, Plus, Pencil } from 'lucide-react'
 
 const triggerLabels = {
@@ -101,12 +103,10 @@ export default function AutomacoesPage() {
           </Card>
         ))}
         {loading && (
-          <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+          <div className="flex justify-center py-12"><Spinner /></div>
         )}
         {!loading && workflows.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground">
-            Nenhuma automação configurada. Clique em "Nova Automação" para começar.
-          </div>
+          <EmptyState icon={Zap} title="Nenhuma automação configurada" description='Clique em "Nova Automação" para começar.' />
         )}
       </div>
 

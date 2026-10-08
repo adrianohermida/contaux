@@ -3,6 +3,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Trash2 } from 'lucide-react'
 
 const triggerLabels = {
@@ -129,12 +130,10 @@ export default function WorkflowForm({ open, onClose, onSave, editingWorkflow })
         </div>
 
         <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             id="wf-active"
             checked={form.active}
             onChange={(e) => update('active', e.target.checked)}
-            className="h-4 w-4 rounded border-border"
           />
           <Label htmlFor="wf-active">Ativo</Label>
         </div>

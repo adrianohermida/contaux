@@ -4,11 +4,26 @@
 
 const BASE = '/api';
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('contaux-token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { ...getAuthHeaders(), ...options.headers },
   });
+
+  if (res.status === 401) {
+    localStorage.removeItem('contaux-token');
+    localStorage.removeItem('contaux-user');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

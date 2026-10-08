@@ -20,6 +20,10 @@
     --accent-foreground: 225 82% 43%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 20 14% 12%;
     --border: 225 15% 88%;
     --input: 225 15% 88%;
     --ring: 225 82% 57%;
@@ -51,6 +55,10 @@
     --accent-foreground: 225 82% 72%;
     --destructive: 0 62% 40%;
     --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 20 14% 8%;
     --border: 20 10% 18%;
     --input: 20 10% 18%;
     --ring: 225 82% 65%;
@@ -88,4 +96,25 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/50;
+}
+
+/* Animação de entrada do Toast */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(1rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-toast-in {
+  animation: slide-in-right 0.2s ease-out;
+}
+
+/* Acessibilidade: respeitar preferência de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

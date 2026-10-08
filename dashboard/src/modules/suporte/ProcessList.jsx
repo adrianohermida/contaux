@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { processStatusLabels, processStatusVariants } from './lib/mockData'
 import { formatCurrency } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, Scale } from 'lucide-react'
 
 export default function ProcessList({ processes, onNew, onEdit }) {
@@ -97,7 +98,7 @@ export default function ProcessList({ processes, onNew, onEdit }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum processo encontrado.</div>
+            <EmptyState icon={Scale} title="Nenhum processo encontrado" />
           )}
         </CardContent>
       </Card>

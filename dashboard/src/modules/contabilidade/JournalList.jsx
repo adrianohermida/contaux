@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { entryStatusLabels, entryStatusVariants } from './lib/mockData'
 import { formatCurrency } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, CheckCircle, XCircle, FileText } from 'lucide-react'
 
 export default function JournalList({ entries, onNew, onEdit, onPost, onCancel }) {
@@ -117,7 +118,7 @@ export default function JournalList({ entries, onNew, onEdit, onPost, onCancel }
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum lançamento encontrado.</div>
+            <EmptyState icon={FileText} title="Nenhum lançamento encontrado" />
           )}
         </CardContent>
       </Card>

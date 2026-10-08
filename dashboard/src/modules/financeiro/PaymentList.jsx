@@ -10,6 +10,7 @@ import {
   paymentStatusVariants,
 } from './lib/mockData'
 import { formatCurrency, formatDate } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { CreditCard, Search, Plus, Check } from 'lucide-react'
 
 export default function PaymentList({ payments, onNew, onConfirm }) {
@@ -148,9 +149,7 @@ export default function PaymentList({ payments, onNew, onConfirm }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              Nenhum pagamento encontrado.
-            </div>
+            <EmptyState icon={CreditCard} title="Nenhum pagamento encontrado" />
           )}
         </CardContent>
       </Card>

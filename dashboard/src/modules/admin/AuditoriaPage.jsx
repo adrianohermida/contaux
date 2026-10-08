@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { useCollection } from '@/hooks/useCollection'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
 import { Search, ScrollText } from 'lucide-react'
 
 const actionLabels = {
@@ -107,10 +109,10 @@ export default function AuditoriaPage() {
           </div>
 
           {filtered.length === 0 && !loading && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum log encontrado.</div>
+            <EmptyState icon={ScrollText} title="Nenhum log encontrado" />
           )}
           {loading && (
-            <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+            <div className="flex justify-center py-12"><Spinner /></div>
           )}
         </CardContent>
       </Card>

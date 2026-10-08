@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { nfeStatusLabels, nfeStatusVariants } from './lib/mockData'
 import { formatCurrency, formatDate } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, Send, XCircle, Receipt } from 'lucide-react'
 
 export default function TaxInvoiceList({ invoices, onNew, onEdit, onIssue, onCancel }) {
@@ -111,7 +112,7 @@ export default function TaxInvoiceList({ invoices, onNew, onEdit, onIssue, onCan
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhuma nota fiscal encontrada.</div>
+            <EmptyState icon={Receipt} title="Nenhuma nota fiscal encontrada" />
           )}
         </CardContent>
       </Card>

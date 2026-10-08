@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { formatEmailDate, getInitials } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
 import { Search, Star, Mail, MailOpen, Plus, Inbox, Send } from 'lucide-react'
 
 export default function EmailList({ emails, loading, selectedId, onSelect, onCompose, folder, onFolderChange }) {
@@ -123,14 +125,10 @@ export default function EmailList({ emails, loading, selectedId, onSelect, onCom
                 </button>
               ))}
               {loading && filtered.length === 0 && (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Carregando emails...
-                </div>
+                <div className="flex justify-center py-12"><Spinner /></div>
               )}
               {!loading && filtered.length === 0 && (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Nenhum email encontrado.
-                </div>
+                <EmptyState icon={Inbox} title="Nenhum email encontrado" />
               )}
             </div>
           </CardContent>

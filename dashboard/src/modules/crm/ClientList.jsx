@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { statusLabels, statusVariants, typeLabels } from './lib/mockData'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Users, Search, Plus, Pencil, Eye } from 'lucide-react'
 
 export default function ClientList({ clients, onNew, onEdit, onView }) {
@@ -167,9 +168,7 @@ export default function ClientList({ clients, onNew, onEdit, onView }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              Nenhum cliente encontrado.
-            </div>
+            <EmptyState icon={Users} title="Nenhum cliente encontrado" />
           )}
         </CardContent>
       </Card>
