@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import InvoiceList from './InvoiceList'
 import InvoiceForm from './InvoiceForm'
-import { mockInvoices } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 import { isOverdue } from './lib/format'
 
 /** Aplica status overdue automaticamente em faturas vencidas */
@@ -14,9 +14,11 @@ function applyOverdue(invoices) {
 }
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState(() => applyOverdue(mockInvoices))
+  const { items: invoices, create, update, loading } = useCollection('invoices')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+
+  const displayInvoices = applyOverdue(invoices)
 
   const handleNew = () => {
     setEditing(null)
@@ -28,25 +30,18 @@ export default function InvoicesPage() {
     setFormOpen(true)
   }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setInvoices((prev) =>
-        prev.map((i) => (i.id === editing.id ? { ...i, ...data } : i)),
-      )
+      await update(editing.id, data)
     } else {
       const num = `NF-2024-${String(invoices.length + 1).padStart(3, '0')}`
-      setInvoices((prev) => [
-        { ...data, id: String(Date.now()), number: num },
-        ...prev,
-      ])
+      await create({ ...data, number: num })
     }
     setFormOpen(false)
   }
 
-  const handleCancel = (id) => {
-    setInvoices((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: 'cancelled' } : i)),
-    )
+  const handleCancel = async (id) => {
+    await update(id, { status: 'cancelled' })
   }
 
   return (
@@ -56,7 +51,8 @@ export default function InvoicesPage() {
         <p className="text-sm text-muted-foreground">Gestão de faturamento e cobranças</p>
       </div>
       <InvoiceList
-        invoices={invoices}
+        invoices={displayInvoices}
+        loading={loading}
         onNew={handleNew}
         onEdit={handleEdit}
         onCancel={handleCancel}

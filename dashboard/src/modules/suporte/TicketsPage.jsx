@@ -2,10 +2,10 @@ import { useState } from 'react'
 import TicketList from './TicketList'
 import TicketForm from './TicketForm'
 import TicketDetail from './TicketDetail'
-import { mockTickets } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState(mockTickets)
+  const { items: tickets, create, update, loading } = useCollection('tickets')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [viewingId, setViewingId] = useState(null)
@@ -13,28 +13,31 @@ export default function TicketsPage() {
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (ticket) => { setEditing(ticket); setFormOpen(true) }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setTickets((prev) => prev.map((t) => (t.id === editing.id ? { ...t, ...data } : t)))
+      await update(editing.id, data)
     } else {
-      setTickets((prev) => [{
-        ...data, id: String(Date.now()), status: 'open', created_date: new Date().toISOString().slice(0, 10), messages: [],
-      }, ...prev])
+      await create({
+        ...data, status: 'open',
+        created_date: new Date().toISOString().slice(0, 10),
+        messages: [],
+      })
     }
     setFormOpen(false)
   }
 
-  const handleAddMessage = (ticketId, message) => {
-    setTickets((prev) => prev.map((t) =>
-      t.id === ticketId ? { ...t, messages: [...t.messages, message] } : t,
-    ))
+  const handleAddMessage = async (ticketId, message) => {
+    const ticket = tickets.find((t) => String(t.id) === String(ticketId))
+    if (ticket) {
+      await update(ticketId, { messages: [...(ticket.messages || []), message] })
+    }
   }
 
-  const handleStatusChange = (ticketId, status) => {
-    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, status } : t)))
+  const handleStatusChange = async (ticketId, status) => {
+    await update(ticketId, { status })
   }
 
-  const viewing = viewingId ? tickets.find((t) => t.id === viewingId) : null
+  const viewing = viewingId ? tickets.find((t) => String(t.id) === String(viewingId)) : null
 
   if (viewing) {
     return (
@@ -54,7 +57,7 @@ export default function TicketsPage() {
         <h1 className="text-2xl font-bold">Tickets de Suporte</h1>
         <p className="text-sm text-muted-foreground">Atendimento e gestão de chamados com SLA</p>
       </div>
-      <TicketList tickets={tickets} onNew={handleNew} onEdit={handleEdit} onView={(id) => setViewingId(id)} />
+      <TicketList tickets={tickets} loading={loading} onNew={handleNew} onEdit={handleEdit} onView={(id) => setViewingId(id)} />
       <TicketForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingTicket={editing} />
     </>
   )

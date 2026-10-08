@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { mockReports } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 import { BarChart3, Download, FileText, FileSpreadsheet, File } from 'lucide-react'
 
 const formatIcons = {
@@ -17,6 +17,8 @@ const scheduleLabels = {
 }
 
 export default function RelatoriosPage() {
+  const { items: reports, loading } = useCollection('reports')
+
   return (
     <div className="space-y-6">
       <div className="mb-4">
@@ -77,7 +79,7 @@ export default function RelatoriosPage() {
                 </tr>
               </thead>
               <tbody>
-                {mockReports.map((r) => {
+                {reports.map((r) => {
                   const Icon = formatIcons[r.format] || File
                   return (
                     <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
@@ -87,7 +89,7 @@ export default function RelatoriosPage() {
                         <span className="flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" /> {r.format.toUpperCase()}</span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{scheduleLabels[r.schedule]}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{r.last_run.split('-').reverse().join('/')}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.last_run?.split('-').reverse().join('/') || '-'}</td>
                       <td className="px-4 py-3 text-right">
                         <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> Gerar</Button>
                       </td>
@@ -99,7 +101,7 @@ export default function RelatoriosPage() {
           </div>
 
           <div className="space-y-3 p-4 md:hidden">
-            {mockReports.map((r) => {
+            {reports.map((r) => {
               const Icon = formatIcons[r.format] || File
               return (
                 <div key={r.id} className="rounded-md border border-border p-3">

@@ -3,19 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { mockDocuments } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 import { Search, FolderOpen, FileText, Download, Eye } from 'lucide-react'
 
 export default function DocumentosPage() {
+  const { items: documents, loading } = useCollection('documents')
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
-    if (!search) return mockDocuments
+    if (!search) return documents
     const q = search.toLowerCase()
-    return mockDocuments.filter((d) => d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q))
-  }, [search])
+    return documents.filter((d) => d.name?.toLowerCase().includes(q) || d.category?.toLowerCase().includes(q))
+  }, [documents, search])
 
-  const categories = [...new Set(mockDocuments.map((d) => d.category))]
+  const categories = [...new Set(documents.map((d) => d.category))]
 
   return (
     <div className="space-y-4">
@@ -46,7 +47,7 @@ export default function DocumentosPage() {
                     <Badge variant="outline" className="text-xs">{doc.category}</Badge>
                     <span className="text-xs text-muted-foreground">{doc.type}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Atualizado: {doc.updated.split('-').reverse().join('/')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Atualizado: {doc.updated?.split('-').reverse().join('/')}</p>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
@@ -58,11 +59,14 @@ export default function DocumentosPage() {
         ))}
       </div>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && !loading && (
         <div className="py-12 text-center text-muted-foreground">
           <FolderOpen className="mx-auto h-12 w-12 mb-2 opacity-50" />
           Nenhum documento encontrado.
         </div>
+      )}
+      {loading && (
+        <div className="py-12 text-center text-muted-foreground">Carregando...</div>
       )}
     </div>
   )

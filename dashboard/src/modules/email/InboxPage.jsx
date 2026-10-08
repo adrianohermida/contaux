@@ -1,34 +1,40 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import EmailList from './EmailList'
 import EmailDetail from './EmailDetail'
 import ComposeForm from './ComposeForm'
-import { mockEmails } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
+import { createApiClient } from '@/lib/api'
+
+const inboxApi = createApiClient('inbox')
 
 export default function InboxPage() {
-  const [emails, setEmails] = useState(mockEmails)
+  const { items: emails, update, remove, loading } = useCollection('emails')
   const [selectedId, setSelectedId] = useState(null)
   const [folder, setFolder] = useState('inbox')
   const [composeOpen, setComposeOpen] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
 
-  const selected = selectedId ? emails.find((e) => e.id === selectedId) : null
+  const folderEmails = useMemo(() => emails.filter((e) => e.folder === folder), [emails, folder])
 
-  const handleSelect = (id) => {
+  const selected = selectedId ? emails.find((e) => String(e.id) === String(selectedId)) : null
+
+  const handleSelect = async (id) => {
     setSelectedId(id)
     // Marca como lido ao abrir
-    setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, read: true } : e)))
+    const email = emails.find((e) => String(e.id) === String(id))
+    if (email && !email.read) {
+      await update(id, { read: true })
+    }
   }
 
-  const handleToggleStar = () => {
+  const handleToggleStar = async () => {
     if (!selected) return
-    setEmails((prev) =>
-      prev.map((e) => (e.id === selected.id ? { ...e, starred: !e.starred } : e)),
-    )
+    await update(selected.id, { starred: !selected.starred })
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selected) return
-    setEmails((prev) => prev.filter((e) => e.id !== selected.id))
+    await remove(selected.id)
     setSelectedId(null)
   }
 
@@ -38,19 +44,21 @@ export default function InboxPage() {
     setComposeOpen(true)
   }
 
-  const handleSend = ({ to, subject, text }) => {
-    const newEmail = {
-      id: String(Date.now()),
-      from: 'contato@contaux.com.br',
-      to,
-      subject,
-      body: text,
-      receivedAt: new Date().toISOString(),
-      read: true,
-      starred: false,
-      folder: 'sent',
+  const handleSend = async ({ to, subject, text }) => {
+    try {
+      await inboxApi.create({ to, subject, text })
+    } catch {
+      // Fallback: cria registro local via emails CRUD
+      await update(Date.now(), {
+        from: 'contato@contaux.com.br',
+        to,
+        subject,
+        body: text,
+        read: true,
+        starred: false,
+        folder: 'sent',
+      })
     }
-    setEmails((prev) => [newEmail, ...prev])
     setComposeOpen(false)
     setReplyTo(null)
   }
@@ -66,7 +74,8 @@ export default function InboxPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <EmailList
-          emails={emails}
+          emails={folderEmails}
+          loading={loading}
           selectedId={selectedId}
           onSelect={handleSelect}
           onCompose={() => { setReplyTo(null); setComposeOpen(true) }}

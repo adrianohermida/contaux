@@ -2,10 +2,13 @@ import { useState } from 'react'
 import ClientList from './ClientList'
 import ClientForm from './ClientForm'
 import ClientDetail from './ClientDetail'
-import { mockClients, mockContacts, mockNotes, mockActivities } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState(mockClients)
+  const { items: clients, create, update, loading } = useCollection('clients')
+  const { items: contacts } = useCollection('contacts')
+  const { items: notes } = useCollection('contact_notes')
+  const { items: activities } = useCollection('contact_activities')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [viewingId, setViewingId] = useState(null)
@@ -20,30 +23,29 @@ export default function ClientsPage() {
     setFormOpen(true)
   }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setClients((prev) => prev.map((c) => (c.id === editing.id ? { ...c, ...data, updated: new Date().toISOString().slice(0, 10) } : c)))
+      await update(editing.id, { ...data, updated: new Date().toISOString().slice(0, 10) })
     } else {
-      const newClient = {
-        ...data,
-        id: String(Date.now()),
-        created: new Date().toISOString().slice(0, 10),
-        updated: new Date().toISOString().slice(0, 10),
-      }
-      setClients((prev) => [newClient, ...prev])
+      await create({ ...data, created: new Date().toISOString().slice(0, 10), updated: new Date().toISOString().slice(0, 10) })
     }
     setFormOpen(false)
   }
 
-  const viewing = viewingId ? clients.find((c) => c.id === viewingId) : null
+  const viewing = viewingId ? clients.find((c) => String(c.id) === String(viewingId)) : null
 
   if (viewing) {
+    const clientContacts = contacts.filter((c) => String(c.client_id) === String(viewingId))
+    const contactIds = new Set(clientContacts.map((c) => String(c.id)))
+    const clientNotes = notes.filter((n) => contactIds.has(String(n.contact_id)))
+    const clientActivities = activities.filter((a) => contactIds.has(String(a.contact_id)))
+
     return (
       <ClientDetail
         client={viewing}
-        contacts={mockContacts}
-        notes={mockNotes}
-        activities={mockActivities}
+        contacts={clientContacts}
+        notes={clientNotes}
+        activities={clientActivities}
         onBack={() => setViewingId(null)}
         onEdit={() => handleEdit(viewing)}
       />
@@ -58,6 +60,7 @@ export default function ClientsPage() {
       </div>
       <ClientList
         clients={clients}
+        loading={loading}
         onNew={handleNew}
         onEdit={handleEdit}
         onView={(id) => setViewingId(id)}

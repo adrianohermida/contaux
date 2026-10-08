@@ -1,31 +1,31 @@
 import { useState } from 'react'
 import JournalList from './JournalList'
 import JournalForm from './JournalForm'
-import { mockEntries } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function JournalPage() {
-  const [entries, setEntries] = useState(mockEntries)
+  const { items: entries, create, update, loading } = useCollection('journal_entries')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (entry) => { setEditing(entry); setFormOpen(true) }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setEntries((prev) => prev.map((e) => (e.id === editing.id ? { ...e, ...data } : e)))
+      await update(editing.id, data)
     } else {
-      setEntries((prev) => [{ ...data, id: String(Date.now()), status: 'draft' }, ...prev])
+      await create({ ...data, status: 'draft' })
     }
     setFormOpen(false)
   }
 
-  const handlePost = (id) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, status: 'posted' } : e)))
+  const handlePost = async (id) => {
+    await update(id, { status: 'posted' })
   }
 
-  const handleCancel = (id) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, status: 'cancelled' } : e)))
+  const handleCancel = async (id) => {
+    await update(id, { status: 'cancelled' })
   }
 
   return (
@@ -34,7 +34,7 @@ export default function JournalPage() {
         <h1 className="text-2xl font-bold">Lançamentos Contábeis</h1>
         <p className="text-sm text-muted-foreground">Registros de partidas dobradas (débito = crédito)</p>
       </div>
-      <JournalList entries={entries} onNew={handleNew} onEdit={handleEdit} onPost={handlePost} onCancel={handleCancel} />
+      <JournalList entries={entries} loading={loading} onNew={handleNew} onEdit={handleEdit} onPost={handlePost} onCancel={handleCancel} />
       <JournalForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingEntry={editing} />
     </>
   )

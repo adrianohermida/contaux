@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { mockWorkflows } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 import { Zap, Plus, Pencil } from 'lucide-react'
 
 const triggerLabels = {
@@ -11,6 +11,8 @@ const triggerLabels = {
 }
 
 export default function AutomacoesPage() {
+  const { items: workflows, loading } = useCollection('workflows')
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
@@ -22,7 +24,7 @@ export default function AutomacoesPage() {
       </div>
 
       <div className="space-y-3">
-        {mockWorkflows.map((w) => (
+        {workflows.map((w) => (
           <Card key={w.id}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
@@ -70,6 +72,9 @@ export default function AutomacoesPage() {
             </CardContent>
           </Card>
         ))}
+        {loading && (
+          <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+        )}
       </div>
     </div>
   )

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import QuoteList from './QuoteList'
 import QuoteForm from './QuoteForm'
-import { mockQuotes } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function QuotesPage() {
-  const [quotes, setQuotes] = useState(mockQuotes)
+  const { items: quotes, create, update, loading } = useCollection('quotes')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -18,23 +18,19 @@ export default function QuotesPage() {
     setFormOpen(true)
   }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setQuotes((prev) => prev.map((q) => (q.id === editing.id ? { ...q, ...data } : q)))
+      await update(editing.id, data)
     } else {
       const num = `ORC-2024-${String(quotes.length + 1).padStart(3, '0')}`
-      setQuotes((prev) => [{ ...data, id: String(Date.now()), number: num }, ...prev])
+      await create({ ...data, number: num })
     }
     setFormOpen(false)
   }
 
-  /** Converte orçamento aceito em fatura */
-  const handleConvert = (quote) => {
+  const handleConvert = async (quote) => {
+    await update(quote.id, { status: 'accepted' })
     const invoiceNum = `NF-2024-${String(Date.now()).slice(-3)}`
-    setQuotes((prev) =>
-      prev.map((q) => (q.id === quote.id ? { ...q, status: 'accepted' } : q)),
-    )
-    // Em produção, isto criaria uma fatura via backend
     alert(`Orçamento ${quote.number} convertido em fatura ${invoiceNum}.`)
   }
 
@@ -46,6 +42,7 @@ export default function QuotesPage() {
       </div>
       <QuoteList
         quotes={quotes}
+        loading={loading}
         onNew={handleNew}
         onEdit={handleEdit}
         onConvert={handleConvert}

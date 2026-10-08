@@ -29,6 +29,22 @@ services:
       retries: 3
       start_period: 10s
 
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=contaux
+      - POSTGRES_USER=contaux
+      - POSTGRES_PASSWORD=contaux123
+    volumes:
+      - pg_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "contaux", "-d", "contaux"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   api:
     build:
       context: ./api
@@ -38,12 +54,20 @@ services:
       - .env.prod
     environment:
       - NODE_ENV=production
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=contaux
+      - DB_USER=contaux
+      - DB_PASS=contaux123
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 30s
 
   # Certificado SSL Let's Encrypt — rodar uma vez:
   # docker compose -f docker-compose.prod.yml run --rm certbot
@@ -56,3 +80,6 @@ services:
     command: certonly --webroot -w /var/www/certbot \
       -d contaux.com.br -d www.contaux.com.br \
       --email contato@contaux.com.br --agree-tos --no-eff-email
+
+volumes:
+  pg_data_prod:

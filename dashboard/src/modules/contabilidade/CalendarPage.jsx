@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
-import { mockObligations, obligationTypeLabels, obligationStatusLabels, obligationStatusVariants } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
+import { obligationTypeLabels, obligationStatusLabels, obligationStatusVariants } from './lib/mockData'
 import { formatDate } from './lib/format'
 import { CalendarDays, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 
@@ -13,7 +14,7 @@ const statusIcons = {
 }
 
 export default function CalendarPage() {
-  const [obligations] = useState(mockObligations)
+  const { items: obligations, loading } = useCollection('obligations')
   const [typeFilter, setTypeFilter] = useState('all')
 
   const filtered = useMemo(() => {
@@ -107,8 +108,11 @@ export default function CalendarPage() {
               </div>
             )
           })}
-          {filtered.length === 0 && (
+          {filtered.length === 0 && !loading && (
             <div className="py-12 text-center text-muted-foreground">Nenhuma obrigação encontrada.</div>
+          )}
+          {loading && (
+            <div className="py-12 text-center text-muted-foreground">Carregando...</div>
           )}
         </CardContent>
       </Card>

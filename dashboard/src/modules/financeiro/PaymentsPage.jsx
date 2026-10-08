@@ -1,23 +1,21 @@
 import { useState } from 'react'
 import PaymentList from './PaymentList'
 import PaymentForm from './PaymentForm'
-import { mockPayments } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState(mockPayments)
+  const { items: payments, create, update, loading } = useCollection('payments')
   const [formOpen, setFormOpen] = useState(false)
 
   const handleNew = () => setFormOpen(true)
 
-  const handleSave = (data) => {
-    setPayments((prev) => [{ ...data, id: String(Date.now()) }, ...prev])
+  const handleSave = async (data) => {
+    await create(data)
     setFormOpen(false)
   }
 
-  const handleConfirm = (id) => {
-    setPayments((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'confirmed' } : p)),
-    )
+  const handleConfirm = async (id) => {
+    await update(id, { status: 'confirmed' })
   }
 
   return (
@@ -26,7 +24,7 @@ export default function PaymentsPage() {
         <h1 className="text-2xl font-bold">Pagamentos</h1>
         <p className="text-sm text-muted-foreground">Registro e acompanhamento de pagamentos recebidos</p>
       </div>
-      <PaymentList payments={payments} onNew={handleNew} onConfirm={handleConfirm} />
+      <PaymentList payments={payments} loading={loading} onNew={handleNew} onConfirm={handleConfirm} />
       <PaymentForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} />
     </>
   )

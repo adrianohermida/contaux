@@ -1,15 +1,22 @@
-import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { mockLoyaltyPrograms, mockCustomerPoints, tierLabels, tierVariants } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
+import { tierLabels, tierVariants } from './lib/mockData'
 import { Award, Users, Gift } from 'lucide-react'
 
 export default function FidelidadePage() {
-  const [programs] = useState(mockLoyaltyPrograms)
-  const [customers] = useState(mockCustomerPoints)
+  const { items: programs, loading: loadingProg } = useCollection('loyalty_programs')
+  const { items: customers, loading: loadingCust } = useCollection('customer_points')
 
   const program = programs[0]
+
+  if (loadingProg || !program) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

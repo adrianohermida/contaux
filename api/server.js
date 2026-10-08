@@ -4,6 +4,8 @@ const cors = require('cors');
 const emailRoutes = require('./routes/emailRoutes');
 const inboxRoutes = require('./routes/inboxRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
+const createCrudRouter = require('./routes/crud');
+const { runMigrations } = require('./migrations');
 
 const app = express();
 const PORT = 3001;
@@ -17,6 +19,37 @@ app.use('/api/email', emailRoutes);
 
 // Rotas da caixa de entrada (inbox)
 app.use('/api/inbox', inboxRoutes);
+
+// ===== Rotas CRUD (PostgreSQL) =====
+const crudConfig = {
+  clients:         { jsonbFields: ['tags', 'address', 'fiscal'], searchFields: ['name', 'document', 'email'] },
+  contacts:        { jsonbFields: ['tags'], searchFields: ['name', 'email'] },
+  contact_notes:   { searchFields: ['content', 'author'] },
+  contact_activities: { searchFields: ['description'] },
+  invoices:        { jsonbFields: ['items'], searchFields: ['number', 'client_name'] },
+  quotes:          { jsonbFields: ['items'], searchFields: ['number', 'client_name'] },
+  payments:        { searchFields: ['client_name', 'invoice_number'] },
+  accounts:        { searchFields: ['code', 'name'] },
+  journal_entries: { jsonbFields: ['lines'], searchFields: ['description', 'reference'] },
+  tax_invoices:    { jsonbFields: ['items', 'taxes'], searchFields: ['number', 'client_name'] },
+  obligations:     { searchFields: ['title', 'description'] },
+  tickets:         { jsonbFields: ['messages'], searchFields: ['subject', 'client_name'] },
+  processes:       { searchFields: ['client_name', 'process_number', 'subject'] },
+  campaigns:       { jsonbFields: ['metrics'], searchFields: ['name', 'audience'] },
+  blog_posts:      { searchFields: ['title', 'slug', 'category'] },
+  loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'] },
+  customer_points:  { searchFields: ['client_name'] },
+  users:            { searchFields: ['name', 'email'] },
+  audit_logs:       { searchFields: ['user', 'action', 'details'] },
+  workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'] },
+  documents:        { searchFields: ['name', 'category'] },
+  reports:          { searchFields: ['name', 'type'] },
+  emails:           { searchFields: ['subject', 'from'] },
+};
+
+for (const [table, opts] of Object.entries(crudConfig)) {
+  app.use(`/api/${table}`, createCrudRouter(table, opts));
+}
 
 // Configuração do transportador SMTP
 // As credenciais vêm de variáveis de ambiente (delivered via /run/base44/app.env)
@@ -148,6 +181,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Contaux API rodando na porta ${PORT}`);
-});
+// Inicia após rodar migrações
+async function start() {
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('Erro ao rodar migrações:', err.message);
+    // Continua mesmo com erro — o DB pode estar inicializando
+  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Contaux API rodando na porta ${PORT}`);
+  });
+}
+
+start();

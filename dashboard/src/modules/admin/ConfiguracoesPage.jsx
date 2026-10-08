@@ -3,17 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { roleLabels, roleVariants, mockUsers } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
+import { roleLabels, roleVariants } from './lib/mockData'
 import { Building2, Users, Check } from 'lucide-react'
 
 export default function ConfiguracoesPage() {
+  const { items: users, loading } = useCollection('users')
   const [settings, setSettings] = useState({
     name: 'Contaux Contadoria',
     primary_color: '#0ea5e9',
     timezone: 'America/Manaus',
     locale: 'pt-BR',
   })
-  const [users] = useState(mockUsers)
   const [saved, setSaved] = useState(false)
 
   const handleSave = (e) => {

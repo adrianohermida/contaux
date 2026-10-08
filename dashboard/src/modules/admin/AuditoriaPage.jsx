@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { mockAuditLogs } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 import { Search, ScrollText } from 'lucide-react'
 
 const actionLabels = {
@@ -23,20 +23,21 @@ const actionVariants = {
 }
 
 export default function AuditoriaPage() {
+  const { items: logs, loading } = useCollection('audit_logs')
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('all')
 
   const filtered = useMemo(() => {
-    let result = [...mockAuditLogs]
+    let result = [...logs]
     if (search) {
       const q = search.toLowerCase()
       result = result.filter((l) =>
-        l.user.toLowerCase().includes(q) || l.details.toLowerCase().includes(q) || l.entity_id.toLowerCase().includes(q),
+        l.user?.toLowerCase().includes(q) || l.details?.toLowerCase().includes(q) || l.entity_id?.toLowerCase().includes(q),
       )
     }
     if (actionFilter !== 'all') result = result.filter((l) => l.action === actionFilter)
     return result
-  }, [search, actionFilter])
+  }, [logs, search, actionFilter])
 
   return (
     <div className="space-y-4">
@@ -105,8 +106,11 @@ export default function AuditoriaPage() {
             ))}
           </div>
 
-          {filtered.length === 0 && (
+          {filtered.length === 0 && !loading && (
             <div className="py-12 text-center text-muted-foreground">Nenhum log encontrado.</div>
+          )}
+          {loading && (
+            <div className="py-12 text-center text-muted-foreground">Carregando...</div>
           )}
         </CardContent>
       </Card>

@@ -1,27 +1,28 @@
 import { useState } from 'react'
 import AccountList from './AccountList'
 import AccountForm from './AccountForm'
-import { mockAccounts, accountTypeLabels } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState(mockAccounts)
+  const { items: accounts, create, update, loading } = useCollection('accounts')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (acc) => { setEditing(acc); setFormOpen(true) }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setAccounts((prev) => prev.map((a) => (a.id === editing.id ? { ...a, ...data } : a)))
+      await update(editing.id, data)
     } else {
-      setAccounts((prev) => [...prev, { ...data, id: String(Date.now()), active: true }])
+      await create({ ...data, active: true })
     }
     setFormOpen(false)
   }
 
-  const handleToggle = (id) => {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, active: !a.active } : a)))
+  const handleToggle = async (id) => {
+    const acc = accounts.find((a) => String(a.id) === String(id))
+    if (acc) await update(id, { active: !acc.active })
   }
 
   return (
@@ -32,6 +33,7 @@ export default function AccountsPage() {
       </div>
       <AccountList
         accounts={accounts}
+        loading={loading}
         onNew={handleNew}
         onEdit={handleEdit}
         onToggle={handleToggle}

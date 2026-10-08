@@ -1,32 +1,32 @@
 import { useState } from 'react'
 import TaxInvoiceList from './TaxInvoiceList'
 import TaxInvoiceForm from './TaxInvoiceForm'
-import { mockTaxInvoices } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function TaxInvoicesPage() {
-  const [invoices, setInvoices] = useState(mockTaxInvoices)
+  const { items: invoices, create, update, loading } = useCollection('tax_invoices')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (inv) => { setEditing(inv); setFormOpen(true) }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setInvoices((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...data } : i)))
+      await update(editing.id, data)
     } else {
       const num = `NFe-${String(invoices.length + 1).padStart(3, '0')}-2026`
-      setInvoices((prev) => [{ ...data, id: String(Date.now()), number: num, status: 'draft' }, ...prev])
+      await create({ ...data, number: num, status: 'draft' })
     }
     setFormOpen(false)
   }
 
-  const handleIssue = (id) => {
-    setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'issued' } : i)))
+  const handleIssue = async (id) => {
+    await update(id, { status: 'issued' })
   }
 
-  const handleCancel = (id) => {
-    setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'cancelled' } : i)))
+  const handleCancel = async (id) => {
+    await update(id, { status: 'cancelled' })
   }
 
   return (
@@ -35,7 +35,7 @@ export default function TaxInvoicesPage() {
         <h1 className="text-2xl font-bold">Notas Fiscais (NFe)</h1>
         <p className="text-sm text-muted-foreground">Emissão e gestão de notas fiscais eletrônicas</p>
       </div>
-      <TaxInvoiceList invoices={invoices} onNew={handleNew} onEdit={handleEdit} onIssue={handleIssue} onCancel={handleCancel} />
+      <TaxInvoiceList invoices={invoices} loading={loading} onNew={handleNew} onEdit={handleEdit} onIssue={handleIssue} onCancel={handleCancel} />
       <TaxInvoiceForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingInvoice={editing} />
     </>
   )

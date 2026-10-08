@@ -1,21 +1,21 @@
 import { useState } from 'react'
 import ProcessList from './ProcessList'
 import ProcessForm from './ProcessForm'
-import { mockProcesses } from './lib/mockData'
+import { useCollection } from '@/hooks/useCollection'
 
 export default function ProcessosPage() {
-  const [processes, setProcesses] = useState(mockProcesses)
+  const { items: processes, create, update, loading } = useCollection('processes')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (proc) => { setEditing(proc); setFormOpen(true) }
 
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editing) {
-      setProcesses((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...data } : p)))
+      await update(editing.id, data)
     } else {
-      setProcesses((prev) => [{ ...data, id: String(Date.now()), status: 'active' }, ...prev])
+      await create({ ...data, status: 'active' })
     }
     setFormOpen(false)
   }
@@ -26,7 +26,7 @@ export default function ProcessosPage() {
         <h1 className="text-2xl font-bold">Processos Jurídicos</h1>
         <p className="text-sm text-muted-foreground">Gestão de processos e acompanhamento de prazos</p>
       </div>
-      <ProcessList processes={processes} onNew={handleNew} onEdit={handleEdit} />
+      <ProcessList processes={processes} loading={loading} onNew={handleNew} onEdit={handleEdit} />
       <ProcessForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingProcess={editing} />
     </>
   )
