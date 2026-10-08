@@ -3,10 +3,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCollection } from '@/hooks/useCollection'
+import { useToast } from '@/components/ui/toast'
+import { request } from '@/lib/api'
 import WorkflowForm from './WorkflowForm'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
-import { Zap, Plus, Pencil } from 'lucide-react'
+import { Zap, Plus, Pencil, Play } from 'lucide-react'
 
 const triggerLabels = {
   event: 'Evento',
@@ -18,6 +20,8 @@ export default function AutomacoesPage() {
   const { items: workflows, create, update, loading } = useCollection('workflows')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [executing, setExecuting] = useState(null)
+  const toast = useToast()
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (w) => { setEditing(w); setFormOpen(true) }
@@ -33,6 +37,22 @@ export default function AutomacoesPage() {
 
   const handleToggle = async (w) => {
     await update(w.id, { active: !w.active })
+  }
+
+  const handleExecute = async (w) => {
+    setExecuting(w.id)
+    try {
+      const result = await request(`/workflows/${w.id}/execute`, { method: 'POST', body: JSON.stringify({}) })
+      if (result.executed) {
+        const sent = (result.actions || []).filter((a) => a.status === 'sent').length
+        toast(`Automação executada: ${sent} email(s) enviado(s)`, 'success')
+      } else {
+        toast(`Automação não executada: ${result.reason || 'condições não atendidas'}`, 'info')
+      }
+    } catch (err) {
+      toast('Erro ao executar automação', 'error')
+    }
+    setExecuting(null)
   }
 
   return (
@@ -75,6 +95,16 @@ export default function AutomacoesPage() {
                       {w.active ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExecute(w)}
+                    disabled={executing === w.id || !w.active}
+                    aria-label="Executar automação"
+                  >
+                    <Play className="h-4 w-4" />
+                    {executing === w.id ? 'Executando...' : 'Executar'}
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(w)} aria-label="Editar automação">
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                   </Button>

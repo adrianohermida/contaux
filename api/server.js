@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
+const workflowEngine = require('./services/workflowEngine');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
 
@@ -39,6 +40,33 @@ app.use('/api/public', publicRoutes);
 
 // Integração com escritórios parceiros (Hermida Maia e outros)
 app.use('/api/integration', integrationRoutes);
+
+// ===== Workflow Engine — execução de automações =====
+const { requireAuth } = require('./middleware/auth');
+
+// Executa um workflow específico (gatilho manual)
+app.post('/api/workflows/:id/execute', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const context = { ...req.body, triggered_by: req.user?.email || 'manual', tenant_id: req.user?.tenant_id };
+    const result = await workflowEngine.executeWorkflowById(parseInt(id, 10), context);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao executar workflow: ' + err.message });
+  }
+});
+
+// Dispara workflows por nome de evento
+app.post('/api/workflows/trigger', requireAuth, async (req, res) => {
+  try {
+    const { event, ...context } = req.body;
+    if (!event) return res.status(400).json({ error: 'event é obrigatório' });
+    const result = await workflowEngine.triggerEvent(event, { ...context, triggered_by: req.user?.email || 'system', tenant_id: req.user?.tenant_id });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao disparar evento: ' + err.message });
+  }
+});
 
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {
