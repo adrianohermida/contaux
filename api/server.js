@@ -129,15 +129,30 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
 
 // ===== Base de Conhecimento — Assistente de IA =====
 const aiService = require('./services/aiService');
+const { recordUsage, getBudgetStatus } = require('./services/assistantProactive');
 app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
   const { question } = req.body;
   if (!question || !question.trim()) {
     return res.status(400).json({ error: 'Pergunta é obrigatória' });
   }
   try {
+    // Verifica orçamento antes de processar
+    const budget = await getBudgetStatus(req.user.id, req.user.tenant_id);
+    if (budget.budget_exceeded) {
+      return res.status(429).json({
+        error: 'Orçamento diário do assistente excedido. Tente novamente amanhã.',
+        budget,
+      });
+    }
+
     const tenantIds = await getAccessibleTenantIds(req.user);
     const result = await aiService.ask(question.trim(), { tenantIds });
-    res.json(result);
+
+    // Registra uso no orçamento (estimativa: ~500 tokens por requisição)
+    const estimatedTokens = result.configured ? 500 : 200;
+    await recordUsage(req.user.id, req.user.tenant_id, estimatedTokens, 0);
+
+    res.json({ ...result, budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens } });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });
   }

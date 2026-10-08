@@ -13,6 +13,10 @@ const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middlew
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
 const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
 const { validateFile } = require('../services/mimeValidator');
+const {
+  generateSuggestions, listPendingSuggestions, dismissSuggestion, actOnSuggestion,
+  isProactiveEnabled, getBudgetStatus,
+} = require('../services/assistantProactive');
 
 // ===== Diretório de uploads do assistente =====
 const attDir = path.join(__dirname, '..', 'uploads', 'assistant');
@@ -63,6 +67,72 @@ router.post('/tools/execute', async (req, res) => {
   } catch (err) {
     console.error('[assistant] Erro ao executar tool:', err.message);
     res.status(500).json({ error: 'Erro ao executar tool' });
+  }
+});
+
+// ===== Proatividade interna (CQ-07) =====
+
+// Listar sugestões proativas pendentes
+router.get('/suggestions', async (req, res) => {
+  try {
+    const suggestions = await listPendingSuggestions(req.user.id, req.user.tenant_id);
+    res.json(suggestions);
+  } catch (err) {
+    console.error('[assistant] Erro ao listar sugestões:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar sugestões' });
+  }
+});
+
+// Gerar novas sugestões (chamado periodicamente pelo frontend)
+router.post('/suggestions/generate', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const suggestions = await generateSuggestions({
+      userId: req.user.id,
+      tenantId: req.user.tenant_id,
+      tenantIds,
+      role: req.user.role,
+    });
+    res.json(suggestions);
+  } catch (err) {
+    console.error('[assistant] Erro ao gerar sugestões:', err.message);
+    res.status(500).json({ error: 'Erro ao gerar sugestões' });
+  }
+});
+
+// Dispensar sugestão
+router.post('/suggestions/:id/dismiss', async (req, res) => {
+  try {
+    const ok = await dismissSuggestion(req.user.id, req.user.tenant_id, req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao dispensar sugestão:', err.message);
+    res.status(500).json({ error: 'Erro ao dispensar sugestão' });
+  }
+});
+
+// Agir sobre sugestão (marca como agida e retorna URL de navegação)
+router.post('/suggestions/:id/act', async (req, res) => {
+  try {
+    const result = await actOnSuggestion(req.user.id, req.user.tenant_id, req.params.id);
+    if (!result) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    res.json({ success: true, action_url: result.action_url });
+  } catch (err) {
+    console.error('[assistant] Erro ao agir sobre sugestão:', err.message);
+    res.status(500).json({ error: 'Erro ao agir sobre sugestão' });
+  }
+});
+
+// Status da proatividade (kill switch + orçamento)
+router.get('/proactive/status', async (req, res) => {
+  try {
+    const enabled = await isProactiveEnabled();
+    const budget = await getBudgetStatus(req.user.id, req.user.tenant_id);
+    res.json({ enabled, budget });
+  } catch (err) {
+    console.error('[assistant] Erro ao buscar status proativo:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar status' });
   }
 });
 

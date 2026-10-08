@@ -46,6 +46,8 @@ export function AssistantProvider({ children }) {
   const [pendingToolCall, setPendingToolCall] = useState(null) // tool aguardando aprovação
   const [memories, setMemories] = useState([])
   const [attachments, setAttachments] = useState([])
+  const [proactiveSuggestions, setProactiveSuggestions] = useState([])
+  const [proactiveEnabled, setProactiveEnabled] = useState(true)
 
   const location = useLocation()
   const { user } = useAuth()
@@ -96,6 +98,64 @@ export function AssistantProvider({ children }) {
   useEffect(() => {
     if (user) loadTools()
   }, [user, loadTools])
+
+  // ===== CQ-07: Proatividade interna =====
+
+  // Carregar sugestões pendentes do backend
+  const loadProactiveSuggestions = useCallback(async () => {
+    try {
+      const list = await request('/assistant/suggestions')
+      setProactiveSuggestions(list)
+    } catch {
+      setProactiveSuggestions([])
+    }
+  }, [])
+
+  // Gerar novas sugestões (chamado periodicamente)
+  const generateProactiveSuggestions = useCallback(async () => {
+    try {
+      await request('/assistant/suggestions/generate', { method: 'POST' })
+      // Após gerar, recarrega a lista
+      const list = await request('/assistant/suggestions')
+      setProactiveSuggestions(list)
+    } catch {
+      // Silencioso
+    }
+  }, [])
+
+  // Dispensar uma sugestão
+  const dismissProactive = useCallback(async (suggestionId) => {
+    setProactiveSuggestions((prev) => prev.filter((s) => s.id !== suggestionId))
+    try {
+      await request(`/assistant/suggestions/${suggestionId}/dismiss`, { method: 'POST' })
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Agir sobre uma sugestão (navegar)
+  const actOnProactive = useCallback(async (suggestionId) => {
+    setProactiveSuggestions((prev) => prev.filter((s) => s.id !== suggestionId))
+    try {
+      const result = await request(`/assistant/suggestions/${suggestionId}/act`, { method: 'POST' })
+      if (result.action_url) {
+        window.dispatchEvent(new CustomEvent('assistant-navigate', { detail: result.action_url }))
+      }
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Polling: carrega sugestões ao montar e a cada 5 minutos
+  useEffect(() => {
+    if (!user || user.role === 'client') return
+    loadProactiveSuggestions()
+    // Gera sugestões 3s após montar (deixa a página carregar primeiro)
+    const genTimer = setTimeout(() => generateProactiveSuggestions(), 3000)
+    // Polling a cada 5 minutos
+    const interval = setInterval(() => generateProactiveSuggestions(), 5 * 60 * 1000)
+    return () => { clearTimeout(genTimer); clearInterval(interval) }
+  }, [user, loadProactiveSuggestions, generateProactiveSuggestions])
 
   const expand = useCallback(() => {
     setPanelMode('expanded')
@@ -518,6 +578,7 @@ export function AssistantProvider({ children }) {
       memories, loadMemories, saveMemoryItem, deleteMemoryItem,
       attachments, uploadAttachment, loadAttachments,
       handleVoiceTranscript,
+      proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -530,7 +591,8 @@ export function AssistantProvider({ children }) {
      availableTools, executeAssistantTool, pendingToolCall, addToolMessage,
      memories, loadMemories, saveMemoryItem, deleteMemoryItem,
      attachments, uploadAttachment, loadAttachments,
-     handleVoiceTranscript],
+     handleVoiceTranscript,
+     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

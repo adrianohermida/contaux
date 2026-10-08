@@ -225,9 +225,47 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-07 — Proatividade interna limitada
 
+**Status:** Concluída.
+
 **Foco:** sugestões internas, deduplicação, orçamento, kill switch.
 
 **Gate:** evento duplicado não repete; orçamento bloqueia; kill switch mantém portal.
+
+**Implementação:**
+- Migração 019: tabelas `assistant_suggestions` (sugestões com dedup_key, status pending/shown/dismissed/acted, expires_at) e `assistant_budget` (tokens por usuário/dia), colunas `assistant_proactive_enabled` e `assistant_budget_daily_tokens` em `settings`.
+- `api/services/assistantProactive.js` — motor de sugestões: consulta faturas vencidas, tickets abertos, tarefas pendentes e obrigações vencendo; deduplicação por tipo (uma pendente por tipo); cooldown de 24h após dispensar; verificação de kill switch e orçamento antes de gerar.
+- `api/routes/assistantRoutes.js` — endpoints: `GET /suggestions`, `POST /suggestions/generate`, `POST /suggestions/:id/dismiss`, `POST /suggestions/:id/act`, `GET /proactive/status`.
+- `api/server.js` — endpoint `/api/knowledge-base/ask` agora verifica orçamento (429 se excedido) e registra uso de tokens.
+- `dashboard/src/components/assistant/ProactiveSuggestions.jsx` — cartões de sugestão com botões "Ver" (navega) e "Dispensar".
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de sugestões proativas, polling a cada 5 min, dismiss/act/navigate.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — exibe sugestões proativas no topo das mensagens.
+- `dashboard/src/components/layout/AppLayout.jsx` — listener `assistant-navigate` para navegação por sugestão.
+
+**Arquivos alterados:**
+- `api/migrations/019_proactive_budget.sql`
+- `api/services/assistantProactive.js`
+- `api/routes/assistantRoutes.js`
+- `api/server.js`
+- `dashboard/src/components/assistant/ProactiveSuggestions.jsx`
+- `dashboard/src/components/assistant/AssistantProvider.jsx`
+- `dashboard/src/components/assistant/AssistantPanel.jsx`
+- `dashboard/src/components/layout/AppLayout.jsx`
+
+**Testes executados (curl, admin@contaux.com.br):**
+- Proactive status: enabled=true, budget daily_limit=10000, tokens_used=0 ✓
+- Gerar sugestões: 1 sugestão (4 tarefas pendentes) ✓
+- Deduplicação: gerar novamente → 1 (não duplica) ✓
+- Dispensar sugestão → sucesso ✓
+- Listar após dispensar → 0 ✓
+- Gerar após dispensar → 0 (cooldown 24h ativo) ✓
+- Kill switch OFF → gerar retorna 0 ✓
+- Kill switch OFF → status enabled=false ✓
+- Orçamento = 0 → gerar retorna 0 ✓
+- Orçamento excedido → /ask retorna 429 ✓
+- Kill switch reativado → portal funciona normalmente ✓
+- Dados de teste limpos ✓
+
+**Gate:** evento duplicado não repete ✓; orçamento bloqueia ✓; kill switch mantém portal ✓.
 
 ## CQ-08 — QA ponta a ponta e piloto
 
