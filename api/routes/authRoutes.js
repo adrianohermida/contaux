@@ -122,6 +122,12 @@ router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (re
     }
   }
 
+  // Valida que o tenant existe antes de inserir
+  const tenantCheck = await query('SELECT id FROM tenants WHERE id = $1', [parseInt(targetTenant)]);
+  if (tenantCheck.rows.length === 0) {
+    return res.status(400).json({ error: 'Tenant informado não existe' });
+  }
+
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await query(
@@ -134,6 +140,7 @@ router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (re
     if (err.code === '23505') {
       res.status(409).json({ error: 'Email já cadastrado' });
     } else {
+      console.error('Erro ao criar usuário:', err.message);
       res.status(500).json({ error: 'Erro ao criar usuário' });
     }
   }
