@@ -230,4 +230,63 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// ===== CHAT PÚBLICO — assistente de atendimento do site =====
+router.post('/chat', async (req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Mensagem é obrigatória' });
+  }
+
+  const msg = message.trim().toLowerCase();
+
+  // Respostas rápidas pré-definidas (sem custo de IA)
+  const QUICK = [
+    {
+      match: /servi[çc]o|oferec|fazem|trabalham/,
+      answer: 'A Contaux oferece:<br>• Contabilidade para advogados<br>• Cálculos judiciais<br>• Guias e planos de pagamento<br>• Pareceres contábeis<br><br>Veja detalhes em <a href="/services.html">nossos serviços</a>.',
+    },
+    {
+      match: /atendimento|suporte|falar|contato|whatsapp|telefone|email/,
+      answer: 'Oferecemos atendimento por chat, e-mail, telefone e videoconferência.<br><br>Acesse nossa <a href="/contato.html">página de contato</a> para falar com nossa equipe.',
+    },
+    {
+      match: /parceiro|parceria|indic|indicar|comiss/,
+      answer: 'Temos um programa de parceria para escritórios e profissionais que indicam clientes.<br><br>Conheça as condições em <a href="/parceiros.html">nossa página de parceiros</a>.',
+    },
+    {
+      match: /pre[çc]o|valor|custo|quanto|plan|mensal/,
+      answer: 'Nossos planos variam conforme o porte do escritório e os serviços contratados.<br><br>Confira os planos em <a href="/pricing.html">nossa página de preços</a>.',
+    },
+    {
+      match: /contador|falar com|especialista|consult/,
+      answer: 'Para falar diretamente com um contador, acesse nossa <a href="/contato.html">página de contato</a> e escolha o canal de sua preferência. Respondemos em até 1 dia útil.',
+      collectContact: true,
+    },
+  ];
+
+  for (const q of QUICK) {
+    if (q.match.test(msg)) {
+      return res.json({ answer: q.answer, collectContact: !!q.collectContact });
+    }
+  }
+
+  // Busca na base de conhecimento (itens públicos, sem auth)
+  try {
+    const aiService = require('../services/aiService');
+    const result = await aiService.ask(message.trim(), { tenantIds: null });
+    // Se encontrou algo relevante, retorna a resposta
+    if (result.sources && result.sources.length > 0) {
+      return res.json({ answer: result.answer.replace(/\n/g, '<br>'), collectContact: false });
+    }
+  } catch (e) {
+    // Ignora erro — cai no fallback
+  }
+
+  // Fallback genérico
+  res.json({
+    answer: 'Não tenho essa informação no momento, mas nossa equipe pode ajudar!<br><br>Acesse nossa <a href="/contato.html">página de contato</a> e fale com um especialista.',
+    collectContact: true,
+  });
+});
+
 module.exports = router;

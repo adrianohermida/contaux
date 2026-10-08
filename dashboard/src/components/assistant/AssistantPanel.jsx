@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { getModuleCoverage } from './moduleCoverage'
@@ -6,16 +6,11 @@ import TaskProposalForm from './TaskProposalForm'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
-const typeIcons = {
-  article: FileText,
-  legislation: Scale,
-  book: BookOpen,
-  faq: HelpCircle,
-}
+const typeIcons = { article: FileText, legislation: Scale, book: BookOpen, faq: HelpCircle }
 
 /**
- * Painel do Assistente Contaux.
- * Mostra contexto, histórico de conversas, demonstrações e integração com a base de conhecimento.
+ * Painel do Assistente — design minimalista e compacto.
+ * Header enxuto, mensagens limpas, input inline, lista de conversas como overlay.
  */
 export default function AssistantPanel({ onClose, onFullscreen, fullscreen = false }) {
   const {
@@ -27,10 +22,17 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const scrollRef = useRef(null)
 
-  // Sugestões contextuais baseadas no módulo atual (AC-GLOBAL-03)
   const coverage = getModuleCoverage(context.route || '')
-  const suggestions = coverage.suggestions
+  const suggestions = coverage.suggestions.slice(0, 3)
+
+  // Auto-scroll para a última mensagem
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, preparing])
 
   const handleSubmit = (e) => {
     e?.preventDefault()
@@ -44,65 +46,56 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     }
   }
 
-  const handleDemo = (prompt) => {
-    if (!preparing) sendMessage(prompt)
-  }
-
-  // Painel de histórico de conversas
+  // ===== Overlay: lista de conversas =====
   if (showHistory) {
     return (
-      <div className="flex h-full flex-col">
-        <header className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex h-full flex-col bg-card">
+        <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <History className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-sm font-semibold">Histórico de conversas</h2>
+            <History className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold">Conversas</h2>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)} aria-label="Voltar" className="h-8 w-8">
-              <X className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)} className="h-7 w-7">
+            <X className="h-4 w-4" />
+          </Button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+        <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
           <button
             onClick={() => { clearMessages(); setShowHistory(false) }}
-            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-primary/10"
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm transition-colors hover:bg-primary/10 mb-1"
           >
             <Plus className="h-4 w-4 text-primary" />
             <span className="font-medium text-primary">Nova conversa</span>
           </button>
 
           {conversations.length === 0 ? (
-            <p className="px-2 py-8 text-center text-xs text-muted-foreground">
-              Nenhuma conversa salva ainda.
+            <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+              Nenhuma conversa salva.
             </p>
           ) : (
             conversations.map((conv) => (
               <div
                 key={conv.id}
-                className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors ${
                   activeConvId === conv.id ? 'bg-accent' : 'hover:bg-accent/50'
                 }`}
               >
-                <button
-                  onClick={() => openConversation(conv.id)}
-                  className="flex flex-1 items-center gap-2 text-left"
-                >
-                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <button onClick={() => openConversation(conv.id)} className="flex flex-1 items-center gap-2 text-left min-w-0">
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{conv.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {conv.message_count > 0 ? `${conv.message_count} mensagens` : 'Vazia'}
+                    <p className="truncate text-sm">{conv.title}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {conv.message_count > 0 ? `${conv.message_count} msg` : 'Vazia'}
                     </p>
                   </div>
                 </button>
                 <button
                   onClick={() => deleteConversation(conv.id)}
                   className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                  aria-label="Excluir conversa"
+                  aria-label="Excluir"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             ))
@@ -114,146 +107,100 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
 
   return (
     <div className="flex h-full flex-col">
-      {/* Cabeçalho */}
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+      {/* Header minimal */}
+      <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Sparkles className="h-5 w-5" aria-hidden="true" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4" />
           </div>
-          <div>
-            <h2 className="text-sm font-semibold leading-tight">Assistente Contaux</h2>
-            <span className="text-xs font-medium text-muted-foreground">Base de Conhecimento</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold">Assistente</span>
+            <button
+              onClick={toggleContextMode}
+              className="flex items-center gap-1 rounded text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              title={isFixed ? 'Contexto travado' : 'Acompanhando a tela'}
+            >
+              {isFixed ? <PinOff className="h-2.5 w-2.5" /> : <Pin className="h-2.5 w-2.5" />}
+              <span className="hidden sm:inline">{context.module}</span>
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} aria-label="Propor tarefa" className="h-8 w-8">
-            <CheckSquare className="h-4 w-4" aria-hidden="true" />
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} className="h-7 w-7" title="Propor tarefa">
+            <CheckSquare className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} aria-label="Histórico de conversas" className="h-8 w-8">
-            <History className="h-4 w-4" aria-hidden="true" />
+          <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
+            <History className="h-3.5 w-3.5" />
           </Button>
           {messages.length > 0 && (
-            <Button variant="ghost" size="icon" onClick={clearMessages} aria-label="Limpar conversa" className="h-8 w-8">
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            <Button variant="ghost" size="icon" onClick={clearMessages} className="h-7 w-7" title="Limpar">
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
           {onFullscreen && !fullscreen && (
-            <Button variant="ghost" size="icon" onClick={onFullscreen} aria-label="Tela cheia" className="h-8 w-8">
-              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+            <Button variant="ghost" size="icon" onClick={onFullscreen} className="h-7 w-7" title="Tela cheia">
+              <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           )}
           {fullscreen && (
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Sair de tela cheia" className="h-8 w-8">
-              <Minimize2 className="h-4 w-4" aria-hidden="true" />
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7" title="Sair de tela cheia">
+              <Minimize2 className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar assistente" className="h-8 w-8">
-            <X className="h-4 w-4" aria-hidden="true" />
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7" title="Fechar">
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      {/* Barra de contexto com modo */}
-      <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2 text-xs space-y-1">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Módulo:</span>
-          <span className="font-medium">{context.module}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Contador:</span>
-          <span className="font-medium">{context.actor}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Empresa:</span>
-          <span className="font-medium text-muted-foreground">{context.company || 'Não selecionada'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Competência:</span>
-          <span className="font-medium text-muted-foreground">{context.period || 'Não informada'}</span>
-        </div>
-        {/* Alternador de modo de contexto */}
-        <button
-          onClick={toggleContextMode}
-          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs font-medium transition-colors hover:bg-accent"
-          aria-label={isFixed ? 'Destravar contexto e acompanhar a tela' : 'Travar contexto da conversa'}
-        >
-          {isFixed ? (
-            <>
-              <PinOff className="h-3 w-3" />
-              Contexto travado — clicar para acompanhar a tela
-            </>
-          ) : (
-            <>
-              <Pin className="h-3 w-3" />
-              Acompanhando a tela — clicar para travar contexto
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Área de mensagens */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {/* Mensagens */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Sparkles className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Assistente Contaux</p>
-              <p className="text-xs text-muted-foreground max-w-[260px] mt-1">
-                Pergunte sobre legislação, normas contábeis (NBCs) ou artigos da base de conhecimento.
-              </p>
-            </div>
-            {/* Sugestões contextuais do módulo (AC-GLOBAL-03) */}
-            <div className="w-full space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Sugestões — {context.module}
-              </p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-2">
+            <p className="text-xs text-muted-foreground max-w-[240px]">
+              Pergunte sobre legislação, NBCs ou operações do sistema.
+            </p>
+            <div className="w-full space-y-1.5">
               {suggestions.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => handleDemo(s.prompt)}
+                  onClick={() => !preparing && sendMessage(s.prompt)}
                   disabled={preparing}
-                  className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-left text-xs transition-colors hover:bg-primary/10 disabled:opacity-50"
+                  className="w-full rounded-lg border border-border px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent disabled:opacity-50"
                 >
-                  <span className="font-medium text-primary">{s.label}</span>
-                  <span className="block text-muted-foreground mt-0.5">{s.description}</span>
+                  <span className="font-medium">{s.label}</span>
                 </button>
               ))}
-              {coverage.capabilities.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {coverage.capabilities.map((cap) => (
-                    <span key={cap} className="inline-flex items-center rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         ) : (
           messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'user' ? (
-                <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
+                <div className="max-w-[85%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-sm text-primary-foreground">
                   {msg.text}
                 </div>
               ) : (
-                <div className="w-full max-w-[90%] space-y-2">
-                  <div className="rounded-lg bg-muted px-3 py-2 text-sm">
+                <div className="w-full max-w-[90%] space-y-1">
+                  <div className="rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-sm">
                     <p className="whitespace-pre-wrap">{msg.text}</p>
                   </div>
                   {msg.sources?.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {msg.sources.map((s, j) => {
-                        const Icon = typeIcons[s.type] || FileText
-                        return (
-                          <span key={j} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                            <Icon className="h-3 w-3" /> {s.title?.substring(0, 35)}
-                          </span>
-                        )
-                      })}
-                    </div>
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                        {msg.sources.length} fonte(s)
+                      </summary>
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {msg.sources.map((s, j) => {
+                          const Icon = typeIcons[s.type] || FileText
+                          return (
+                            <span key={j} className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              <Icon className="h-2.5 w-2.5" /> {s.title?.substring(0, 30)}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </details>
                   )}
                 </div>
               )}
@@ -262,35 +209,32 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
         )}
         {preparing && (
           <div className="flex justify-start">
-            <div className="rounded-lg bg-muted px-3 py-2">
+            <div className="rounded-lg rounded-bl-sm bg-muted px-3 py-2">
               <Spinner size="sm" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Formulário de proposta de tarefa (AC-GLOBAL-04) */}
+      {/* Form de tarefa */}
       {showTaskForm && (
-        <TaskProposalForm
-          onCreate={createTask}
-          onClose={() => setShowTaskForm(false)}
-        />
+        <TaskProposalForm onCreate={createTask} onClose={() => setShowTaskForm(false)} />
       )}
 
-      {/* Entrada */}
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+      {/* Input compacto */}
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-2 flex items-end gap-2">
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Pergunte sobre a base de conhecimento..."
-          rows={2}
+          placeholder="Pergunte..."
+          rows={1}
           disabled={preparing}
-          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          style={{ maxHeight: '80px' }}
         />
-        <Button type="submit" size="sm" disabled={preparing || !draft.trim()} className="mt-2 w-full">
-          <Send className="h-4 w-4 mr-1.5" />
-          {preparing ? 'Consultando...' : 'Enviar'}
+        <Button type="submit" size="icon" disabled={preparing || !draft.trim()} className="h-9 w-9 shrink-0">
+          <Send className="h-4 w-4" />
         </Button>
       </form>
     </div>
