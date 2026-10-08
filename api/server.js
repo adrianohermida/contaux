@@ -165,6 +165,7 @@ const crudConfig = {
   reports:          { searchFields: ['name', 'type'] },
   emails:           { searchFields: ['subject', 'from'] },
   knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], noTenant: true },
+  tasks:             { searchFields: ['title', 'assigned_to'] },
 };
 
 for (const [table, opts] of Object.entries(crudConfig)) {
