@@ -2,6 +2,8 @@ import { Outlet } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { AssistantProvider } from '@/components/assistant/AssistantProvider'
+import AssistantWidget from '@/components/assistant/AssistantWidget'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -41,21 +43,24 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <AssistantProvider>
+      <div className="min-h-screen bg-background">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className={sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'} style={{ transition: 'padding 0.3s' }}>
-        <Header
-          onMenuClick={() => setSidebarOpen(true)}
-          isDark={isDark}
-          onToggleTheme={() => setIsDark((v) => !v)}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-        />
-        <main className="p-3 sm:p-4 lg:p-6">
-          <Outlet />
-        </main>
+        <div className={sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'} style={{ transition: 'padding 0.3s' }}>
+          <Header
+            onMenuClick={() => setSidebarOpen(true)}
+            isDark={isDark}
+            onToggleTheme={() => setIsDark((v) => !v)}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
+          <main className="p-3 sm:p-4 lg:p-6">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+      <AssistantWidget />
+    </AssistantProvider>
   )
 }
