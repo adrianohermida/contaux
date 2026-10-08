@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCollection } from '@/hooks/useCollection'
-import { BarChart3, Download, FileText, FileSpreadsheet, File } from 'lucide-react'
+import { BarChart3, Download, FileText, FileSpreadsheet, File, Check } from 'lucide-react'
 
 const formatIcons = {
   pdf: FileText,
@@ -18,6 +19,12 @@ const scheduleLabels = {
 
 export default function RelatoriosPage() {
   const { items: reports, loading } = useCollection('reports')
+  const [generating, setGenerating] = useState(null)
+
+  const handleGenerate = (report) => {
+    setGenerating(report.id)
+    setTimeout(() => setGenerating(null), 2000)
+  }
 
   return (
     <div className="space-y-6">
@@ -91,7 +98,16 @@ export default function RelatoriosPage() {
                       <td className="px-4 py-3 text-muted-foreground">{scheduleLabels[r.schedule]}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.last_run?.split('-').reverse().join('/') || '-'}</td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> Gerar</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerate(r)}
+                          disabled={generating === r.id}
+                        >
+                          {generating === r.id
+                            ? <><Check className="h-3.5 w-3.5" /> Gerando...</>
+                            : <><Download className="h-3.5 w-3.5" /> Gerar</>}
+                        </Button>
                       </td>
                     </tr>
                   )
@@ -112,7 +128,17 @@ export default function RelatoriosPage() {
                     </div>
                     <Badge variant="outline">{scheduleLabels[r.schedule]}</Badge>
                   </div>
-                  <Button variant="outline" size="sm" className="mt-2"><Icon className="h-3.5 w-3.5" /> Gerar Relatório</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => handleGenerate(r)}
+                    disabled={generating === r.id}
+                  >
+                    {generating === r.id
+                      ? <><Check className="h-3.5 w-3.5" /> Gerando...</>
+                      : <><Icon className="h-3.5 w-3.5" /> Gerar Relatório</>}
+                  </Button>
                 </div>
               )
             })}
