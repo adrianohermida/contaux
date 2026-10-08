@@ -173,7 +173,13 @@ router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (re
 
 // PATCH /api/auth/users/:id
 router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
-  const { name, email, role, password, active, tenant_id } = req.body;
+  const { name, email, role, password, active, tenant_id, mfa_enabled } = req.body;
+
+  // admin não pode criar superadmin nem escalar próprio privilégio
+  if (req.user.role === 'admin' && role === 'superadmin') {
+    return res.status(403).json({ error: 'Apenas superadmin pode atribuir role superadmin' });
+  }
+
   const sets = [];
   const vals = [];
   let idx = 1;
@@ -191,10 +197,13 @@ router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), asyn
 
   if (sets.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
 
+  // Filtra por tenants acessíveis ao usuário logado
+  const tenantIds = await getAccessibleTenantIds(req.user);
   vals.push(req.params.id);
+  vals.push(tenantIds);
   try {
     const result = await query(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, active, mfa_enabled, tenant_id`,
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = ANY($${idx + 1}::int[]) RETURNING id, name, email, role, active, mfa_enabled, tenant_id`,
       vals,
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });

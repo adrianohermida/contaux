@@ -3,6 +3,10 @@
  */
 const express = require('express');
 const router = express.Router();
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+// Todas as rotas de gerenciamento de email exigem autenticação + admin
+router.use(requireAuth, requireRole('superadmin', 'admin'));
 
 const routing = require('../services/cloudflareRouting');
 const worker = require('../services/cloudflareWorker');

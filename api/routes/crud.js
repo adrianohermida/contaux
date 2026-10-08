@@ -15,9 +15,19 @@ function createCrudRouter(table, opts = {}) {
   const searchFields = opts.searchFields || ['name', 'client_name'];
   // Tabelas que não têm tenant_id (ex: tabelas do sistema)
   const noTenant = opts.noTenant === true;
+  // Incluir entradas com tenant_id NULL (globais/compartilhadas) além das do tenant
+  const includeNullTenant = opts.includeNullTenant === true;
+  // Campos sensíveis a excluir das respostas (ex: password_hash)
+  const excludeFields = new Set(opts.excludeFields || []);
+  // Roles permitidos (opcional — se não definido, qualquer autenticado)
+  const allowedRoles = opts.allowedRoles || null;
 
   // Todas as rotas CRUD exigem autenticação
   router.use(requireAuth);
+  if (allowedRoles) {
+    const { requireRole } = require('../middleware/auth');
+    router.use(requireRole(...allowedRoles));
+  }
 
   // Palavras reservadas do PostgreSQL que precisam de aspas
   const reserved = new Set(['user', 'from', 'to', 'order', 'group', 'select', 'where', 'limit']);
@@ -31,6 +41,9 @@ function createCrudRouter(table, opts = {}) {
   async function buildTenantWhere(req) {
     if (noTenant) return { clause: '', params: [] };
     const tenantIds = await getAccessibleTenantIds(req.user);
+    if (includeNullTenant) {
+      return { clause: `(tenant_id = ANY($1::int[]) OR tenant_id IS NULL)`, params: [tenantIds] };
+    }
     return { clause: `tenant_id = ANY($1::int[])`, params: [tenantIds] };
   }
 
@@ -162,7 +175,7 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
-  /** Converte campos JSONB de volta para objetos e id para string */
+  /** Converte campos JSONB de volta para objetos, exclui campos sensíveis e formata id */
   function parseRow(row) {
     if (!row) return row;
     const parsed = { ...row };
@@ -170,6 +183,9 @@ function createCrudRouter(table, opts = {}) {
       if (typeof parsed[f] === 'string') {
         try { parsed[f] = JSON.parse(parsed[f]); } catch { /* mantém string */ }
       }
+    }
+    for (const f of excludeFields) {
+      delete parsed[f];
     }
     parsed.id = String(parsed.id);
     return parsed;

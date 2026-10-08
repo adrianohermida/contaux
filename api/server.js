@@ -158,13 +158,12 @@ const crudConfig = {
   blog_posts:      { searchFields: ['title', 'slug', 'category'] },
   loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'] },
   customer_points:  { searchFields: ['client_name'] },
-  users:            { searchFields: ['name', 'email'] },
-  audit_logs:       { searchFields: ['user', 'action', 'details'] },
+  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'] },
   workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'] },
   documents:        { searchFields: ['name', 'category'] },
   reports:          { searchFields: ['name', 'type'] },
   emails:           { searchFields: ['subject', 'from'] },
-  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], noTenant: true },
+  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], includeNullTenant: true },
   tasks:             { searchFields: ['title', 'assigned_to'] },
 };
 
@@ -218,12 +217,12 @@ app.post('/api/newsletter', async (req, res) => {
 // ===== Templates de email — listar, preview, teste =====
 
 // Lista todos os templates disponíveis
-app.get('/api/email/templates', (req, res) => {
+app.get('/api/email/templates', requireAuth, (req, res) => {
   res.json({ templates: emailTemplates.listTemplates() });
 });
 
 // Preview de um template com dados de exemplo (ou fornecidos)
-app.post('/api/email/templates/preview', async (req, res) => {
+app.post('/api/email/templates/preview', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   const { template, data } = req.body;
   if (!template) return res.status(400).json({ error: 'template é obrigatório' });
   try {
@@ -235,7 +234,7 @@ app.post('/api/email/templates/preview', async (req, res) => {
 });
 
 // Envia email de teste para o próprio endereço
-app.post('/api/email/templates/test', async (req, res) => {
+app.post('/api/email/templates/test', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   const { template, to } = req.body;
   if (!template || !to) return res.status(400).json({ error: 'template e to são obrigatórios' });
   try {
