@@ -1,0 +1,43 @@
+# robots.txt — Contaux Contadoria
+# Permite indexação de todas as páginas públicas
+# Bloqueia rotas internas do dashboard, API e assets de sistema
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /inbox
+Disallow: /crm
+Disallow: /financeiro
+Disallow: /contabilidade
+Disallow: /suporte
+Disallow: /marketing
+Disallow: /admin
+Disallow: /portal
+Disallow: /login
+Disallow: /api/
+Disallow: /index2.html
+Disallow: /index3.html
+Disallow: /index4.html
+Disallow: /reset-password.html
+Disallow: /mail-success.html
+
+# AI crawlers — permitidos para descoberta via llms.txt
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://contaux.com.br/sitemap.xml
