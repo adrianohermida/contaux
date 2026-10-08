@@ -10,36 +10,74 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Status:** Concluída. Ver `PLANO-MESTRE.md`.
 
-## CQ-01 — Shell docked persistente e responsivo; remover demos do runtime
+## CQ-01 / AC-GLOBAL-01 — Shell docked persistente e responsivo
 
-**Status:** Concluída.
+**Status:** Concluída. Branch: `global-assistant-widget`.
 
-**Foco:** coluna direita docked no layout (não overlay), três estados (recolhido/expandido/fullscreen), responsivo desktop/tablet/mobile, conversa persistente entre rotas, remoção de fixtures do runtime, unificação do launcher duplicado.
+**Foco:** coluna direita docked no layout (não overlay), três estados (recolhido/expandido/fullscreen), responsivo desktop/tablet/mobile, conversa persistente entre rotas, unificação do launcher duplicado, demonstrações identificadas.
 
-**Arquivos:** AppLayout.jsx, AssistantProvider.jsx, AssistantWidget.jsx, AssistantPanel.jsx, ConhecimentoPage.jsx, moduleContext.js (novo).
+**Arquivos alterados:**
+- `dashboard/src/components/layout/AppLayout.jsx` — monta AssistantProvider + AssistantWidget no layout raiz autenticado
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado global, persistência localStorage, conversas no backend, modo de contexto, tarefas
+- `dashboard/src/components/assistant/AssistantWidget.jsx` — três estados visuais (rail/orb/painel/fullscreen), badge não lidas, safe areas
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — barra de contexto, sugestões por módulo, histórico, formulário de tarefa
+- `dashboard/src/components/assistant/moduleContext.js` — resolução de módulo por rota
+- `dashboard/src/components/assistant/moduleCoverage.js` — matriz de cobertura por módulo (AC-GLOBAL-03)
+- `dashboard/src/components/assistant/TaskProposalForm.jsx` — formulário inline de proposta de tarefa (AC-GLOBAL-04)
+- `api/routes/assistantRoutes.js` — CRUD de conversas e mensagens com isolamento por usuário
+- `api/migrations/014_assistant_conversations.sql` — tabelas assistant_conversations + assistant_messages
+- `api/migrations/015_tasks_conversation_link.sql` — coluna conversation_id em tasks
+- `api/migrations/016_task_execution.sql` — execution_log, started_at, completed_at em tasks
+- `api/services/taskExecutor.js` — transições de status com validação e log durável
+- `api/routes/taskRoutes.js` — PATCH /api/tasks-orchestration/:id/status
 
 **Implementação:**
 - Três estados: recolhido (rail desktop 56px / orb mobile), expandido (painel lateral docked 420px), fullscreen (overlay em qualquer viewport).
-- Persistência em localStorage (`contaux-assistant`): conversa, rascunho, modo de contexto e estado do painel sobrevivem a recarregar a página.
+- Persistência em localStorage (`contaux-assistant`): rascunho, modo de contexto, estado do painel e conversa ativa sobrevivem a recarregar a página.
+- Conversas persistentes no backend (PostgreSQL): `assistant_conversations` + `assistant_messages` com isolamento por `user_id`.
 - Contexto explícito: módulo (nome legível da rota), contador, empresa, competência.
 - Modo de contexto: "acompanhar esta tela" (segue a rota) vs "travar contexto" (congela o contexto da conversa).
-- Demonstrações identificadas: três cards com borda tracejada claramente rotulados como "Demonstrações" (navegação contextual, consulta operacional, acompanhar tarefa).
+- Demonstrações identificadas: sugestões com borda tracejada rotuladas por módulo (navegação contextual, consulta operacional, acompanhar tarefa).
 - Indicadores no estado recolhido: badge de mensagens não lidas e pulso de atividade (preparando resposta).
 - Safe areas no mobile: `env(safe-area-inset-*)` no orb e no fullscreen.
-- Launcher duplicado já removido (ConhecimentoAssistant); assistente unificado no AppLayout.
+- Tarefas duráveis: criação vinculada à conversa, transições de status com log de execução (AC-GLOBAL-04).
+- Matriz de cobertura por módulo (AC-GLOBAL-03): Dashboard, Inbox, CRM, Financeiro, Contabilidade, Suporte, Marketing, Conhecimento, Tarefas, Admin, Importar.
+- Launcher duplicado removido; assistente unificado no AppLayout.
 
-**Testes executados (preview desktop + mobile):**
-- Abrir painel a partir do rail desktop ✓
-- Expandir e ver contexto (módulo, contador, empresa, competência) ✓
-- Alternar modo de contexto (acompanhar ↔ travar) ✓
-- Navegar de Dashboard → Financeiro e ver contexto atualizado ✓
-- Tela cheia ✓
-- Fechar e voltar ao estado recolhido ✓
-- Mobile: orb flutuante ✓
-- Mobile: painel fullscreen com safe areas ✓
-- Persistência em localStorage confirmada ✓
+**Testes executados:**
 
-**Gate:** dock sem sobreposição no desktop ✓; fullscreen no mobile ✓; navegação sem perda de conversa/rascunho ✓; demonstrações identificadas ✓; portal cliente intacto ✓; build registrado ✓.
+*Preview (desktop, /conhecimento):*
+- Widget visível como painel lateral docked 420px à direita ✓
+- Cabeçalho "Assistente Contaux" com botões: propor tarefa, histórico, limpar, tela cheia, fechar ✓
+- Barra de contexto: Módulo=Base de Conhecimento, Contador=Administrador Contaux, Empresa=Não selecionada, Competência=Não informada ✓
+- Modo de contexto: "Acompanhando a tela — clicar para travar contexto" ✓
+- Sugestões contextuais: "Buscar norma", "Itens recentes" com borda tracejada ✓
+- Tags de capacidade: Artigos, Legislação, Livros/PDFs, FAQs, Sincronização CFC ✓
+- Campo de entrada: "Pergunte sobre a base de conhecimento..." + botão Enviar ✓
+
+*API (curl, admin@contaux.com.br):*
+- Listar conversas: 0 conversas iniciais ✓
+- Criar conversa: id=3, título="Teste Onda 1" ✓
+- Adicionar mensagem: role=user, text="Teste de mensagem" → salva com id ✓
+- Buscar conversa com mensagens: 1 mensagem retornada ✓
+- Criar tarefa vinculada: id=5, status=todo, source=assistant ✓
+- Knowledge base ask "LGPD": 1 fonte (Lei 13.709/2018) ✓
+- Deletar conversa de teste: sucesso ✓
+- Transição de status (todo→in_progress→todo): 200 OK ✓
+
+*Não verificado automaticamente (limite de chamadas de preview):*
+- Toggle de contexto (acompanhar→travar) e navegação preservando contexto travado
+- Minimizar para rail e reabrir
+- Fullscreen e retorno
+- Mobile: orb flutuante e fullscreen com safe areas
+- Teclado/foco e responsividade tablet
+
+**Classificação:**
+- Interface demonstrativa: widget visível, sugestões, barra de contexto, histórico, formulário de tarefa
+- Funcionalidade conectada: conversas no backend, mensagens persistentes, tarefas vinculadas, busca na base de conhecimento
+- Operação homologada: transição de status de tarefas (testada via API)
+
+**Gate:** dock sem sobreposição no desktop ✓; fullscreen no mobile (código) ✓; navegação sem perda de conversa/rascunho (código) ✓; demonstrações identificadas ✓; portal cliente intacto ✓; build saudável ✓.
 
 ## CQ-02 — Saneamento de autorização (P0)
 
@@ -88,6 +126,19 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 - Migração 011: `pin_hash`, `token_version`, `refresh_tokens`, `pin_challenges`.
 
 **Gate:** PIN errado/expirado/reutilizado negado ✓; reabrir navegador restaura sessão ✓; logout revoga ✓; widget isolado ✓.
+
+## Bloqueios da Onda 2 (AC-GLOBAL-02+)
+
+1. **IA não operacional** — `aiService.js` usa OpenAI Chat Completions com fallback de busca textual. Sem `OPENAI_API_KEY` configurada, o assistente responde apenas com busca textual (sem linguagem natural). Bloqueia AC-GLOBAL-03 (respostas em linguagem natural).
+2. **Sem busca contextual no backend** — não há endpoint de busca de conversas por conteúdo, módulo, empresa, cliente, competência ou período. O histórico depende apenas de listagem por usuário. Bloqueia AC-GLOBAL-02 (busca contextual).
+3. **Sem renomear/arquivar conversas** — o backend suporta PATCH de título, mas a UI não expõe essa função. Bloqueia AC-GLOBAL-02.
+4. **Sem upload de arquivos** — não há endpoint nem UI para upload de anexos. Bloqueia AC-GLOBAL-06.
+5. **Sem entrada por voz** — não há Web Speech API integrada. Bloqueia AC-GLOBAL-06.
+6. **Sem e-mail integrado ao assistente** — o assistente não lista, pesquisa ou prepara respostas de e-mail. Bloqueia AC-GLOBAL-05.
+7. **Sem orçamento/custo por conversa** — não há registro de consumo de tokens ou estimativa de custo. Bloqueia AC-GLOBAL-07.
+8. **Sem proatividade** — não há executor em segundo plano, agendamento ou regras de sugestão automática. Bloqueia AC-GLOBAL-07.
+9. **Sem idempotência comprovada** — a criação de tarefas não usa chaves de idempotência. Bloqueia AC-GLOBAL-04.
+10. **SELECT * no CRUD** — sem projeção explícita de campos, embora não haja campos sensíveis nas tabelas configuradas. Não bloqueia, mas seria mais robusto.
 
 ## CQ-04 — Canal entre portais e atendimento humano
 
