@@ -6,6 +6,7 @@ const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const { sendMail } = require('./services/mailService');
@@ -55,8 +56,10 @@ app.use('/api/import', importRoutes);
 // Configurações de branding (singleton)
 app.use('/api/settings', settingsRoutes);
 
-// Autenticação e gestão de usuários/tenants
+// Autenticação (login, refresh, logout, me, PIN)
 app.use('/api/auth', authRoutes);
+// Gestão de usuários e tenants (admin+)
+app.use('/api/auth', userRoutes);
 
 // Estatísticas agregadas (dashboard e segurança)
 app.use('/api/stats', statsRoutes);

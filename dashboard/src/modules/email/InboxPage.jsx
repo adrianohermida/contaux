@@ -3,6 +3,7 @@ import EmailList from './EmailList'
 import EmailDetail from './EmailDetail'
 import ComposeForm from './ComposeForm'
 import { useCollection } from '@/hooks/useCollection'
+import { request } from '@/lib/api'
 
 export default function InboxPage() {
   const { items: emails, update, remove, reload, loading } = useCollection('emails')
@@ -45,15 +46,10 @@ export default function InboxPage() {
   const handleSend = async ({ to, subject, text }) => {
     setSendError(null)
     try {
-      const res = await fetch('/api/inbox/send', {
+      await request('/inbox/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to, subject, text }),
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || 'Erro ao enviar email')
-      }
       await reload()
     } catch (err) {
       setSendError(err.message)

@@ -1,56 +1,59 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { setAccessToken } from '@/lib/api'
 
 const AuthContext = createContext(null)
 
-const TOKEN_KEY = 'contaux-token'
-const USER_KEY = 'contaux-user'
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem(USER_KEY)
-    return stored ? JSON.parse(stored) : null
-  })
+  const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const token = localStorage.getItem(TOKEN_KEY)
-
-  const fetchMe = useCallback(async () => {
-    const t = localStorage.getItem(TOKEN_KEY)
-    if (!t) { setLoading(false); return }
+  // Tenta restaurar sessão via cookie de refresh ao montar
+  const refreshSession = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${t}` },
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       })
-      if (!res.ok) throw new Error('Token inválido')
+      if (!res.ok) throw new Error('Sem sessão')
       const data = await res.json()
-      setUser(data)
-      localStorage.setItem(USER_KEY, JSON.stringify(data))
+      setAccessToken(data.token)
+      setUser(data.user)
+      return data.user
     } catch {
-      logout()
-    } finally {
-      setLoading(false)
+      setAccessToken(null)
+      setUser(null)
+      return null
     }
   }, [])
 
-  useEffect(() => { fetchMe() }, [fetchMe])
+  useEffect(() => {
+    refreshSession().finally(() => setLoading(false))
+  }, [refreshSession])
 
   const login = async (email, password) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Erro ao entrar')
-    localStorage.setItem(TOKEN_KEY, data.token)
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+    setAccessToken(data.token)
     setUser(data.user)
     return data.user
   }
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } catch { /* ignora erro de rede no logout */ }
+    setAccessToken(null)
     setUser(null)
   }
 
@@ -59,7 +62,7 @@ export function AuthProvider({ children }) {
   const isAdmin = ['superadmin', 'admin'].includes(user?.role)
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isClient, isStaff, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshSession, isClient, isStaff, isAdmin }}>
       {children}
     </AuthContext.Provider>
   )

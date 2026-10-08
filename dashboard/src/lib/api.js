@@ -1,28 +1,56 @@
 /**
  * Cliente de API — wrapper de fetch para o backend Contaux
+ * CQ-03: usa cookie httpOnly para refresh, access token em memória.
  */
 
 const BASE = '/api';
 
+// Access token em memória (não persiste em localStorage)
+let accessToken = null;
+export function setAccessToken(token) { accessToken = token; }
+export function getAccessToken() { return accessToken; }
+
+// Controle de refresh para evitar múltiplas chamadas simultâneas
+let refreshing = null;
+
+async function doRefresh() {
+  if (refreshing) return refreshing;
+  refreshing = fetch(`${BASE}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+
 function getAuthHeaders() {
-  const token = localStorage.getItem('contaux-token');
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
   return headers;
 }
 
 export async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
+    credentials: 'include',
     headers: { ...getAuthHeaders(), ...options.headers },
   });
 
-  if (res.status === 401) {
-    localStorage.removeItem('contaux-token');
-    localStorage.removeItem('contaux-user');
+  // 401: tenta refresh e refaz a requisição original
+  if (res.status === 401 && !options._retried) {
+    const refreshed = await doRefresh();
+    if (refreshed?.token) {
+      setAccessToken(refreshed.token);
+      return request(path, { ...options, _retried: true });
+    }
+    // Refresh falhou — limpa sessão
+    accessToken = null;
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
+    throw new Error('Sessão expirada');
   }
 
   if (!res.ok) {

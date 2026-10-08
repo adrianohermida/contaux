@@ -1,13 +1,46 @@
 /**
- * Rotas de autenticação — login, logout, me, gestão de usuários.
+ * Rotas de autenticação — login, refresh, logout, me, PIN, gestão de usuários.
+ * CQ-03: sessão persistente via cookie httpOnly + refresh token + revogação.
  */
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { query } = require('../db');
-const { requireAuth, requireRole, signToken, getAccessibleTenantIds } = require('../middleware/auth');
+const {
+  requireAuth, requireRole, signAccessToken, generateRefreshToken,
+  getAccessibleTenantIds, JWT_SECRET, REFRESH_EXPIRES_DAYS, REFRESH_COOKIE,
+} = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
-// POST /api/auth/login
+/** Parseia cookies do header Cookie */
+function getCookies(req) {
+  const header = req.headers.cookie;
+  if (!header) return {};
+  const out = {};
+  for (const part of header.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name) out[name] = decodeURIComponent(rest.join('='));
+  }
+  return out;
+}
+
+/** Define o cookie httpOnly do refresh token */
+function setRefreshCookie(res, raw) {
+  res.cookie(REFRESH_COOKIE, raw, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/api/auth',
+    maxAge: REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
+  });
+}
+
+/** Limpa o cookie do refresh token */
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE, { httpOnly: true, sameSite: 'lax', path: '/api/auth' });
+}
+
+// POST /api/auth/login — retorna access token (15min) + seta refresh cookie (7d)
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -16,7 +49,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const result = await query(
-      `SELECT u.*, t.type as tenant_type, t.name as tenant_name, t.parent_id as tenant_parent_id
+      `SELECT u.*, t.type as tenant_type, t.name as tenant_name
        FROM users u
        LEFT JOIN tenants t ON u.tenant_id = t.id
        WHERE u.email = $1 AND u.active = true`,
@@ -37,19 +70,22 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // Atualiza last_login
     await query('UPDATE users SET last_login = now() WHERE id = $1', [user.id]);
 
-    const token = signToken({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      tenant_id: user.tenant_id,
-      name: user.name,
-    });
+    // Access token curto (15min)
+    const accessToken = signAccessToken(user);
+
+    // Refresh token (cookie httpOnly, 7 dias)
+    const { raw, hash } = generateRefreshToken();
+    await query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, now() + interval '${REFRESH_EXPIRES_DAYS} days')`,
+      [user.id, hash],
+    );
+    setRefreshCookie(res, raw);
 
     res.json({
-      token,
+      token: accessToken,
       user: {
         id: String(user.id),
         name: user.name,
@@ -58,12 +94,98 @@ router.post('/login', async (req, res) => {
         tenant_id: user.tenant_id,
         tenant_name: user.tenant_name,
         tenant_type: user.tenant_type,
+        has_pin: !!user.pin_hash,
       },
     });
   } catch (err) {
     console.error('Erro no login:', err.message);
     res.status(500).json({ error: 'Erro ao autenticar' });
   }
+});
+
+// POST /api/auth/refresh — troca cookie de refresh por novo access token
+router.post('/refresh', async (req, res) => {
+  const cookies = getCookies(req);
+  const raw = cookies[REFRESH_COOKIE];
+  if (!raw) return res.status(401).json({ error: 'Sem refresh token' });
+
+  try {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+
+    // Busca refresh token válido (não revogado, não expirado)
+    const rtResult = await query(
+      `SELECT rt.*, u.email, u.active, u.token_version
+       FROM refresh_tokens rt
+       JOIN users u ON rt.user_id = u.id
+       WHERE rt.token_hash = $1 AND rt.revoked_at IS NULL AND rt.expires_at > now()`,
+      [hash],
+    );
+
+    if (rtResult.rows.length === 0) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Refresh token inválido ou expirado' });
+    }
+
+    const rt = rtResult.rows[0];
+    if (!rt.active) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Usuário inativo' });
+    }
+
+    // Busca dados completos do usuário para o access token
+    const userResult = await query(
+      `SELECT u.*, t.type as tenant_type, t.name as tenant_name
+       FROM users u LEFT JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1`,
+      [rt.user_id],
+    );
+
+    if (userResult.rows.length === 0) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Usuário não encontrado' });
+    }
+
+    const user = userResult.rows[0];
+    const accessToken = signAccessToken(user);
+
+    res.json({
+      token: accessToken,
+      user: {
+        id: String(user.id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenant_id: user.tenant_id,
+        tenant_name: user.tenant_name,
+        tenant_type: user.tenant_type,
+        has_pin: !!user.pin_hash,
+      },
+    });
+  } catch (err) {
+    console.error('Erro no refresh:', err.message);
+    res.status(500).json({ error: 'Erro ao renovar sessão' });
+  }
+});
+
+// POST /api/auth/logout — revoga refresh token + limpa cookie + incrementa token_version
+router.post('/logout', async (req, res) => {
+  const cookies = getCookies(req);
+  const raw = cookies[REFRESH_COOKIE];
+
+  if (raw) {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+    // Revoga o refresh token específico
+    await query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1', [hash]);
+    // Incrementa token_version para invalidar todos os access tokens existentes
+    const rtResult = await query('SELECT user_id FROM refresh_tokens WHERE token_hash = $1', [hash]);
+    if (rtResult.rows.length > 0) {
+      await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [rtResult.rows[0].user_id]);
+    }
+  }
+
+  clearRefreshCookie(res);
+  res.json({ success: true });
 });
 
 // GET /api/auth/me
@@ -78,171 +200,36 @@ router.get('/me', requireAuth, async (req, res) => {
     tenant_id: u.tenant_id,
     tenant_name: tenantResult.rows[0]?.name || null,
     tenant_type: u.tenant_type,
+    has_pin: !!u.pin_hash,
   });
 });
 
-// GET /api/auth/users (admin+)
-router.get('/users', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
-  try {
-    const tenantIds = await getAccessibleTenantIds(req.user);
-    const result = await query(
-      `SELECT u.id, u.name, u.email, u.role, u.active, u.last_login, u.tenant_id, t.name as tenant_name
-       FROM users u LEFT JOIN tenants t ON u.tenant_id = t.id
-       WHERE u.tenant_id = ANY($1::int[]) ORDER BY u.id DESC`,
-      [tenantIds],
-    );
-    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar usuários' });
-  }
-});
+// POST /api/auth/verify-pin — verifica PIN e retorna desafio de uso único (5min)
+router.post('/verify-pin', requireAuth, async (req, res) => {
+  const { pin } = req.body;
+  if (!pin) return res.status(400).json({ error: 'PIN é obrigatório' });
 
-// POST /api/auth/users (admin+)
-router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
-  const { name, email, password, role, tenant_id } = req.body;
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ error: 'name, email, password e role são obrigatórios' });
+  const result = await query('SELECT pin_hash FROM users WHERE id = $1', [req.user.id]);
+  if (result.rows.length === 0 || !result.rows[0].pin_hash) {
+    return res.status(400).json({ error: 'PIN não configurado' });
   }
 
-  const validRoles = ['superadmin', 'admin', 'accountant', 'viewer', 'client'];
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Role inválido' });
+  const valid = await bcrypt.compare(pin, result.rows[0].pin_hash);
+  if (!valid) {
+    return res.status(401).json({ error: 'PIN incorreto' });
   }
 
-  // admin só pode criar usuários no seu próprio tenant ou filhos
-  const targetTenant = tenant_id || req.user.tenant_id;
-  if (req.user.role === 'admin') {
-    const tenantIds = await getAccessibleTenantIds(req.user);
-    if (!tenantIds.includes(parseInt(targetTenant))) {
-      return res.status(403).json({ error: 'Não pode criar usuário neste tenant' });
-    }
-    // admin não pode criar superadmin
-    if (role === 'superadmin') {
-      return res.status(403).json({ error: 'Apenas superadmin pode criar superadmins' });
-    }
-  }
+  // Cria desafio de uso único (nonce) com validade de 5 minutos
+  const nonce = crypto.randomBytes(16).toString('hex');
+  await query(
+    `INSERT INTO pin_challenges (user_id, nonce, expires_at)
+     VALUES ($1, $2, now() + interval '5 minutes')`,
+    [req.user.id, nonce],
+  );
 
-  // Valida que o tenant existe antes de inserir
-  const tenantCheck = await query('SELECT id FROM tenants WHERE id = $1', [parseInt(targetTenant)]);
-  if (tenantCheck.rows.length === 0) {
-    return res.status(400).json({ error: 'Tenant informado não existe' });
-  }
-
-  try {
-    const hash = await bcrypt.hash(password, 10);
-    const result = await query(
-      `INSERT INTO users (name, email, role, password_hash, tenant_id, active)
-       VALUES ($1, $2, $3, $4, $5, true) RETURNING id, name, email, role, tenant_id`,
-      [name, email.toLowerCase(), role, hash, targetTenant],
-    );
-    const newUser = result.rows[0];
-
-    // Envia email de convite branded — não bloqueia a criação se falhar
-    const { sendMail, emailTemplates } = req.app.locals;
-    if (sendMail && emailTemplates) {
-      try {
-        const roleLabels = { superadmin: 'super administrador', admin: 'administrador', accountant: 'contador', viewer: 'visualizador', client: 'cliente' };
-        const tpl = await emailTemplates.render('invitation', {
-          name,
-          email: email.toLowerCase(),
-          role: roleLabels[role] || role,
-          tempPassword: password,
-          loginUrl: `${process.env.SITE_URL || 'https://contaux.com.br'}/login`,
-        });
-        await sendMail({
-          to: email.toLowerCase(),
-          subject: tpl.subject,
-          text: tpl.text,
-          html: tpl.html,
-        });
-      } catch (mailErr) {
-        console.warn('Aviso: email de convite não enviado:', mailErr.message);
-      }
-    }
-
-    res.status(201).json({ ...newUser, id: String(newUser.id) });
-  } catch (err) {
-    if (err.code === '23505') {
-      res.status(409).json({ error: 'Email já cadastrado' });
-    } else {
-      console.error('Erro ao criar usuário:', err.message);
-      res.status(500).json({ error: 'Erro ao criar usuário' });
-    }
-  }
-});
-
-// PATCH /api/auth/users/:id
-router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
-  const { name, email, role, password, active, tenant_id, mfa_enabled } = req.body;
-
-  // admin não pode criar superadmin nem escalar próprio privilégio
-  if (req.user.role === 'admin' && role === 'superadmin') {
-    return res.status(403).json({ error: 'Apenas superadmin pode atribuir role superadmin' });
-  }
-
-  const sets = [];
-  const vals = [];
-  let idx = 1;
-
-  if (name) { sets.push(`name = $${idx++}`); vals.push(name); }
-  if (email) { sets.push(`email = $${idx++}`); vals.push(email.toLowerCase()); }
-  if (role) { sets.push(`role = $${idx++}`); vals.push(role); }
-  if (active !== undefined) { sets.push(`active = $${idx++}`); vals.push(active); }
-  if (mfa_enabled !== undefined) { sets.push(`mfa_enabled = $${idx++}`); vals.push(mfa_enabled); }
-  if (tenant_id !== undefined) { sets.push(`tenant_id = $${idx++}`); vals.push(tenant_id); }
-  if (password) {
-    const hash = await bcrypt.hash(password, 10);
-    sets.push(`password_hash = $${idx++}`); vals.push(hash);
-  }
-
-  if (sets.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
-
-  // Filtra por tenants acessíveis ao usuário logado
-  const tenantIds = await getAccessibleTenantIds(req.user);
-  vals.push(req.params.id);
-  vals.push(tenantIds);
-  try {
-    const result = await query(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = ANY($${idx + 1}::int[]) RETURNING id, name, email, role, active, mfa_enabled, tenant_id`,
-      vals,
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.json({ ...result.rows[0], id: String(result.rows[0].id) });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar usuário' });
-  }
-});
-
-// GET /api/auth/tenants (admin+)
-router.get('/tenants', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
-  try {
-    const tenantIds = await getAccessibleTenantIds(req.user);
-    const result = await query(
-      `SELECT id, name, type, parent_id, external_id, document, contact_email, active, created_at
-       FROM tenants WHERE id = ANY($1::int[]) ORDER BY id DESC`,
-      [tenantIds],
-    );
-    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar tenants' });
-  }
-});
-
-// POST /api/auth/tenants (superadmin only)
-router.post('/tenants', requireAuth, requireRole('superadmin'), async (req, res) => {
-  const { name, type, parent_id, external_id, document, contact_email } = req.body;
-  if (!name || !type) return res.status(400).json({ error: 'name e type são obrigatórios' });
-
-  try {
-    const result = await query(
-      `INSERT INTO tenants (name, type, parent_id, external_id, document, contact_email)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, type, parent_id || null, external_id || null, document || null, contact_email || null],
-    );
-    res.status(201).json({ ...result.rows[0], id: String(result.rows[0].id) });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar tenant' });
-  }
+  // Token curto carregando o nonce para validação no backend
+  const pinToken = jwt.sign({ pin_nonce: nonce, v: req.user.token_version }, JWT_SECRET, { expiresIn: '5m' });
+  res.json({ pin_token: pinToken });
 });
 
 module.exports = router;
