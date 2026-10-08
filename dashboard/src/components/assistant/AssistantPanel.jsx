@@ -58,7 +58,7 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     }
   }
 
-  // ===== Overlay: lista de conversas (não em fullscreen — sidebar cuida) =====
+  // ===== Overlay: lista de conversas (não mostra em fullscreen — a sidebar já cuida) =====
   if (showHistory && !fullscreen) {
     return (
       <div className="flex h-full flex-col bg-card">

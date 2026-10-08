@@ -8,7 +8,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { query } = require('../db');
+const { query, pool } = require('../db');
 const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middleware/auth');
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
 const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
@@ -42,7 +42,7 @@ async function checkConversationAccess(convId, user) {
   const tenantIds = await getAccessibleTenantIds(user);
   const result = await query(
     `SELECT id, tenant_id, user_id, assigned_to, status, title, context, origin,
-            conversation_kind, handoff_reason, visitor_name, project_id, created_at, updated_at
+            conversation_kind, handoff_reason, visitor_name, project_id, dot_id, created_at, updated_at
      FROM assistant_conversations
      WHERE id = $1 AND tenant_id = ANY($2::int[])
        AND (user_id = $3 OR assigned_to = $3
@@ -170,14 +170,13 @@ router.get('/proactive/status', async (req, res) => {
 // ===== Fila de atendimento (staff) — deve vir antes de /:id =====
 
 // Listar conversas aguardando atendimento humano (staff only)
-// Filtra por tenants acessíveis ao usuário — sem acesso cruzado entre empresas
+// SEGURANÇA: filtra por tenants acessíveis ao usuário — sem acesso cruzado entre empresas
 router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
     const tenantIds = await getAccessibleTenantIds(req.user);
     const result = await query(
-      `SELECT c.id, c.title, c.status, c.origin, c.visitor_name, c.handoff_reason,
-              c.tenant_id, c.conversation_kind,
-              c.created_at, c.updated_at,
+      `SELECT c.id, c.title, c.status, c.origin, c.conversation_kind, c.visitor_name,
+              c.handoff_reason, c.tenant_id, c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id AND role = 'user') AS msg_count,
               (SELECT max(created_at) FROM assistant_messages WHERE conversation_id = c.id) AS last_msg_at
        FROM assistant_conversations c
@@ -193,14 +192,109 @@ router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountan
   }
 });
 
+// ===== Dots (assistentes configuráveis) =====
+
+// Listar dots do tenant
+router.get('/dots', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `SELECT id, name, description, system_prompt, color, icon, is_active, created_at, updated_at
+       FROM assistant_dots
+       WHERE tenant_id = ANY($1::int[])
+       ORDER BY updated_at DESC`,
+      [tenantIds],
+    );
+    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar dots:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar assistentes' });
+  }
+});
+
+// Criar dot
+router.post('/dots', async (req, res) => {
+  try {
+    const { name, description, system_prompt, color, icon } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
+
+    const result = await query(
+      `INSERT INTO assistant_dots (tenant_id, created_by, name, description, system_prompt, color, icon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, name, description, system_prompt, color, icon, is_active, created_at, updated_at`,
+      [req.user.tenant_id, req.user.id, name.trim(), description || null,
+       system_prompt || '', color || '#3763EB', icon || 'Bot'],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao criar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao criar assistente' });
+  }
+});
+
+// Atualizar dot
+router.patch('/dots/:id', async (req, res) => {
+  try {
+    const { name, description, system_prompt, color, icon, is_active } = req.body;
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { fields.push(`description = $${idx++}`); values.push(description); }
+    if (system_prompt !== undefined) { fields.push(`system_prompt = $${idx++}`); values.push(system_prompt); }
+    if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
+    if (icon !== undefined) { fields.push(`icon = $${idx++}`); values.push(icon); }
+    if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(is_active); }
+
+    if (fields.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+
+    fields.push(`updated_at = now()`);
+    values.push(req.params.id, tenantIds);
+
+    const result = await query(
+      `UPDATE assistant_dots SET ${fields.join(', ')}
+       WHERE id = $${idx++} AND tenant_id = ANY($${idx++}::int[])
+       RETURNING id, name, description, system_prompt, color, icon, is_active, created_at, updated_at`,
+      values,
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Assistente não encontrado' });
+    const row = result.rows[0];
+    res.json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao atualizar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao atualizar assistente' });
+  }
+});
+
+// Deletar dot
+router.delete('/dots/:id', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `DELETE FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) RETURNING id`,
+      [req.params.id, tenantIds],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Assistente não encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao deletar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao deletar assistente' });
+  }
+});
+
 // ===== Conversas =====
 
-// Listar conversas do usuário (mais recentes primeiro)
+// Listar conversas do usuário (mais recentes primeiro) — paginado
 // Inclui conversas onde o usuário é dono, responsável ou participante,
 // filtradas pelos tenants acessíveis ao usuário.
 router.get('/conversations', async (req, res) => {
   try {
     const { kind, q } = req.query;
+    const offset = Math.max(0, parseInt(req.query.offset || '0', 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '50', 10)));
     const tenantIds = await getAccessibleTenantIds(req.user);
 
     const conditions = [
@@ -220,9 +314,11 @@ router.get('/conversations', async (req, res) => {
       args.push(`%${q}%`);
     }
 
+    args.push(limit, offset);
+
     const result = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to,
-              c.conversation_kind, c.tenant_id, c.project_id,
+              c.conversation_kind, c.tenant_id, c.project_id, c.dot_id,
               c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id) AS message_count,
               p.color AS project_color, p.name AS project_name
@@ -230,15 +326,28 @@ router.get('/conversations', async (req, res) => {
        LEFT JOIN assistant_projects p ON p.id = c.project_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY c.updated_at DESC
-       LIMIT 50`,
+       LIMIT $${idx++} OFFSET $${idx++}`,
       args,
     );
-    res.json(result.rows.map((r) => ({
-      ...r,
-      id: String(r.id),
-      project_id: r.project_id ? String(r.project_id) : null,
-      context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
-    })));
+
+    const countResult = await query(
+      `SELECT count(*) AS total FROM assistant_conversations c
+       WHERE ${conditions.join(' AND ')}`,
+      args.slice(0, -2),  // exclude limit/offset
+    );
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    res.json({
+      conversations: result.rows.map((r) => ({
+        ...r,
+        id: String(r.id),
+        project_id: r.project_id ? String(r.project_id) : null,
+        dot_id: r.dot_id ? String(r.dot_id) : null,
+        context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
+      })),
+      total,
+      hasMore: offset + result.rows.length < total,
+    });
   } catch (err) {
     console.error('[assistant] Erro ao listar conversas:', err.message);
     res.status(500).json({ error: 'Erro ao buscar conversas' });
@@ -249,16 +358,38 @@ router.get('/conversations', async (req, res) => {
 // Aceita conversation_kind (ai/support/internal) — padrão 'ai'
 router.post('/conversations', async (req, res) => {
   try {
-    const { title, context, conversation_kind } = req.body;
+    const { title, context, conversation_kind, project_id, dot_id } = req.body;
     const kind = ['ai', 'support', 'internal'].includes(conversation_kind) ? conversation_kind : 'ai';
     const participantRole = req.user.role === 'client' ? 'client' : 'staff';
     const origin = req.user.role === 'client' ? 'public' : 'internal';
 
+    // Valida project_id se fornecido
+    let validProjectId = null;
+    if (project_id) {
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      const projCheck = await query(
+        `SELECT id FROM assistant_projects WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+        [project_id, tenantIds],
+      );
+      if (projCheck.rows.length > 0) validProjectId = projCheck.rows[0].id;
+    }
+
+    // Valida dot_id se fornecido
+    let validDotId = null;
+    if (dot_id) {
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      const dotCheck = await query(
+        `SELECT id FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) AND is_active = true`,
+        [dot_id, tenantIds],
+      );
+      if (dotCheck.rows.length > 0) validDotId = dotCheck.rows[0].id;
+    }
+
     const result = await query(
-      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, title, context, status, origin, conversation_kind, created_at, updated_at`,
-      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, origin, kind],
+      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind, project_id, dot_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, title, context, status, origin, conversation_kind, project_id, dot_id, created_at, updated_at`,
+      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, origin, kind, validProjectId, validDotId],
     );
     const row = result.rows[0];
 
@@ -272,6 +403,8 @@ router.post('/conversations', async (req, res) => {
     res.status(201).json({
       ...row,
       id: String(row.id),
+      project_id: row.project_id ? String(row.project_id) : null,
+      dot_id: row.dot_id ? String(row.dot_id) : null,
       context: typeof row.context === 'string' ? JSON.parse(row.context) : row.context,
     });
   } catch (err) {
@@ -304,6 +437,8 @@ router.get('/conversations/:id', async (req, res) => {
     res.json({
       ...conv,
       id: String(conv.id),
+      project_id: conv.project_id ? String(conv.project_id) : null,
+      dot_id: conv.dot_id ? String(conv.dot_id) : null,
       context: typeof conv.context === 'string' ? JSON.parse(conv.context) : conv.context,
       messages: msgResult.rows.map((m) => ({
         ...m,
@@ -390,8 +525,7 @@ router.post('/conversations/:id/handoff', async (req, res) => {
     }
 
     await query(
-      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2,
-              conversation_kind = 'support', updated_at = now()
+      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, conversation_kind = 'support', updated_at = now()'
        WHERE id = $1`,
       [convId, reason || null],
     );
@@ -411,52 +545,65 @@ router.post('/conversations/:id/handoff', async (req, res) => {
 
 // Aceitar handoff (staff only)
 // Atribuição concorrente segura: UPDATE atômico com WHERE status = 'waiting_human'
-// impede que dois responsáveis ganhem o mesmo atendimento.
+// impede que dois responsáveis ganhem o mesmo atendimento. Transação garante atomicidade.
 // Verifica tenant acessível ao usuário antes de atribuir.
 router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
     const convId = req.params.id;
     const tenantIds = await getAccessibleTenantIds(req.user);
 
-    // UPDATE atômico: só atribui se ainda está aguardando E o tenant é acessível
-    const claimResult = await query(
-      `UPDATE assistant_conversations
-       SET status = 'with_human', assigned_to = $2, conversation_kind = 'support', updated_at = now()
-       WHERE id = $1 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
-       RETURNING id, tenant_id`,
-      [convId, req.user.id, tenantIds],
-    );
+    // C-15: transação atômica — UPDATE + participante + evento no mesmo bloco
+    // Garante que o aceite só persiste se TODAS as escritas forem bem-sucedidas
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (claimResult.rows.length === 0) {
-      // Verifica se a conversa existe mas já foi atribuída ou é de outro tenant
-      const exists = await query(
-        `SELECT status, tenant_id FROM assistant_conversations WHERE id = $1`,
-        [convId],
+      // UPDATE atômico: só sucesso se status ainda é 'waiting_human' E tenant é acessível
+      const result = await client.query(
+        `UPDATE assistant_conversations
+         SET status = 'with_human', assigned_to = $1, conversation_kind = 'support', updated_at = now()
+         WHERE id = $2 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
+         RETURNING id, tenant_id`,
+        [req.user.id, convId, tenantIds],
       );
-      if (exists.rows.length === 0) {
-        return res.status(404).json({ error: 'Conversa não encontrada' });
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        // Distingue: não existe, já assumido, ou sem permissão de tenant
+        // C-15: filtra por tenant para não vazar existência/estado de conversa estrangeira
+        const conv = await query(
+          `SELECT id, status FROM assistant_conversations
+           WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+          [convId, tenantIds],
+        );
+        if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+        if (conv.rows[0].status !== 'waiting_human') return res.status(409).json({ error: 'Atendimento já foi assumido' });
+        return res.status(403).json({ error: 'Sem permissão para este tenant' });
       }
-      if (exists.rows[0].status !== 'waiting_human') {
-        return res.status(409).json({ error: 'Atendimento já foi assumido por outro responsável' });
-      }
-      return res.status(403).json({ error: 'Sem permissão para atendimentos deste tenant' });
+
+      // Adiciona staff como participante se ainda não for
+      await client.query(
+        `INSERT INTO assistant_participants (conversation_id, user_id, role, display_name)
+         VALUES ($1, $2, 'staff', $3)
+         ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+        [convId, req.user.id, req.user.name || null],
+      );
+
+      // Registra evento
+      await client.query(
+        `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
+         VALUES ($1, 'system', $2, 'handoff_accepted', $3)`,
+        [convId, `${req.user.name || 'Atendente'} assumiu o atendimento`, req.user.name || 'Atendente'],
+      );
+
+      await client.query('COMMIT');
+      res.json({ success: true, status: 'with_human', assigned_to: String(req.user.id) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    // Adiciona staff como participante se ainda não for
-    await query(
-      `INSERT INTO assistant_participants (conversation_id, user_id, role, display_name)
-       VALUES ($1, $2, 'staff', $3)
-       ON CONFLICT (conversation_id, user_id) DO NOTHING`,
-      [convId, req.user.id, req.user.name || null],
-    );
-
-    await query(
-      `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
-       VALUES ($1, 'system', $2, 'handoff_accepted', $3)`,
-      [convId, `${req.user.name || 'Atendente'} assumiu o atendimento`, req.user.name || 'Atendente'],
-    );
-
-    res.json({ success: true, status: 'with_human', assigned_to: String(req.user.id) });
   } catch (err) {
     console.error('[assistant] Erro ao aceitar handoff:', err.message);
     res.status(500).json({ error: 'Erro ao aceitar handoff' });
@@ -494,18 +641,19 @@ router.post('/conversations/:id/close', requireRole('admin', 'superadmin', 'acco
 // ===== Mensagens =====
 
 // Adicionar mensagem a uma conversa
-// CORREÇÃO DE SEGURANÇA: o role é sempre 'user' — o servidor define a autoria,
-// nunca o cliente. Mensagens 'assistant' e 'system' são criadas apenas pelo
-// servidor (endpoints de IA, handoff, anexos, tools).
+// SEGURANÇA: role é sempre 'user' — o servidor define a autoria, nunca o cliente.
+// Mensagens 'assistant' e 'system' só são criadas pelo backend (rotas internas).
 router.post('/conversations/:id/messages', async (req, res) => {
   try {
     const { text, sources } = req.body;
-    if (!text) return res.status(400).json({ error: 'text é obrigatório' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text é obrigatório' });
 
     // Verifica acesso à conversa (participante + tenant)
     const conv = await checkConversationAccess(req.params.id, req.user);
     if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
+    // Role sempre 'user' — o servidor define a autoria, nunca o cliente
+    const role = 'user';
     const result = await query(
       `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_id, author_name)
        VALUES ($1, 'user', $2, $3, $4, $5)
@@ -712,7 +860,7 @@ router.get('/conversations/:id/attachments', async (req, res) => {
   }
 });
 
-// Download de anexo — ACL: acesso à conversa + tenant match
+// Download de anexo — ACL: exige permissão na conversa, não apenas mesmo tenant
 router.get('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
     // Verifica acesso à conversa (participante + tenant)
@@ -741,7 +889,7 @@ router.get('/conversations/:id/attachments/:aid', async (req, res) => {
   }
 });
 
-// Deletar anexo
+// Deletar anexo — exige permissão na conversa, não apenas mesmo tenant
 router.delete('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
     const conv = await checkConversationAccess(req.params.id, req.user);

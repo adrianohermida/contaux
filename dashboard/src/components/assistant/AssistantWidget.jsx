@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Sparkles, X, ArrowLeft } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import AssistantPanel from './AssistantPanel'
-import WorkspaceSidebar from './WorkspaceSidebar'
+import FullscreenWorkspace from './FullscreenWorkspace'
 
 /**
  * Widget do Assistente Contaux — minimalista.
@@ -29,47 +29,7 @@ export default function AssistantWidget() {
   }, [panelMode])
 
   if (panelMode === 'fullscreen') {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex bg-card shadow-xl"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-        role="dialog"
-        aria-label="Assistente Contaux — workspace"
-      >
-        {/* Desktop: sidebar + panel lado a lado */}
-        <aside className="hidden md:flex w-72 shrink-0 flex-col border-r border-border">
-          <WorkspaceSidebar
-            onSelectConversation={() => setMobileView('chat')}
-            onNewConversation={() => setMobileView('chat')}
-          />
-        </aside>
-
-        {/* Mobile: alterna entre lista e conversa */}
-        <div className="flex flex-1 flex-col md:hidden">
-          {mobileView === 'list' ? (
-            <WorkspaceSidebar
-              onSelectConversation={() => setMobileView('chat')}
-              onNewConversation={() => setMobileView('chat')}
-            />
-          ) : (
-            <div className="flex flex-1 flex-col">
-              <button
-                onClick={() => setMobileView('list')}
-                className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4" /> Voltar à lista
-              </button>
-              <AssistantPanel onClose={collapse} onFullscreen={null} fullscreen />
-            </div>
-          )}
-        </div>
-
-        {/* Desktop: painel de conversa */}
-        <div className="hidden md:flex flex-1 flex-col">
-          <AssistantPanel onClose={collapse} onFullscreen={null} fullscreen />
-        </div>
-      </div>
-    )
+    return <FullscreenWorkspace onClose={collapse} />
   }
 
   if (panelMode === 'expanded') {
