@@ -11,6 +11,11 @@ async function request(path, options = {}) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`)
+  // Cloudflare retorna HTTP 200 com success:false em caso de erro de API
+  if (data.success === false) {
+    const msg = data.errors?.[0]?.message || 'Erro desconhecido da API Cloudflare'
+    throw new Error(msg)
+  }
   return data
 }
 

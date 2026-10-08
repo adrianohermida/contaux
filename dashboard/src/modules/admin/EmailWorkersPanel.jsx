@@ -19,6 +19,9 @@ export default function EmailWorkersPanel() {
     try {
       const data = await emailApi.getWorkersStatus()
       setStatus(data)
+      if (data?.router?.status === 403 || data?.forwarder?.status === 403) {
+        setError('Token Cloudflare sem permissão para Workers (403). Verifique se o token tem escopo "Workers Scripts:Edit".')
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -90,7 +93,7 @@ export default function EmailWorkersPanel() {
         <CardContent>
           <div className="flex items-center gap-3">
             <Badge variant={routerStatus?.exists ? 'default' : 'outline'}>
-              {routerStatus?.exists ? <><Check className="h-3 w-3" /> Deployado</> : 'Não deployado'}
+              {routerStatus?.exists ? <><Check className="h-3 w-3" /> Deployado</> : routerStatus?.status === 403 ? 'Erro de permissão' : 'Não deployado'}
             </Badge>
             <span className="text-xs text-muted-foreground">
               Recebe emails do Email Routing e envia para o webhook da API
@@ -109,7 +112,7 @@ export default function EmailWorkersPanel() {
         <CardContent>
           <div className="flex items-center gap-3">
             <Badge variant={forwarderStatus?.exists ? 'default' : 'outline'}>
-              {forwarderStatus?.exists ? <><Check className="h-3 w-3" /> Deployado</> : 'Não deployado'}
+              {forwarderStatus?.exists ? <><Check className="h-3 w-3" /> Deployado</> : forwarderStatus?.status === 403 ? 'Erro de permissão' : 'Não deployado'}
             </Badge>
             <span className="text-xs text-muted-foreground">
               Envia emails via MailChannels API (gratuito no Cloudflare)

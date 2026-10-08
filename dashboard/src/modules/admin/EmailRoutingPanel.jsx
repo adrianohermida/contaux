@@ -28,6 +28,8 @@ export default function EmailRoutingPanel() {
         emailApi.listDestinations(),
         emailApi.getDns(),
       ])
+      const errors = [st, ds, dn].filter(r => r.status === 'rejected').map(r => r.reason?.message)
+      if (errors.length) setError(errors.join('; '))
       if (st.status === 'fulfilled') setStatus(st.value)
       if (rl.status === 'fulfilled') setRules(rl.value?.result || [])
       if (ds.status === 'fulfilled') setDestinations(ds.value?.result || [])
@@ -127,18 +129,26 @@ export default function EmailRoutingPanel() {
           </form>
           <div className="space-y-2">
             {rules.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma regra configurada.</p>}
-            {rules.map((rule) => (
-              <div key={rule.id} className="flex items-center justify-between rounded-md border border-border p-2.5">
-                <div className="flex items-center gap-2">
-                  <Badge variant={rule.enabled ? 'default' : 'outline'}>{rule.enabled ? 'Ativa' : 'Inativa'}</Badge>
-                  <span className="text-sm font-medium">{rule.name || rule.matchers?.[0]?.value || 'Regra'}</span>
-                  <span className="text-xs text-muted-foreground">→ {rule.actions?.[0]?.type}: {rule.actions?.[0]?.value?.[0] || rule.actions?.[0]?.value?.toString() || ''}</span>
+            {rules.map((rule) => {
+              const matcher = rule.matchers?.[0]
+              const action = rule.actions?.[0]
+              const matcherLabel = matcher?.type === 'all' ? 'Todos os emails' : matcher?.value || 'Regra'
+              const actionLabels = { drop: 'Descartar', forward: 'Encaminhar', worker: 'Worker' }
+              const actionLabel = actionLabels[action?.type] || action?.type || ''
+              const actionValue = Array.isArray(action?.value) ? action.value[0] : action?.value || ''
+              return (
+                <div key={rule.id} className="flex items-center justify-between rounded-md border border-border p-2.5">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={rule.enabled ? 'default' : 'outline'}>{rule.enabled ? 'Ativa' : 'Inativa'}</Badge>
+                    <span className="text-sm font-medium">{rule.name || matcherLabel}</span>
+                    <span className="text-xs text-muted-foreground">→ {actionLabel}{actionValue ? `: ${actionValue}` : ''}</span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteRule(rule.id)} disabled={actionLoading === 'delRule'} aria-label={`Deletar regra ${rule.name}`}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDeleteRule(rule.id)} disabled={actionLoading === 'delRule'} aria-label={`Deletar regra ${rule.name}`}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>
