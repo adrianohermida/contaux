@@ -36,6 +36,22 @@ const attUpload = multer({
 
 router.use(requireAuth);
 
+// ===== Helper: verifica acesso à conversa (participante + tenant) =====
+// Retorna a conversa se o usuário tem acesso, null caso contrário.
+async function checkConversationAccess(convId, user) {
+  const tenantIds = await getAccessibleTenantIds(user);
+  const result = await query(
+    `SELECT id, tenant_id, user_id, assigned_to, status, title, context, origin,
+            conversation_kind, handoff_reason, visitor_name, created_at, updated_at
+     FROM assistant_conversations
+     WHERE id = $1 AND tenant_id = ANY($2::int[])
+       AND (user_id = $3 OR assigned_to = $3
+        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $3))`,
+    [convId, tenantIds, user.id],
+  );
+  return result.rows.length > 0 ? result.rows[0] : null;
+}
+
 // ===== Ferramentas operacionais (CQ-05) =====
 
 // Listar tools disponíveis para o role do usuário
@@ -139,17 +155,21 @@ router.get('/proactive/status', async (req, res) => {
 // ===== Fila de atendimento (staff) — deve vir antes de /:id =====
 
 // Listar conversas aguardando atendimento humano (staff only)
+// Filtra por tenants acessíveis ao usuário — sem acesso cruzado entre empresas
 router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
     const result = await query(
       `SELECT c.id, c.title, c.status, c.origin, c.visitor_name, c.handoff_reason,
+              c.tenant_id, c.conversation_kind,
               c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id AND role = 'user') AS msg_count,
               (SELECT max(created_at) FROM assistant_messages WHERE conversation_id = c.id) AS last_msg_at
        FROM assistant_conversations c
-       WHERE c.status = 'waiting_human'
+       WHERE c.status = 'waiting_human' AND c.tenant_id = ANY($1::int[])
        ORDER BY c.updated_at ASC
        LIMIT 50`,
+      [tenantIds],
     );
     res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
   } catch (err) {
@@ -161,17 +181,40 @@ router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountan
 // ===== Conversas =====
 
 // Listar conversas do usuário (mais recentes primeiro)
+// Inclui conversas onde o usuário é dono, responsável ou participante,
+// filtradas pelos tenants acessíveis ao usuário.
 router.get('/conversations', async (req, res) => {
   try {
+    const { kind, q } = req.query;
+    const tenantIds = await getAccessibleTenantIds(req.user);
+
+    const conditions = [
+      `c.tenant_id = ANY($1::int[])`,
+      `(c.user_id = $2 OR c.assigned_to = $2
+        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2))`,
+    ];
+    const args = [tenantIds, req.user.id];
+    let idx = 3;
+
+    if (kind) {
+      conditions.push(`c.conversation_kind = $${idx++}`);
+      args.push(kind);
+    }
+    if (q) {
+      conditions.push(`c.title ILIKE $${idx++}`);
+      args.push(`%${q}%`);
+    }
+
     const result = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to,
+              c.conversation_kind, c.tenant_id,
               c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id) AS message_count
        FROM assistant_conversations c
-       WHERE c.user_id = $1
+       WHERE ${conditions.join(' AND ')}
        ORDER BY c.updated_at DESC
        LIMIT 50`,
-      [req.user.id],
+      args,
     );
     res.json(result.rows.map((r) => ({
       ...r,
@@ -185,22 +228,27 @@ router.get('/conversations', async (req, res) => {
 });
 
 // Criar nova conversa
+// Aceita conversation_kind (ai/support/internal) — padrão 'ai'
 router.post('/conversations', async (req, res) => {
   try {
-    const { title, context } = req.body;
+    const { title, context, conversation_kind } = req.body;
+    const kind = ['ai', 'support', 'internal'].includes(conversation_kind) ? conversation_kind : 'ai';
+    const participantRole = req.user.role === 'client' ? 'client' : 'staff';
+    const origin = req.user.role === 'client' ? 'public' : 'internal';
+
     const result = await query(
-      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin)
-       VALUES ($1, $2, $3, $4, 'internal')
-       RETURNING id, title, context, status, origin, created_at, updated_at`,
-      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null],
+      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, title, context, status, origin, conversation_kind, created_at, updated_at`,
+      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, origin, kind],
     );
     const row = result.rows[0];
 
     // Adiciona o criador como participante
     await query(
       `INSERT INTO assistant_participants (conversation_id, user_id, role, display_name)
-       VALUES ($1, $2, 'staff', $3)`,
-      [row.id, req.user.id, req.user.name || null],
+       VALUES ($1, $2, $3, $4)`,
+      [row.id, req.user.id, participantRole, req.user.name || null],
     );
 
     res.status(201).json({
@@ -217,18 +265,8 @@ router.post('/conversations', async (req, res) => {
 // Buscar conversa com mensagens e participantes
 router.get('/conversations/:id', async (req, res) => {
   try {
-    const convResult = await query(
-      `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to,
-              c.handoff_reason, c.visitor_name, c.created_at, c.updated_at
-       FROM assistant_conversations c
-       WHERE c.id = $1 AND (c.user_id = $2 OR c.assigned_to = $2
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2))`,
-      [req.params.id, req.user.id],
-    );
-    if (convResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Conversa não encontrada' });
-    }
-    const conv = convResult.rows[0];
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
     const msgResult = await query(
       `SELECT id, role, text, sources, author_id, author_name, event_type, created_at
@@ -265,6 +303,9 @@ router.get('/conversations/:id', async (req, res) => {
 // Atualizar conversa (título / contexto)
 router.patch('/conversations/:id', async (req, res) => {
   try {
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+
     const { title, context } = req.body;
     const fields = [];
     const values = [];
@@ -276,12 +317,12 @@ router.patch('/conversations/:id', async (req, res) => {
     if (fields.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
 
     fields.push(`updated_at = now()`);
-    values.push(req.params.id, req.user.id);
+    values.push(req.params.id);
 
     const result = await query(
       `UPDATE assistant_conversations SET ${fields.join(', ')}
-       WHERE id = $${idx++} AND user_id = $${idx++}
-       RETURNING id, title, context, status, origin, created_at, updated_at`,
+       WHERE id = $${idx++}
+       RETURNING id, title, context, status, origin, conversation_kind, created_at, updated_at`,
       values,
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
@@ -300,11 +341,15 @@ router.patch('/conversations/:id', async (req, res) => {
 // Deletar conversa
 router.delete('/conversations/:id', async (req, res) => {
   try {
-    const result = await query(
-      `DELETE FROM assistant_conversations WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [req.params.id, req.user.id],
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Apenas o criador ou admin do tenant pode deletar
+    if (conv.user_id !== req.user.id && req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas o criador ou administrador pode deletar' });
+    }
+
+    await query(`DELETE FROM assistant_conversations WHERE id = $1`, [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[assistant] Erro ao deletar conversa:', err.message);
@@ -320,25 +365,19 @@ router.post('/conversations/:id/handoff', async (req, res) => {
     const { reason } = req.body;
     const convId = req.params.id;
 
-    // Verifica acesso à conversa
-    const conv = await query(
-      `SELECT id, status FROM assistant_conversations
-       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
-      [convId, req.user.id],
-    );
-    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
-    if (conv.rows[0].status !== 'active') {
+    const conv = await checkConversationAccess(convId, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+    if (conv.status !== 'active') {
       return res.status(409).json({ error: 'Conversa não está ativa' });
     }
 
     await query(
-      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, updated_at = now()
+      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2,
+              conversation_kind = 'support', updated_at = now()
        WHERE id = $1`,
       [convId, reason || null],
     );
 
-    // Registra evento
     await query(
       `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
        VALUES ($1, 'system', $2, 'handoff_requested', $3)`,
@@ -353,21 +392,37 @@ router.post('/conversations/:id/handoff', async (req, res) => {
 });
 
 // Aceitar handoff (staff only)
+// Atribuição concorrente segura: UPDATE atômico com WHERE status = 'waiting_human'
+// impede que dois responsáveis ganhem o mesmo atendimento.
+// Verifica tenant acessível ao usuário antes de atribuir.
 router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
     const convId = req.params.id;
+    const tenantIds = await getAccessibleTenantIds(req.user);
 
-    const conv = await query(
-      `SELECT id, status FROM assistant_conversations WHERE id = $1 AND status = 'waiting_human'`,
-      [convId],
+    // UPDATE atômico: só atribui se ainda está aguardando E o tenant é acessível
+    const claimResult = await query(
+      `UPDATE assistant_conversations
+       SET status = 'with_human', assigned_to = $2, conversation_kind = 'support', updated_at = now()
+       WHERE id = $1 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
+       RETURNING id, tenant_id`,
+      [convId, req.user.id, tenantIds],
     );
-    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada ou não aguarda atendimento' });
 
-    await query(
-      `UPDATE assistant_conversations SET status = 'with_human', assigned_to = $2, updated_at = now()
-       WHERE id = $1`,
-      [convId, req.user.id],
-    );
+    if (claimResult.rows.length === 0) {
+      // Verifica se a conversa existe mas já foi atribuída ou é de outro tenant
+      const exists = await query(
+        `SELECT status, tenant_id FROM assistant_conversations WHERE id = $1`,
+        [convId],
+      );
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: 'Conversa não encontrada' });
+      }
+      if (exists.rows[0].status !== 'waiting_human') {
+        return res.status(409).json({ error: 'Atendimento já foi assumido por outro responsável' });
+      }
+      return res.status(403).json({ error: 'Sem permissão para atendimentos deste tenant' });
+    }
 
     // Adiciona staff como participante se ainda não for
     await query(
@@ -377,7 +432,6 @@ router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'acc
       [convId, req.user.id, req.user.name || null],
     );
 
-    // Registra evento
     await query(
       `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
        VALUES ($1, 'system', $2, 'handoff_accepted', $3)`,
@@ -395,12 +449,11 @@ router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'acc
 router.post('/conversations/:id/close', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
     const convId = req.params.id;
-
-    const conv = await query(
-      `SELECT id FROM assistant_conversations WHERE id = $1 AND assigned_to = $2`,
-      [convId, req.user.id],
-    );
-    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada ou não atribuída a você' });
+    const conv = await checkConversationAccess(convId, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+    if (conv.assigned_to !== req.user.id && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Conversa não está atribuída a você' });
+    }
 
     await query(
       `UPDATE assistant_conversations SET status = 'closed', updated_at = now() WHERE id = $1`,
@@ -429,14 +482,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
     if (!role || !text) return res.status(400).json({ error: 'role e text são obrigatórios' });
     if (!['user', 'assistant', 'system'].includes(role)) return res.status(400).json({ error: 'role inválido' });
 
-    // Verifica acesso à conversa
-    const convCheck = await query(
-      `SELECT id, status FROM assistant_conversations
-       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
-      [req.params.id, req.user.id],
-    );
-    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    // Verifica acesso à conversa (participante + tenant)
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
     const result = await query(
       `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_id, author_name)
@@ -472,11 +520,8 @@ router.post('/conversations/:id/messages', async (req, res) => {
 // Listar tarefas de uma conversa
 router.get('/conversations/:id/tasks', async (req, res) => {
   try {
-    const convCheck = await query(
-      `SELECT id FROM assistant_conversations WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id],
-    );
-    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
     const result = await query(
       `SELECT id, title, description, status, priority, due_date, assigned_to, category, source, created, updated
@@ -498,13 +543,10 @@ router.post('/conversations/:id/tasks', async (req, res) => {
     const { title, description, priority, due_date, assigned_to, category } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'title é obrigatório' });
 
-    const convCheck = await query(
-      `SELECT id, tenant_id FROM assistant_conversations WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id],
-    );
-    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
-    const tenantId = convCheck.rows[0].tenant_id;
+    const tenantId = conv.tenant_id;
     const result = await query(
       `INSERT INTO tasks (title, description, status, priority, due_date, assigned_to, category, tenant_id, conversation_id, created_by, source)
        VALUES ($1, $2, 'todo', $3, $4, $5, $6, $7, $8, $9, 'assistant')
@@ -590,21 +632,14 @@ router.post('/conversations/:id/attachments', attUpload.single('file'), async (r
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
-    // Verifica acesso à conversa
-    const convCheck = await query(
-      `SELECT id, tenant_id FROM assistant_conversations
-       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
-      [req.params.id, req.user.id],
-    );
-    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
-
-    // Valida tenant — arquivo de outro tenant é negado
-    const convTenantId = convCheck.rows[0].tenant_id;
-    if (convTenantId !== req.user.tenant_id && req.user.role !== 'superadmin') {
+    // Verifica acesso à conversa (participante + tenant)
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) {
       fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'Sem permissão para este tenant' });
+      return res.status(404).json({ error: 'Conversa não encontrada' });
     }
+
+    const convTenantId = conv.tenant_id;
 
     // Valida MIME pelo magic number
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -633,13 +668,8 @@ router.post('/conversations/:id/attachments', attUpload.single('file'), async (r
 // Listar anexos de uma conversa
 router.get('/conversations/:id/attachments', async (req, res) => {
   try {
-    const convCheck = await query(
-      `SELECT id FROM assistant_conversations
-       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
-      [req.params.id, req.user.id],
-    );
-    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
     const result = await query(
       `SELECT id, filename, mime_type, file_size, created_at
@@ -657,25 +687,19 @@ router.get('/conversations/:id/attachments', async (req, res) => {
 // Download de anexo — ACL: acesso à conversa + tenant match
 router.get('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
+    // Verifica acesso à conversa (participante + tenant)
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+
     const att = await query(
-      `SELECT a.filename, a.mime_type, a.file_path, a.tenant_id, c.user_id, c.assigned_to
+      `SELECT a.filename, a.mime_type, a.file_path, a.tenant_id
        FROM assistant_attachments a
-       JOIN assistant_conversations c ON c.id = a.conversation_id
        WHERE a.id = $1 AND a.conversation_id = $2`,
       [req.params.aid, req.params.id],
     );
     if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const a = att.rows[0];
-    // Verifica acesso: dono, assigned, ou participante
-    const hasAccess = a.user_id === req.user.id || a.assigned_to === req.user.id ||
-      req.user.role === 'superadmin' || a.tenant_id === req.user.tenant_id;
-    if (!hasAccess) return res.status(403).json({ error: 'Sem permissão para este anexo' });
-
-    // Valida tenant — arquivo de outro tenant negado
-    if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Anexo pertence a outro tenant' });
-    }
 
     const filePath = path.join(attDir, a.file_path);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
@@ -691,6 +715,9 @@ router.get('/conversations/:id/attachments/:aid', async (req, res) => {
 // Deletar anexo
 router.delete('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
+    const conv = await checkConversationAccess(req.params.id, req.user);
+    if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+
     const att = await query(
       `SELECT a.file_path, a.tenant_id FROM assistant_attachments a
        WHERE a.id = $1 AND a.conversation_id = $2`,
@@ -699,9 +726,6 @@ router.delete('/conversations/:id/attachments/:aid', async (req, res) => {
     if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const a = att.rows[0];
-    if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Sem permissão' });
-    }
 
     // Remove arquivo físico
     const filePath = path.join(attDir, a.file_path);

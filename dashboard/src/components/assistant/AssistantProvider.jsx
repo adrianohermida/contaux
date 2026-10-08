@@ -368,10 +368,12 @@ export function AssistantProvider({ children }) {
     try {
       await request(`/assistant/conversations/${convId}/accept`, { method: 'POST' })
       setQueue((prev) => prev.filter((c) => c.id !== convId))
+      // Recarrega conversas para incluir o atendimento assumido
+      await loadConversations()
     } catch {
       // Ignora
     }
-  }, [])
+  }, [loadConversations])
 
   // Fechar conversa (staff encerra atendimento)
   const closeConversation = useCallback(async () => {
@@ -568,7 +570,7 @@ export function AssistantProvider({ children }) {
       messages, draft, setDraft, clearMessages, sendMessage,
       context, contextMode, toggleContextMode,
       status, unreadCount,
-      conversations, activeConvId, showHistory,
+      conversations, activeConvId, showHistory, loadConversations,
       setShowHistory, openConversation, deleteConversation, startNewConversation,
       createTask, pendingTask, setPendingTask,
       convStatus, requestHandoff, closeConversation,
@@ -583,7 +585,7 @@ export function AssistantProvider({ children }) {
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
      context, contextMode, toggleContextMode, status, unreadCount,
-     conversations, activeConvId, showHistory,
+     conversations, activeConvId, showHistory, loadConversations,
      setShowHistory, openConversation, deleteConversation, startNewConversation,
      createTask, pendingTask,
      convStatus, requestHandoff, closeConversation,

@@ -57,8 +57,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     }
   }
 
-  // ===== Overlay: lista de conversas =====
-  if (showHistory) {
+  // ===== Overlay: lista de conversas (não em fullscreen — sidebar cuida) =====
+  if (showHistory && !fullscreen) {
     return (
       <div className="flex h-full flex-col bg-card">
         <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
@@ -116,8 +116,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     )
   }
 
-  // ===== Overlay: fila de atendimento (staff) =====
-  if (showQueue) {
+  // ===== Overlay: fila de atendimento (não em fullscreen — sidebar cuida) =====
+  if (showQueue && !fullscreen) {
     return <HandoffQueue onClose={() => setShowQueue(false)} />
   }
 
@@ -166,9 +166,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
               <XCircle className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={() => setShowQueue(true)} className="h-7 w-7" title="Fila de atendimento">
-            <Headphones className="h-3.5 w-3.5" />
-          </Button>
+          {!fullscreen && (
+            <Button variant="ghost" size="icon" onClick={() => setShowQueue(true)} className="h-7 w-7" title="Fila de atendimento">
+              <Headphones className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} className="h-7 w-7" title="Propor tarefa">
             <CheckSquare className="h-3.5 w-3.5" />
           </Button>
@@ -205,9 +207,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
-            <History className="h-3.5 w-3.5" />
-          </Button>
+          {!fullscreen && (
+            <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
+              <History className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" onClick={clearMessages} className="h-7 w-7" title="Limpar">
               <Trash2 className="h-3.5 w-3.5" />
