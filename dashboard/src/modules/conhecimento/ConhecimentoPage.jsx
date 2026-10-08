@@ -30,6 +30,7 @@ export default function ConhecimentoPage() {
   const [selected, setSelected] = useState(null)
   const [typeFilter, setTypeFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
   const { toast } = useToast()
   const [sync, setSync] = useState(null)
@@ -63,6 +64,8 @@ export default function ConhecimentoPage() {
     let result = items
     if (typeFilter !== 'all') result = result.filter((it) => it.type === typeFilter)
     if (tagFilter) result = result.filter((it) => (it.tags || []).includes(tagFilter))
+    if (statusFilter !== 'all') result = result.filter((it) => (it.status === statusFilter)
+      || (statusFilter === 'draft' && !it.status))
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter((it) =>
@@ -73,7 +76,7 @@ export default function ConhecimentoPage() {
       )
     }
     return result
-  }, [items, typeFilter, tagFilter, search])
+  }, [items, typeFilter, tagFilter, statusFilter, search])
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (item) => { setEditing(item); setFormOpen(true); setSelected(null) }
@@ -138,6 +141,21 @@ export default function ConhecimentoPage() {
             </Badge>
           </button>
         ))}
+      </div>
+
+      {/* Filtro por status */}
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => setStatusFilter('all')}>
+          <Badge variant={statusFilter === 'all' ? 'default' : 'outline'} className="cursor-pointer">Todos os status</Badge>
+        </button>
+        <button onClick={() => setStatusFilter('draft')}>
+          <Badge variant={statusFilter === 'draft' ? 'default' : 'outline'} className="cursor-pointer">
+            Pendências {filtered.length > 0 && statusFilter === 'draft' ? `(${filtered.length})` : ''}
+          </Badge>
+        </button>
+        <button onClick={() => setStatusFilter('published')}>
+          <Badge variant={statusFilter === 'published' ? 'default' : 'outline'} className="cursor-pointer">Publicados</Badge>
+        </button>
       </div>
 
       {/* Filtros por tag de área */}
