@@ -193,6 +193,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Middleware de erro — captura JSON malformado do body-parser
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'JSON inválido no corpo da requisição.' });
+  }
+  next(err);
+});
+
 // Inicia após rodar migrações
 async function start() {
   try {
