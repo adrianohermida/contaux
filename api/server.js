@@ -12,9 +12,31 @@ const emailTemplates = require('./services/emailTemplates');
 const workflowEngine = require('./services/workflowEngine');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = 3001;
+
+// ===== Upload de PDFs — Base de Conhecimento =====
+const uploadsDir = path.join(__dirname, 'uploads');
+const kbPublicDir = path.join(uploadsDir, 'public');
+const kbPrivateDir = path.join(uploadsDir, 'private');
+if (!fs.existsSync(kbPublicDir)) fs.mkdirSync(kbPublicDir, { recursive: true });
+if (!fs.existsSync(kbPrivateDir)) fs.mkdirSync(kbPrivateDir, { recursive: true });
+
+const kbStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const vis = req.body.visibility || 'private';
+    cb(null, vis === 'public' ? kbPublicDir : kbPrivateDir);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+const kbUpload = multer({ storage: kbStorage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 app.use(cors());
 app.use(express.json());
@@ -68,6 +90,28 @@ app.post('/api/workflows/trigger', requireAuth, async (req, res) => {
   }
 });
 
+// ===== Base de Conhecimento — Upload e servir PDFs =====
+app.post('/api/knowledge-base/upload', requireAuth, kbUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+  const vis = req.body.visibility || 'private';
+  res.json({
+    file_url: `/api/knowledge-base/files/${vis}/${req.file.filename}`,
+    file_name: req.file.originalname,
+  });
+});
+
+app.get('/api/knowledge-base/files/public/:filename', (req, res) => {
+  const filePath = path.join(kbPublicDir, req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+  res.sendFile(filePath);
+});
+
+app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) => {
+  const filePath = path.join(kbPrivateDir, req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+  res.sendFile(filePath);
+});
+
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {
   clients:         { jsonbFields: ['tags', 'address', 'fiscal'], searchFields: ['name', 'document', 'email'] },
@@ -93,6 +137,7 @@ const crudConfig = {
   documents:        { searchFields: ['name', 'category'] },
   reports:          { searchFields: ['name', 'type'] },
   emails:           { searchFields: ['subject', 'from'] },
+  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], noTenant: true },
 };
 
 for (const [table, opts] of Object.entries(crudConfig)) {

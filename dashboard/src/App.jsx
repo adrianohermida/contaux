@@ -14,6 +14,7 @@ const SuportePage = lazy(() => import('@/modules/suporte/SuportePage'))
 const MarketingPage = lazy(() => import('@/modules/marketing/MarketingPage'))
 const AdminPage = lazy(() => import('@/modules/admin/AdminPage'))
 const ImportPage = lazy(() => import('@/modules/import/ImportPage'))
+const ConhecimentoPage = lazy(() => import('@/modules/conhecimento/ConhecimentoPage'))
 
 // Portal do Cliente
 const PortalLayout = lazy(() => import('@/pages/portal/PortalLayout'))
@@ -70,6 +71,9 @@ export default function App() {
         <Route path="/marketing" element={withSuspense(<MarketingPage view="campaigns" />)} />
         <Route path="/marketing/blog" element={withSuspense(<MarketingPage view="blog" />)} />
         <Route path="/marketing/fidelidade" element={withSuspense(<MarketingPage view="loyalty" />)} />
+
+        {/* Base de Conhecimento */}
+        <Route path="/conhecimento" element={withSuspense(<ConhecimentoPage />)} />
 
         {/* Importação de Dados */}
         <Route path="/importar" element={withSuspense(<ImportPage />)} />
