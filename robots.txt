@@ -15,9 +15,6 @@ Disallow: /admin
 Disallow: /portal
 Disallow: /login
 Disallow: /api/
-Disallow: /index2.html
-Disallow: /index3.html
-Disallow: /index4.html
 Disallow: /reset-password.html
 Disallow: /mail-success.html
 
