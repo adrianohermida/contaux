@@ -46,6 +46,7 @@ services:
       - POSTGRES_PASSWORD=contaux123
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./db/init-postgres-role.sql:/docker-entrypoint-initdb.d/init-postgres-role.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "contaux", "-d", "contaux"]
       interval: 5s
