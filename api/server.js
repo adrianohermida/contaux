@@ -148,6 +148,24 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
 
     const tenantIds = await getAccessibleTenantIds(req.user);
 
+    // Verifica autorização: usuário deve ser dono, responsável ou participante da conversa
+    // C-12: sem isso, qualquer usuário poderia ler histórico e gravar mensagens em conversa alheia
+    if (conversation_id) {
+      const convCheck = await query(
+        `SELECT id, status FROM assistant_conversations
+         WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
+          OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
+        [conversation_id, req.user.id],
+      );
+      if (convCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Conversa não encontrada' });
+      }
+      // IA não processa conversas em atendimento humano
+      if (convCheck.rows[0].status === 'with_human' || convCheck.rows[0].status === 'waiting_human') {
+        return res.status(409).json({ error: 'Conversa em atendimento humano' });
+      }
+    }
+
     // Busca histórico da conversa atual (últimas 20 mensagens) para contexto da IA
     let conversationHistory = [];
     if (conversation_id) {

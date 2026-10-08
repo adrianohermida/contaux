@@ -8,7 +8,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { query } = require('../db');
+const { query, pool } = require('../db');
 const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middleware/auth');
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
 const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
@@ -609,43 +609,58 @@ router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'acc
     const convId = req.params.id;
     const tenantIds = await getAccessibleTenantIds(req.user);
 
-    // UPDATE atômico: só sucesso se status ainda é 'waiting_human' E tenant é acessível
-    // Isso garante que dois staff não assumam o mesmo atendimento (race condition)
-    const result = await query(
-      `UPDATE assistant_conversations
-       SET status = 'with_human', assigned_to = $1, conversation_kind = 'support', updated_at = now()
-       WHERE id = $2 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
-       RETURNING id, tenant_id`,
-      [req.user.id, convId, tenantIds],
-    );
+    // C-15: transação atômica — UPDATE + participante + evento no mesmo bloco
+    // Garante que o aceite só persiste se TODAS as escritas forem bem-sucedidas
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (result.rows.length === 0) {
-      // Distingue: não existe, já assumido, ou sem permissão de tenant
-      const conv = await query(
-        `SELECT id, status, tenant_id FROM assistant_conversations WHERE id = $1`,
-        [convId],
+      // UPDATE atômico: só sucesso se status ainda é 'waiting_human' E tenant é acessível
+      const result = await client.query(
+        `UPDATE assistant_conversations
+         SET status = 'with_human', assigned_to = $1, conversation_kind = 'support', updated_at = now()
+         WHERE id = $2 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
+         RETURNING id, tenant_id`,
+        [req.user.id, convId, tenantIds],
       );
-      if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
-      if (conv.rows[0].status !== 'waiting_human') return res.status(409).json({ error: 'Atendimento já foi assumido' });
-      return res.status(403).json({ error: 'Sem permissão para este tenant' });
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        // Distingue: não existe, já assumido, ou sem permissão de tenant
+        // C-15: filtra por tenant para não vazar existência/estado de conversa estrangeira
+        const conv = await query(
+          `SELECT id, status FROM assistant_conversations
+           WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+          [convId, tenantIds],
+        );
+        if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+        if (conv.rows[0].status !== 'waiting_human') return res.status(409).json({ error: 'Atendimento já foi assumido' });
+        return res.status(403).json({ error: 'Sem permissão para este tenant' });
+      }
+
+      // Adiciona staff como participante se ainda não for
+      await client.query(
+        `INSERT INTO assistant_participants (conversation_id, user_id, role, display_name)
+         VALUES ($1, $2, 'staff', $3)
+         ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+        [convId, req.user.id, req.user.name || null],
+      );
+
+      // Registra evento
+      await client.query(
+        `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
+         VALUES ($1, 'system', $2, 'handoff_accepted', $3)`,
+        [convId, `${req.user.name || 'Atendente'} assumiu o atendimento`, req.user.name || 'Atendente'],
+      );
+
+      await client.query('COMMIT');
+      res.json({ success: true, status: 'with_human', assigned_to: String(req.user.id) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    // Adiciona staff como participante se ainda não for
-    await query(
-      `INSERT INTO assistant_participants (conversation_id, user_id, role, display_name)
-       VALUES ($1, $2, 'staff', $3)
-       ON CONFLICT (conversation_id, user_id) DO NOTHING`,
-      [convId, req.user.id, req.user.name || null],
-    );
-
-    // Registra evento
-    await query(
-      `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
-       VALUES ($1, 'system', $2, 'handoff_accepted', $3)`,
-      [convId, `${req.user.name || 'Atendente'} assumiu o atendimento`, req.user.name || 'Atendente'],
-    );
-
-    res.json({ success: true, status: 'with_human', assigned_to: String(req.user.id) });
   } catch (err) {
     console.error('[assistant] Erro ao aceitar handoff:', err.message);
     res.status(500).json({ error: 'Erro ao aceitar handoff' });
