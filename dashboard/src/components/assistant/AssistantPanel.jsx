@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare } from 'lucide-react'
+import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare, Headphones, UserCheck, XCircle, Clock } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { getModuleCoverage } from './moduleCoverage'
 import TaskProposalForm from './TaskProposalForm'
+import HandoffQueue from './HandoffQueue'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -18,6 +19,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     context, contextMode, toggleContextMode, status,
     conversations, activeConvId, showHistory, setShowHistory,
     openConversation, deleteConversation, createTask,
+    convStatus, requestHandoff, closeConversation,
+    showQueue, setShowQueue,
   } = useAssistant()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
@@ -105,6 +108,18 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     )
   }
 
+  // ===== Overlay: fila de atendimento (staff) =====
+  if (showQueue) {
+    return <HandoffQueue onClose={() => setShowQueue(false)} />
+  }
+
+  const statusLabel = {
+    active: null,
+    waiting_human: { text: 'Aguardando atendente', icon: Clock, color: 'text-amber-500' },
+    with_human: { text: 'Com atendente', icon: UserCheck, color: 'text-green-500' },
+    closed: { text: 'Encerrada', icon: XCircle, color: 'text-muted-foreground' },
+  }[convStatus]
+
   return (
     <div className="flex h-full flex-col">
       {/* Header minimal */}
@@ -115,17 +130,37 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-semibold">Assistente</span>
-            <button
-              onClick={toggleContextMode}
-              className="flex items-center gap-1 rounded text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-              title={isFixed ? 'Contexto travado' : 'Acompanhando a tela'}
-            >
-              {isFixed ? <PinOff className="h-2.5 w-2.5" /> : <Pin className="h-2.5 w-2.5" />}
-              <span className="hidden sm:inline">{context.module}</span>
-            </button>
+            {statusLabel ? (
+              <span className={`flex items-center gap-0.5 text-[10px] ${statusLabel.color}`}>
+                <statusLabel.icon className="h-2.5 w-2.5" />
+                {statusLabel.text}
+              </span>
+            ) : (
+              <button
+                onClick={toggleContextMode}
+                className="flex items-center gap-1 rounded text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                title={isFixed ? 'Contexto travado' : 'Acompanhando a tela'}
+              >
+                {isFixed ? <PinOff className="h-2.5 w-2.5" /> : <Pin className="h-2.5 w-2.5" />}
+                <span className="hidden sm:inline">{context.module}</span>
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-0.5">
+          {convStatus === 'active' && (
+            <Button variant="ghost" size="icon" onClick={() => requestHandoff()} className="h-7 w-7" title="Falar com atendente">
+              <Headphones className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {convStatus === 'with_human' && (
+            <Button variant="ghost" size="icon" onClick={closeConversation} className="h-7 w-7" title="Encerrar atendimento">
+              <XCircle className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => setShowQueue(true)} className="h-7 w-7" title="Fila de atendimento">
+            <Headphones className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} className="h-7 w-7" title="Propor tarefa">
             <CheckSquare className="h-3.5 w-3.5" />
           </Button>
@@ -175,13 +210,22 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           </div>
         ) : (
           messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'user' ? (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : msg.role === 'system' ? 'justify-center' : 'justify-start'}`}>
+              {msg.role === 'system' ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-[10px] text-muted-foreground">
+                  {msg.text}
+                </div>
+              ) : msg.role === 'user' ? (
                 <div className="max-w-[85%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-sm text-primary-foreground">
                   {msg.text}
                 </div>
               ) : (
                 <div className="w-full max-w-[90%] space-y-1">
+                  {msg.author_name && msg.author_name !== 'Assistente' && (
+                    <span className="text-[10px] font-medium text-muted-foreground px-1">
+                      {msg.author_name}
+                    </span>
+                  )}
                   <div className="rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-sm">
                     <p className="whitespace-pre-wrap">{msg.text}</p>
                   </div>

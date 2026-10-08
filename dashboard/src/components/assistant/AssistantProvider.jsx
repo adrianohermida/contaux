@@ -39,6 +39,9 @@ export function AssistantProvider({ children }) {
   const [activeConvId, setActiveConvId] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [pendingTask, setPendingTask] = useState(null) // tarefa proposta pelo assistente
+  const [convStatus, setConvStatus] = useState('active') // active | waiting_human | with_human | closed
+  const [queue, setQueue] = useState([])
+  const [showQueue, setShowQueue] = useState(false)
 
   const location = useLocation()
   const { user } = useAuth()
@@ -112,6 +115,7 @@ export function AssistantProvider({ children }) {
     setMessages([])
     setActiveConvId(null)
     setShowHistory(false)
+    setConvStatus('active')
   }, [])
 
   // Cria nova conversa no backend
@@ -150,6 +154,7 @@ export function AssistantProvider({ children }) {
       const full = await request(`/assistant/conversations/${convId}`)
       setMessages(full.messages || [])
       setActiveConvId(convId)
+      setConvStatus(full.status || 'active')
       setShowHistory(false)
     } catch {
       // Ignora — mantém conversa atual
@@ -188,12 +193,75 @@ export function AssistantProvider({ children }) {
     }
   }, [activeConvId, startNewConversation])
 
+  // ===== CQ-04: Handoff IA→Humano =====
+
+  // Solicitar handoff (transferir para atendente humano)
+  const requestHandoff = useCallback(async (reason) => {
+    let convId = activeConvId
+    if (!convId) {
+      convId = await startNewConversation('Atendimento humano')
+    }
+    if (!convId) return
+    try {
+      await request(`/assistant/conversations/${convId}/handoff`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      })
+      setConvStatus('waiting_human')
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'system',
+        text: reason || 'Transferindo para atendimento humano...',
+        event_type: 'handoff_requested',
+      }])
+    } catch {
+      // Ignora
+    }
+  }, [activeConvId, startNewConversation])
+
+  // Carregar fila de atendimento (staff)
+  const loadQueue = useCallback(async () => {
+    try {
+      const list = await request('/assistant/conversations/queue')
+      setQueue(list)
+    } catch {
+      setQueue([])
+    }
+  }, [])
+
+  // Aceitar handoff (staff assume conversa)
+  const acceptHandoff = useCallback(async (convId) => {
+    try {
+      await request(`/assistant/conversations/${convId}/accept`, { method: 'POST' })
+      setQueue((prev) => prev.filter((c) => c.id !== convId))
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Fechar conversa (staff encerra atendimento)
+  const closeConversation = useCallback(async () => {
+    if (!activeConvId) return
+    try {
+      await request(`/assistant/conversations/${activeConvId}/close`, { method: 'POST' })
+      setConvStatus('closed')
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'system',
+        text: 'Atendimento encerrado',
+        event_type: 'conversation_closed',
+      }])
+    } catch {
+      // Ignora
+    }
+  }, [activeConvId])
+
   const sendMessage = useCallback(async (text) => {
     const question = text.trim()
     if (!question || status === 'preparing') return
 
     setDraft('')
-    const userMsg = { id: genId(), role: 'user', text: question }
+    const userMsg = { id: genId(), role: 'user', text: question, author_name: user?.name }
     setMessages((prev) => [...prev, userMsg])
     setStatus('preparing')
 
@@ -204,6 +272,16 @@ export function AssistantProvider({ children }) {
     }
     // Salva mensagem do usuário
     saveMessage(convId, 'user', question)
+
+    // Se a conversa está com humano, não chama a IA — apenas envia a mensagem
+    if (convStatus === 'with_human' || convStatus === 'waiting_human') {
+      setStatus('idle')
+      setPanelMode((mode) => {
+        if (mode === 'collapsed') setUnreadCount((c) => c + 1)
+        return mode
+      })
+      return
+    }
 
     try {
       const res = await request('/knowledge-base/ask', {
@@ -239,7 +317,7 @@ export function AssistantProvider({ children }) {
     } finally {
       setStatus('idle')
     }
-  }, [status, activeConvId, startNewConversation, saveMessage])
+  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user])
 
   // Contexto derivado: segue a tela (follow) ou usa o travado (fixed)
   const context = useMemo(() => {
@@ -263,13 +341,17 @@ export function AssistantProvider({ children }) {
       conversations, activeConvId, showHistory,
       setShowHistory, openConversation, deleteConversation, startNewConversation,
       createTask, pendingTask, setPendingTask,
+      convStatus, requestHandoff, closeConversation,
+      queue, loadQueue, acceptHandoff, showQueue, setShowQueue,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
      context, contextMode, toggleContextMode, status, unreadCount,
      conversations, activeConvId, showHistory,
      setShowHistory, openConversation, deleteConversation, startNewConversation,
-     createTask, pendingTask],
+     createTask, pendingTask,
+     convStatus, requestHandoff, closeConversation,
+     queue, loadQueue, acceptHandoff, showQueue],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>
