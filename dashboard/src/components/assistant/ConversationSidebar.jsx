@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   Plus, Search, MessageSquare, Headphones, FolderClosed, FolderOpen,
-  Bot, Trash2, UserCheck, Clock, ArrowLeft, ChevronRight, X,
+  Bot, Trash2, UserCheck, Clock, ArrowLeft, ChevronRight, X, Pencil,
 } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { Button } from '@/components/ui/button'
+import DotEditor from './DotEditor'
 
 /**
  * Coluna esquerda do fullscreen — lista de conversas e navegação.
@@ -16,10 +17,13 @@ export default function ConversationSidebar({ onClose }) {
     queue, loadQueue, acceptHandoff, setMobileView,
     projects, createProject, deleteProject, assignConversationToProject,
     activeProjectId, setActiveProjectId,
+    dots, createDot, updateDot, deleteDot, activeDotId, setActiveDotId,
   } = useAssistant()
   const [search, setSearch] = useState('')
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjName, setNewProjName] = useState('')
+  const [dotEditorOpen, setDotEditorOpen] = useState(false)
+  const [editingDot, setEditingDot] = useState(null)
 
   const filtered = conversations.filter((c) =>
     !search || c.title?.toLowerCase().includes(search.toLowerCase()),
@@ -47,6 +51,22 @@ export default function ConversationSidebar({ onClose }) {
     setNewProjName('')
     setShowNewProject(false)
   }, [createProject, newProjName])
+
+  const handleSelectDot = useCallback((dot) => {
+    clearMessages()
+    setActiveDotId(dot.id)
+    setMobileView('conversation')
+  }, [clearMessages, setActiveDotId, setMobileView])
+
+  const handleSaveDot = useCallback(async (data) => {
+    if (editingDot) {
+      await updateDot(editingDot.id, data)
+    } else {
+      await createDot(data)
+    }
+    setDotEditorOpen(false)
+    setEditingDot(null)
+  }, [editingDot, updateDot, createDot])
 
   // Atualiza fila periodicamente
   useEffect(() => {
@@ -217,11 +237,70 @@ export default function ConversationSidebar({ onClose }) {
           )}
         </SidebarSection>
 
-        {/* Assistentes (dots) — placeholder */}
-        <SidebarSection title="Assistentes" icon={Bot}>
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">Em breve</p>
+        {/* Assistentes (dots) */}
+        <SidebarSection title="Assistentes" icon={Bot} action={
+          <button
+            onClick={() => { setEditingDot(null); setDotEditorOpen(true) }}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label="Novo assistente"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        }>
+          {dots.length === 0 ? (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              Nenhum assistente. Clique em + para criar.
+            </p>
+          ) : (
+            dots.filter((d) => d.is_active).map((dot) => (
+              <div
+                key={dot.id}
+                className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors ${
+                  activeDotId === dot.id ? 'bg-accent' : 'hover:bg-accent/50'
+                }`}
+              >
+                <button
+                  onClick={() => handleSelectDot(dot)}
+                  className="flex flex-1 items-center gap-2 text-left min-w-0"
+                >
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: dot.color + '20', color: dot.color }}
+                  >
+                    <Bot className="h-3 w-3" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{dot.name}</p>
+                    {dot.description && (
+                      <p className="truncate text-[10px] text-muted-foreground">{dot.description}</p>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setEditingDot(dot); setDotEditorOpen(true) }}
+                  className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  aria-label="Editar assistente"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => deleteDot(dot.id)}
+                  className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                  aria-label="Excluir assistente"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))
+          )}
         </SidebarSection>
       </div>
+      <DotEditor
+        open={dotEditorOpen}
+        dot={editingDot}
+        onSave={handleSaveDot}
+        onClose={() => { setDotEditorOpen(false); setEditingDot(null) }}
+      />
     </div>
   )
 }

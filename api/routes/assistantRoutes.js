@@ -284,6 +284,99 @@ router.post('/conversations/:id/project', async (req, res) => {
   }
 });
 
+// ===== Dots (assistentes configuráveis) =====
+
+// Listar dots do tenant
+router.get('/dots', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `SELECT id, name, description, system_prompt, color, icon, is_active, created_at, updated_at
+       FROM assistant_dots
+       WHERE tenant_id = ANY($1::int[])
+       ORDER BY updated_at DESC`,
+      [tenantIds],
+    );
+    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar dots:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar assistentes' });
+  }
+});
+
+// Criar dot
+router.post('/dots', async (req, res) => {
+  try {
+    const { name, description, system_prompt, color, icon } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
+
+    const result = await query(
+      `INSERT INTO assistant_dots (tenant_id, created_by, name, description, system_prompt, color, icon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, name, description, system_prompt, color, icon, is_active, created_at, updated_at`,
+      [req.user.tenant_id, req.user.id, name.trim(), description || null,
+       system_prompt || '', color || '#3763EB', icon || 'Bot'],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao criar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao criar assistente' });
+  }
+});
+
+// Atualizar dot
+router.patch('/dots/:id', async (req, res) => {
+  try {
+    const { name, description, system_prompt, color, icon, is_active } = req.body;
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { fields.push(`description = $${idx++}`); values.push(description); }
+    if (system_prompt !== undefined) { fields.push(`system_prompt = $${idx++}`); values.push(system_prompt); }
+    if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
+    if (icon !== undefined) { fields.push(`icon = $${idx++}`); values.push(icon); }
+    if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(is_active); }
+
+    if (fields.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+
+    fields.push(`updated_at = now()`);
+    values.push(req.params.id, tenantIds);
+
+    const result = await query(
+      `UPDATE assistant_dots SET ${fields.join(', ')}
+       WHERE id = $${idx++} AND tenant_id = ANY($${idx++}::int[])
+       RETURNING id, name, description, system_prompt, color, icon, is_active, created_at, updated_at`,
+      values,
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Assistente não encontrado' });
+    const row = result.rows[0];
+    res.json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao atualizar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao atualizar assistente' });
+  }
+});
+
+// Deletar dot
+router.delete('/dots/:id', async (req, res) => {
+  try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await query(
+      `DELETE FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) RETURNING id`,
+      [req.params.id, tenantIds],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Assistente não encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao deletar dot:', err.message);
+    res.status(500).json({ error: 'Erro ao deletar assistente' });
+  }
+});
+
 // ===== Conversas =====
 
 // Listar conversas do usuário (mais recentes primeiro)
@@ -292,7 +385,7 @@ router.get('/conversations', async (req, res) => {
   try {
     const result = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
-              c.project_id, c.created_at, c.updated_at,
+              c.project_id, c.dot_id, c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id) AS message_count
        FROM assistant_conversations c
        WHERE c.user_id = $1 OR c.assigned_to = $1
@@ -305,6 +398,7 @@ router.get('/conversations', async (req, res) => {
       ...r,
       id: String(r.id),
       project_id: r.project_id ? String(r.project_id) : null,
+      dot_id: r.dot_id ? String(r.dot_id) : null,
       context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
     })));
   } catch (err) {
@@ -316,7 +410,7 @@ router.get('/conversations', async (req, res) => {
 // Criar nova conversa
 router.post('/conversations', async (req, res) => {
   try {
-    const { title, context, project_id } = req.body;
+    const { title, context, project_id, dot_id } = req.body;
 
     // Valida project_id se fornecido
     let validProjectId = null;
@@ -329,11 +423,22 @@ router.post('/conversations', async (req, res) => {
       if (projCheck.rows.length > 0) validProjectId = projCheck.rows[0].id;
     }
 
+    // Valida dot_id se fornecido
+    let validDotId = null;
+    if (dot_id) {
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      const dotCheck = await query(
+        `SELECT id FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) AND is_active = true`,
+        [dot_id, tenantIds],
+      );
+      if (dotCheck.rows.length > 0) validDotId = dotCheck.rows[0].id;
+    }
+
     const result = await query(
-      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind, project_id)
-       VALUES ($1, $2, $3, $4, 'internal', 'ai', $5)
-       RETURNING id, title, context, status, origin, conversation_kind, project_id, created_at, updated_at`,
-      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, validProjectId],
+      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind, project_id, dot_id)
+       VALUES ($1, $2, $3, $4, 'internal', 'ai', $5, $6)
+       RETURNING id, title, context, status, origin, conversation_kind, project_id, dot_id, created_at, updated_at`,
+      [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null, validProjectId, validDotId],
     );
     const row = result.rows[0];
 
@@ -348,6 +453,7 @@ router.post('/conversations', async (req, res) => {
       ...row,
       id: String(row.id),
       project_id: row.project_id ? String(row.project_id) : null,
+      dot_id: row.dot_id ? String(row.dot_id) : null,
       context: typeof row.context === 'string' ? JSON.parse(row.context) : row.context,
     });
   } catch (err) {
@@ -361,7 +467,7 @@ router.get('/conversations/:id', async (req, res) => {
   try {
     const convResult = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
-              c.handoff_reason, c.visitor_name, c.project_id, c.created_at, c.updated_at
+              c.handoff_reason, c.visitor_name, c.project_id, c.dot_id, c.created_at, c.updated_at
        FROM assistant_conversations c
        WHERE c.id = $1 AND (c.user_id = $2 OR c.assigned_to = $2
         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2))`,
@@ -391,6 +497,7 @@ router.get('/conversations/:id', async (req, res) => {
       ...conv,
       id: String(conv.id),
       project_id: conv.project_id ? String(conv.project_id) : null,
+      dot_id: conv.dot_id ? String(conv.dot_id) : null,
       context: typeof conv.context === 'string' ? JSON.parse(conv.context) : conv.context,
       messages: msgResult.rows.map((m) => ({
         ...m,

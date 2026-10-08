@@ -69,11 +69,11 @@ Cite as fontes pelo título quando relevante. Não invente informações.`;
  * Chama a API do OpenAI (Chat Completions) com o contexto da base de conhecimento.
  * Retorna null se a API não estiver configurada ou falhar.
  */
-async function tryLLMResponse(question, contextText, conversationHistory = []) {
+async function tryLLMResponse(question, contextText, conversationHistory = [], systemPrompt = SYSTEM_PROMPT) {
   if (!isLLMConfigured()) return null;
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
   ];
 
   // Inclui histórico da conversa atual (últimas 10 mensagens) para contexto contínuo
@@ -165,6 +165,7 @@ async function ask(question, userContext = null) {
   // Busca contexto na base de conhecimento (com isolamento por tenant)
   const tenantIds = userContext?.tenantIds || null;
   const conversationHistory = userContext?.conversationHistory || [];
+  const systemPrompt = userContext?.systemPrompt || SYSTEM_PROMPT;
   const sources = await searchKnowledgeBase(question, tenantIds);
 
   // Constrói contexto para o LLM (se disponível)
@@ -175,7 +176,7 @@ async function ask(question, userContext = null) {
     : '';
 
   // Tenta resposta via LLM (backend function deployada)
-  const llmAnswer = await tryLLMResponse(question, contextText, conversationHistory);
+  const llmAnswer = await tryLLMResponse(question, contextText, conversationHistory, systemPrompt);
 
   if (llmAnswer) {
     return {

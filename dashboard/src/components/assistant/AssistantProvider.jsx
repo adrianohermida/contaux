@@ -51,6 +51,8 @@ export function AssistantProvider({ children }) {
   const [proactiveEnabled, setProactiveEnabled] = useState(true)
   const [projects, setProjects] = useState([])
   const [activeProjectId, setActiveProjectId] = useState(null)
+  const [dots, setDots] = useState([])
+  const [activeDotId, setActiveDotId] = useState(null)
 
   const location = useLocation()
   const { user } = useAuth()
@@ -230,6 +232,57 @@ export function AssistantProvider({ children }) {
     if (user) loadProjects()
   }, [user, loadProjects])
 
+  // ===== Dots (assistentes configuráveis) =====
+
+  const loadDots = useCallback(async () => {
+    try {
+      const list = await request('/assistant/dots')
+      setDots(list)
+    } catch {
+      setDots([])
+    }
+  }, [])
+
+  const createDot = useCallback(async (data) => {
+    try {
+      const dot = await request('/assistant/dots', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      setDots((prev) => [dot, ...prev])
+      return dot
+    } catch {
+      return null
+    }
+  }, [])
+
+  const updateDot = useCallback(async (dotId, data) => {
+    try {
+      const dot = await request(`/assistant/dots/${dotId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })
+      setDots((prev) => prev.map((d) => (d.id === dotId ? { ...d, ...dot } : d)))
+      return dot
+    } catch {
+      return null
+    }
+  }, [])
+
+  const deleteDot = useCallback(async (dotId) => {
+    try {
+      await request(`/assistant/dots/${dotId}`, { method: 'DELETE' })
+      setDots((prev) => prev.filter((d) => d.id !== dotId))
+      if (activeDotId === dotId) setActiveDotId(null)
+    } catch {
+      // Ignora
+    }
+  }, [activeDotId])
+
+  useEffect(() => {
+    if (user) loadDots()
+  }, [user, loadDots])
+
   const expand = useCallback(() => {
     setPanelMode('expanded')
     setUnreadCount(0)
@@ -268,6 +321,7 @@ export function AssistantProvider({ children }) {
     setShowHistory(false)
     setConvStatus('active')
     setMobileView('conversation')
+    setActiveDotId(null)
   }, [])
 
   // Cria nova conversa no backend
@@ -276,7 +330,7 @@ export function AssistantProvider({ children }) {
       const title = firstMessage.length > 40 ? firstMessage.substring(0, 40) + '...' : firstMessage
       const conv = await request('/assistant/conversations', {
         method: 'POST',
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, dot_id: activeDotId }),
       })
       setActiveConvId(conv.id)
       setConversations((prev) => [conv, ...prev])
@@ -285,7 +339,7 @@ export function AssistantProvider({ children }) {
       // Fallback: conversa local sem persistência
       return null
     }
-  }, [])
+  }, [activeDotId])
 
   // Salva mensagem no backend
   const saveMessage = useCallback(async (convId, role, text, sources = null) => {
@@ -307,6 +361,7 @@ export function AssistantProvider({ children }) {
       setMessages(full.messages || [])
       setActiveConvId(convId)
       setConvStatus(full.status || 'active')
+      setActiveDotId(full.dot_id || null)
       setShowHistory(false)
       setMobileView('conversation')
     } catch {
@@ -587,9 +642,10 @@ export function AssistantProvider({ children }) {
 
     // Conversa com IA: o servidor salva pergunta e resposta (autoria definida no servidor)
     try {
+      const activeConv = conversations.find((c) => c.id === convId)
       const res = await request('/knowledge-base/ask', {
         method: 'POST',
-        body: JSON.stringify({ question, conversation_id: convId }),
+        body: JSON.stringify({ question, conversation_id: convId, dot_id: activeConv?.dot_id || activeDotId }),
       })
       const assistantMsg = {
         id: res.savedMessages?.assistant?.id || genId(),
@@ -618,7 +674,7 @@ export function AssistantProvider({ children }) {
     } finally {
       setStatus('idle')
     }
-  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user])
+  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user, conversations, activeDotId])
 
   // Contexto derivado: segue a tela (follow) ou usa o travado (fixed)
   const context = useMemo(() => {
@@ -653,6 +709,7 @@ export function AssistantProvider({ children }) {
       mobileView, setMobileView,
       projects, loadProjects, createProject, updateProject, deleteProject,
       assignConversationToProject, activeProjectId, setActiveProjectId,
+      dots, loadDots, createDot, updateDot, deleteDot, activeDotId, setActiveDotId,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -669,7 +726,8 @@ export function AssistantProvider({ children }) {
      proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
      mobileView,
      projects, loadProjects, createProject, updateProject, deleteProject,
-     assignConversationToProject, activeProjectId],
+     assignConversationToProject, activeProjectId,
+     dots, loadDots, createDot, updateDot, deleteDot, activeDotId],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

@@ -161,7 +161,17 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
       conversationHistory = histResult.rows;
     }
 
-    const result = await aiService.ask(question.trim(), { tenantIds, conversationHistory });
+    // Busca system_prompt do dot (assistente configurável) se fornecido
+    let systemPrompt = null;
+    if (req.body.dot_id) {
+      const dotResult = await query(
+        `SELECT system_prompt FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) AND is_active = true`,
+        [req.body.dot_id, tenantIds],
+      );
+      if (dotResult.rows.length > 0) systemPrompt = dotResult.rows[0].system_prompt;
+    }
+
+    const result = await aiService.ask(question.trim(), { tenantIds, conversationHistory, systemPrompt });
 
     // Salva mensagens no servidor (autoria definida pelo servidor, não pelo cliente)
     let savedMessages = null;
