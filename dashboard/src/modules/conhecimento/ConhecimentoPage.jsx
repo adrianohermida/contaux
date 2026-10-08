@@ -31,7 +31,7 @@ export default function ConhecimentoPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState(null)
   const [search, setSearch] = useState('')
-  const toast = useToast()
+  const { toast } = useToast()
 
   const filtered = useMemo(() => {
     let result = items

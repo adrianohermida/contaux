@@ -20,7 +20,7 @@ export default function ConhecimentoForm({ open, onClose, onSave, editingItem })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
-  const toast = useToast()
+  const { toast } = useToast()
 
   useEffect(() => {
     if (open) {

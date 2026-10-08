@@ -21,7 +21,7 @@ export default function AutomacoesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [executing, setExecuting] = useState(null)
-  const toast = useToast()
+  const { toast } = useToast()
 
   const handleNew = () => { setEditing(null); setFormOpen(true) }
   const handleEdit = (w) => { setEditing(w); setFormOpen(true) }
