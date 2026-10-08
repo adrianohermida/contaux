@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
-import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { getModuleCoverage } from './moduleCoverage'
+import TaskProposalForm from './TaskProposalForm'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -21,10 +22,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     messages, draft, setDraft, clearMessages, sendMessage,
     context, contextMode, toggleContextMode, status,
     conversations, activeConvId, showHistory, setShowHistory,
-    openConversation, deleteConversation,
+    openConversation, deleteConversation, createTask,
   } = useAssistant()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
+  const [showTaskForm, setShowTaskForm] = useState(false)
 
   // Sugestões contextuais baseadas no módulo atual (AC-GLOBAL-03)
   const coverage = getModuleCoverage(context.route || '')
@@ -124,6 +126,9 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} aria-label="Propor tarefa" className="h-8 w-8">
+            <CheckSquare className="h-4 w-4" aria-hidden="true" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} aria-label="Histórico de conversas" className="h-8 w-8">
             <History className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -263,6 +268,14 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           </div>
         )}
       </div>
+
+      {/* Formulário de proposta de tarefa (AC-GLOBAL-04) */}
+      {showTaskForm && (
+        <TaskProposalForm
+          onCreate={createTask}
+          onClose={() => setShowTaskForm(false)}
+        />
+      )}
 
       {/* Entrada */}
       <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>

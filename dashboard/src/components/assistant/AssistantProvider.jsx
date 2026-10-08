@@ -38,6 +38,7 @@ export function AssistantProvider({ children }) {
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [pendingTask, setPendingTask] = useState(null) // tarefa proposta pelo assistente
 
   const location = useLocation()
   const { user } = useAuth()
@@ -169,6 +170,24 @@ export function AssistantProvider({ children }) {
     }
   }, [activeConvId])
 
+  // Cria uma tarefa vinculada à conversa ativa (AC-GLOBAL-04)
+  const createTask = useCallback(async (taskData) => {
+    let convId = activeConvId
+    if (!convId) {
+      convId = await startNewConversation(taskData.title)
+    }
+    if (!convId) return null
+    try {
+      const task = await request(`/assistant/conversations/${convId}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify(taskData),
+      })
+      return task
+    } catch {
+      return null
+    }
+  }, [activeConvId, startNewConversation])
+
   const sendMessage = useCallback(async (text) => {
     const question = text.trim()
     if (!question || status === 'preparing') return
@@ -243,12 +262,14 @@ export function AssistantProvider({ children }) {
       status, unreadCount,
       conversations, activeConvId, showHistory,
       setShowHistory, openConversation, deleteConversation, startNewConversation,
+      createTask, pendingTask, setPendingTask,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
      context, contextMode, toggleContextMode, status, unreadCount,
      conversations, activeConvId, showHistory,
-     setShowHistory, openConversation, deleteConversation, startNewConversation],
+     setShowHistory, openConversation, deleteConversation, startNewConversation,
+     createTask, pendingTask],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

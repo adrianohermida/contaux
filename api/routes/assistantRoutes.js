@@ -180,4 +180,68 @@ router.post('/conversations/:id/messages', async (req, res) => {
   }
 });
 
+// ===== Tarefas vinculadas à conversa (AC-GLOBAL-04) =====
+
+// Listar tarefas de uma conversa
+router.get('/conversations/:id/tasks', async (req, res) => {
+  try {
+    // Verifica propriedade da conversa
+    const convCheck = await query(
+      `SELECT id FROM assistant_conversations WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id],
+    );
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const result = await query(
+      `SELECT id, title, description, status, priority, due_date, assigned_to, category, source, created, updated
+       FROM tasks
+       WHERE conversation_id = $1
+       ORDER BY created DESC`,
+      [req.params.id],
+    );
+    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar tarefas da conversa:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar tarefas' });
+  }
+});
+
+// Criar tarefa vinculada a uma conversa
+router.post('/conversations/:id/tasks', async (req, res) => {
+  try {
+    const { title, description, priority, due_date, assigned_to, category } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'title é obrigatório' });
+
+    // Verifica propriedade da conversa
+    const convCheck = await query(
+      `SELECT id, tenant_id FROM assistant_conversations WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id],
+    );
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const tenantId = convCheck.rows[0].tenant_id;
+    const result = await query(
+      `INSERT INTO tasks (title, description, status, priority, due_date, assigned_to, category, tenant_id, conversation_id, created_by, source)
+       VALUES ($1, $2, 'todo', $3, $4, $5, $6, $7, $8, $9, 'assistant')
+       RETURNING id, title, description, status, priority, due_date, assigned_to, category, source, created, updated`,
+      [
+        title.trim(),
+        description || null,
+        priority || 'medium',
+        due_date || null,
+        assigned_to || null,
+        category || null,
+        tenantId,
+        req.params.id,
+        req.user.id,
+      ],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao criar tarefa:', err.message);
+    res.status(500).json({ error: 'Erro ao criar tarefa' });
+  }
+});
+
 module.exports = router;
