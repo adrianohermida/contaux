@@ -197,9 +197,31 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-06 — Memória, anexos e voz
 
+**Status:** Concluída.
+
 **Foco:** memória auditável por escopo, anexos privados com ACL, voz opcional.
 
 **Gate:** arquivo de outro tenant negado; memória cruzada inexistente; MIME falso bloqueado.
+
+**Implementação:**
+- Migração 018: tabelas `assistant_memory` (escopo user/tenant/conversation, isolamento por tenant) e `assistant_attachments` (ACL por conversa + tenant).
+- `api/services/assistantMemory.js` — CRUD de memória com upsert por (tenant, user, conversation, scope, key), isolamento por tenant_id.
+- `api/services/mimeValidator.js` — validação por magic number (assinatura de arquivo), não confia no Content-Type do cliente. Allowlist de tipos: PDF, PNG, JPEG, GIF, WebP, ZIP, DOC/DOCX, XLS/XLSX, TXT, CSV.
+- `api/routes/assistantRoutes.js` — endpoints de memória (`GET/POST/DELETE /memory`) e anexos (`POST/GET/DELETE /conversations/:id/attachments`, `GET /conversations/:id/attachments/:aid`).
+- `dashboard/src/components/assistant/VoiceInput.jsx` — entrada por voz via Web Speech API (pt-BR), botão oculto em navegadores sem suporte.
+- `dashboard/src/components/assistant/AttachmentButton.jsx` — botão de anexar com validação client-side de tipo e tamanho (máx 10 MB).
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de memória, upload de anexos (FormData), transcrição de voz para o rascunho.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — botões de voz e anexo no input compacto.
+
+**Testes executados (curl):**
+- Memória: criar (user scope) ✓; upsert (atualiza value) ✓; listar ✓; deletar ✓
+- Memória cross-tenant: Hermida Maia não vê memórias da Contaux ✓ (correção de bug de OR sem parênteses)
+- Anexo: upload PDF válido ✓; MIME falso (texto como PDF) bloqueado ✓; tipo não permitido (exe) bloqueado ✓
+- Anexo cross-tenant: download por outro tenant → 403 ✓; listagem por outro tenant → 404 ✓
+- Anexo: download válido (200) ✓; delete ✓
+- Dados de teste limpos ✓
+
+**Gate:** arquivo de outro tenant negado ✓; memória cruzada inexistente ✓; MIME falso bloqueado ✓.
 
 ## CQ-07 — Proatividade interna limitada
 

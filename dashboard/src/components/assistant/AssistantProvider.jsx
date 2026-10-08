@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { request } from '@/lib/api'
+import { request, getAccessToken } from '@/lib/api'
 import { resolveModule } from './moduleContext'
 
 /**
@@ -44,6 +44,8 @@ export function AssistantProvider({ children }) {
   const [showQueue, setShowQueue] = useState(false)
   const [availableTools, setAvailableTools] = useState([])
   const [pendingToolCall, setPendingToolCall] = useState(null) // tool aguardando aprovação
+  const [memories, setMemories] = useState([])
+  const [attachments, setAttachments] = useState([])
 
   const location = useLocation()
   const { user } = useAuth()
@@ -328,6 +330,102 @@ export function AssistantProvider({ children }) {
     }
   }, [activeConvId])
 
+  // ===== CQ-06: Memória, anexos e voz =====
+
+  // Carregar memórias do usuário/tenant
+  const loadMemories = useCallback(async (scope = 'all') => {
+    try {
+      const params = scope !== 'all' ? `?scope=${scope}` : ''
+      const list = await request(`/assistant/memory${params}`)
+      setMemories(list)
+    } catch {
+      setMemories([])
+    }
+  }, [])
+
+  // Salvar uma memória
+  const saveMemoryItem = useCallback(async (scope, key, value, conversationId) => {
+    try {
+      const mem = await request('/assistant/memory', {
+        method: 'POST',
+        body: JSON.stringify({ scope, key, value, conversation_id: conversationId }),
+      })
+      setMemories((prev) => {
+        const idx = prev.findIndex((m) => m.key === key && m.scope === scope)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = mem
+          return next
+        }
+        return [mem, ...prev]
+      })
+      return mem
+    } catch {
+      return null
+    }
+  }, [])
+
+  // Deletar uma memória
+  const deleteMemoryItem = useCallback(async (memId) => {
+    try {
+      await request(`/assistant/memory/${memId}`, { method: 'DELETE' })
+      setMemories((prev) => prev.filter((m) => m.id !== memId))
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Upload de anexo para a conversa ativa
+  const uploadAttachment = useCallback(async (file) => {
+    let convId = activeConvId
+    if (!convId) {
+      convId = await startNewConversation(`Anexo: ${file.name}`)
+    }
+    if (!convId) return null
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const resp = await fetch(`/api/assistant/conversations/${convId}/attachments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
+        body: formData,
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Erro ao enviar anexo')
+      }
+      const att = await resp.json()
+      // Adiciona mensagem de sistema no chat
+      const msg = { id: genId(), role: 'system', text: `📎 ${att.filename}`, event_type: 'attachment' }
+      setMessages((prev) => [...prev, msg])
+      saveMessage(convId, 'system', `📎 ${att.filename}`)
+      return att
+    } catch (err) {
+      const msg = { id: genId(), role: 'system', text: `❌ Erro: ${err.message}`, event_type: 'error' }
+      setMessages((prev) => [...prev, msg])
+      return null
+    }
+  }, [activeConvId, startNewConversation, saveMessage])
+
+  // Carregar anexos de uma conversa
+  const loadAttachments = useCallback(async (convId) => {
+    if (!convId) { setAttachments([]); return }
+    try {
+      const list = await request(`/assistant/conversations/${convId}/attachments`)
+      setAttachments(list)
+    } catch {
+      setAttachments([])
+    }
+  }, [])
+
+  // Transcrição de voz — anexa ao rascunho
+  const handleVoiceTranscript = useCallback((transcript) => {
+    setDraft((prev) => (prev ? `${prev} ${transcript}` : transcript))
+  }, [])
+
   const sendMessage = useCallback(async (text) => {
     const question = text.trim()
     if (!question || status === 'preparing') return
@@ -417,6 +515,9 @@ export function AssistantProvider({ children }) {
       queue, loadQueue, acceptHandoff, showQueue, setShowQueue,
       availableTools, executeAssistantTool, pendingToolCall, setPendingToolCall,
       addToolMessage,
+      memories, loadMemories, saveMemoryItem, deleteMemoryItem,
+      attachments, uploadAttachment, loadAttachments,
+      handleVoiceTranscript,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -426,7 +527,10 @@ export function AssistantProvider({ children }) {
      createTask, pendingTask,
      convStatus, requestHandoff, closeConversation,
      queue, loadQueue, acceptHandoff, showQueue,
-     availableTools, executeAssistantTool, pendingToolCall, addToolMessage],
+     availableTools, executeAssistantTool, pendingToolCall, addToolMessage,
+     memories, loadMemories, saveMemoryItem, deleteMemoryItem,
+     attachments, uploadAttachment, loadAttachments,
+     handleVoiceTranscript],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

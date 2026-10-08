@@ -5,6 +5,8 @@ import { getModuleCoverage } from './moduleCoverage'
 import TaskProposalForm from './TaskProposalForm'
 import HandoffQueue from './HandoffQueue'
 import ToolApproval from './ToolApproval'
+import VoiceInput from './VoiceInput'
+import AttachmentButton from './AttachmentButton'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -24,6 +26,7 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     showQueue, setShowQueue,
     availableTools, executeAssistantTool, pendingToolCall, setPendingToolCall,
     addToolMessage,
+    uploadAttachment, handleVoiceTranscript,
   } = useAssistant()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
@@ -312,7 +315,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
       )}
 
       {/* Input compacto */}
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-2 flex items-end gap-2">
+      <form onSubmit={handleSubmit} className="relative shrink-0 border-t border-border p-2 flex items-end gap-1.5">
+        <AttachmentButton onUpload={uploadAttachment} disabled={preparing} />
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -323,6 +327,7 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
           style={{ maxHeight: '80px' }}
         />
+        <VoiceInput onTranscript={handleVoiceTranscript} disabled={preparing} />
         <Button type="submit" size="icon" disabled={preparing || !draft.trim()} className="h-9 w-9 shrink-0">
           <Send className="h-4 w-4" />
         </Button>

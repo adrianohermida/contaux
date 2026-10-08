@@ -5,9 +5,30 @@
  */
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { query } = require('../db');
 const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middleware/auth');
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
+const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
+const { validateFile } = require('../services/mimeValidator');
+
+// ===== Diretório de uploads do assistente =====
+const attDir = path.join(__dirname, '..', 'uploads', 'assistant');
+if (!fs.existsSync(attDir)) fs.mkdirSync(attDir, { recursive: true });
+
+const attStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, attDir),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+const attUpload = multer({
+  storage: attStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 router.use(requireAuth);
 
@@ -435,6 +456,192 @@ router.post('/conversations/:id/tasks', async (req, res) => {
   } catch (err) {
     console.error('[assistant] Erro ao criar tarefa:', err.message);
     res.status(500).json({ error: 'Erro ao criar tarefa' });
+  }
+});
+
+// ===== Memória auditável por escopo (CQ-06) =====
+
+// Listar memórias do usuário/tenant
+router.get('/memory', async (req, res) => {
+  try {
+    const { scope, conversation_id } = req.query;
+    const memories = await listMemories(
+      { userId: req.user.id, tenantId: req.user.tenant_id, role: req.user.role },
+      scope || 'all',
+      { conversationId: conversation_id },
+    );
+    res.json(memories);
+  } catch (err) {
+    console.error('[assistant] Erro ao listar memória:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar memória' });
+  }
+});
+
+// Criar/atualizar memória
+router.post('/memory', async (req, res) => {
+  try {
+    const { scope, key, value, conversation_id } = req.body;
+    if (!scope || !['user', 'tenant', 'conversation'].includes(scope)) {
+      return res.status(400).json({ error: 'scope inválido' });
+    }
+    if (scope === 'tenant' && req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas admin pode criar memória de tenant' });
+    }
+    const memory = await saveMemory(
+      { userId: req.user.id, tenantId: req.user.tenant_id, role: req.user.role },
+      scope, key, value, { conversationId: conversation_id },
+    );
+    res.status(201).json(memory);
+  } catch (err) {
+    console.error('[assistant] Erro ao salvar memória:', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao salvar memória' });
+  }
+});
+
+// Deletar memória
+router.delete('/memory/:id', async (req, res) => {
+  try {
+    const ok = await deleteMemory(
+      { userId: req.user.id, tenantId: req.user.tenant_id, role: req.user.role },
+      req.params.id,
+    );
+    if (!ok) return res.status(404).json({ error: 'Memória não encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao deletar memória:', err.message);
+    res.status(500).json({ error: 'Erro ao deletar memória' });
+  }
+});
+
+// ===== Anexos privados com ACL (CQ-06) =====
+
+// Upload de anexo para uma conversa
+router.post('/conversations/:id/attachments', attUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+
+    // Verifica acesso à conversa
+    const convCheck = await query(
+      `SELECT id, tenant_id FROM assistant_conversations
+       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
+        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
+      [req.params.id, req.user.id],
+    );
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Valida tenant — arquivo de outro tenant é negado
+    const convTenantId = convCheck.rows[0].tenant_id;
+    if (convTenantId !== req.user.tenant_id && req.user.role !== 'superadmin') {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Sem permissão para este tenant' });
+    }
+
+    // Valida MIME pelo magic number
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const validation = validateFile(fileBuffer, req.file.mimetype, req.file.originalname);
+    if (!validation.valid) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const result = await query(
+      `INSERT INTO assistant_attachments (conversation_id, tenant_id, uploaded_by, filename, mime_type, file_size, file_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, filename, mime_type, file_size, created_at`,
+      [req.params.id, convTenantId, req.user.id, req.file.originalname,
+       validation.mime, req.file.size, req.file.filename],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, id: String(row.id) });
+  } catch (err) {
+    console.error('[assistant] Erro ao salvar anexo:', err.message);
+    if (req.file?.path) try { fs.unlinkSync(req.file.path) } catch { /* ignora */ }
+    res.status(500).json({ error: 'Erro ao salvar anexo' });
+  }
+});
+
+// Listar anexos de uma conversa
+router.get('/conversations/:id/attachments', async (req, res) => {
+  try {
+    const convCheck = await query(
+      `SELECT id FROM assistant_conversations
+       WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
+        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
+      [req.params.id, req.user.id],
+    );
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const result = await query(
+      `SELECT id, filename, mime_type, file_size, created_at
+       FROM assistant_attachments WHERE conversation_id = $1
+       ORDER BY created_at DESC`,
+      [req.params.id],
+    );
+    res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar anexos:', err.message);
+    res.status(500).json({ error: 'Erro ao listar anexos' });
+  }
+});
+
+// Download de anexo — ACL: acesso à conversa + tenant match
+router.get('/conversations/:id/attachments/:aid', async (req, res) => {
+  try {
+    const att = await query(
+      `SELECT a.filename, a.mime_type, a.file_path, a.tenant_id, c.user_id, c.assigned_to
+       FROM assistant_attachments a
+       JOIN assistant_conversations c ON c.id = a.conversation_id
+       WHERE a.id = $1 AND a.conversation_id = $2`,
+      [req.params.aid, req.params.id],
+    );
+    if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
+
+    const a = att.rows[0];
+    // Verifica acesso: dono, assigned, ou participante
+    const hasAccess = a.user_id === req.user.id || a.assigned_to === req.user.id ||
+      req.user.role === 'superadmin' || a.tenant_id === req.user.tenant_id;
+    if (!hasAccess) return res.status(403).json({ error: 'Sem permissão para este anexo' });
+
+    // Valida tenant — arquivo de outro tenant negado
+    if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Anexo pertence a outro tenant' });
+    }
+
+    const filePath = path.join(attDir, a.file_path);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    res.setHeader('Content-Type', a.mime_type);
+    res.setHeader('Content-Disposition', `attachment; filename="${a.filename}"`);
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('[assistant] Erro ao baixar anexo:', err.message);
+    res.status(500).json({ error: 'Erro ao baixar anexo' });
+  }
+});
+
+// Deletar anexo
+router.delete('/conversations/:id/attachments/:aid', async (req, res) => {
+  try {
+    const att = await query(
+      `SELECT a.file_path, a.tenant_id FROM assistant_attachments a
+       WHERE a.id = $1 AND a.conversation_id = $2`,
+      [req.params.aid, req.params.id],
+    );
+    if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
+
+    const a = att.rows[0];
+    if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    // Remove arquivo físico
+    const filePath = path.join(attDir, a.file_path);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    await query(`DELETE FROM assistant_attachments WHERE id = $1`, [req.params.aid]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao deletar anexo:', err.message);
+    res.status(500).json({ error: 'Erro ao deletar anexo' });
   }
 });
 
