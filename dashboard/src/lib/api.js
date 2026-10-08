@@ -7,7 +7,10 @@ const BASE = '/api';
 
 // Access token em memória (não persiste em localStorage)
 let accessToken = null;
-export function setAccessToken(token) { accessToken = token; }
+export function setAccessToken(token) {
+  accessToken = token;
+  scheduleProactiveRefresh();
+}
 export function getAccessToken() { return accessToken; }
 
 // Controle de refresh para evitar múltiplas chamadas simultâneas
@@ -23,6 +26,31 @@ async function doRefresh() {
     .then((r) => (r.ok ? r.json() : null))
     .finally(() => { refreshing = null; });
   return refreshing;
+}
+
+// Refresh proativo: renova o token 1 min antes de expirar (15 min de vida útil)
+const REFRESH_BEFORE_MS = 14 * 60 * 1000; // 14 minutos
+let refreshTimer = null;
+
+function scheduleProactiveRefresh() {
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+  if (!accessToken) return;
+
+  refreshTimer = setTimeout(async () => {
+    const refreshed = await doRefresh();
+    if (refreshed?.token) {
+      setAccessToken(refreshed.token);
+    } else {
+      // Refresh proativo falhou — limpa sessão
+      accessToken = null;
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+  }, REFRESH_BEFORE_MS);
+
+  // Não impede o Node de sair (dev apenas)
+  if (typeof refreshTimer === 'object' && refreshTimer.unref) refreshTimer.unref();
 }
 
 function getAuthHeaders() {
@@ -47,6 +75,7 @@ export async function request(path, options = {}) {
     }
     // Refresh falhou — limpa sessão
     accessToken = null;
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
