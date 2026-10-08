@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { Settings, Shield, ScrollText, Zap, FolderOpen, BarChart3 } from 'lucide-react'
+import { Settings, Shield, ScrollText, Zap, FolderOpen, BarChart3, Mail } from 'lucide-react'
 
 const subTabs = [
   { to: '/admin', label: 'Configurações', icon: Settings, end: true },
@@ -9,6 +9,7 @@ const subTabs = [
   { to: '/admin/automacoes', label: 'Automações', icon: Zap, end: false },
   { to: '/admin/documentos', label: 'Documentos', icon: FolderOpen, end: false },
   { to: '/admin/relatorios', label: 'Relatórios', icon: BarChart3, end: false },
+  { to: '/admin/email', label: 'Email', icon: Mail, end: false },
 ]
 
 export default function AdminPage({ view }) {
@@ -35,7 +36,7 @@ export default function AdminPage({ view }) {
         ))}
       </div>
 
-      {view === 'security' ? <SegurancaView /> : view === 'audit' ? <AuditoriaView /> : view === 'automations' ? <AutomacoesView /> : view === 'documents' ? <DocumentosView /> : view === 'reports' ? <RelatoriosView /> : <ConfiguracoesView />}
+      {view === 'security' ? <SegurancaView /> : view === 'audit' ? <AuditoriaView /> : view === 'automations' ? <AutomacoesView /> : view === 'documents' ? <DocumentosView /> : view === 'reports' ? <RelatoriosView /> : view === 'email' ? <EmailView /> : <ConfiguracoesView />}
     </div>
   )
 }
@@ -46,6 +47,7 @@ import AuditoriaPage from './AuditoriaPage'
 import AutomacoesPage from './AutomacoesPage'
 import DocumentosPage from './DocumentosPage'
 import RelatoriosPage from './RelatoriosPage'
+import EmailConfigPage from './EmailConfigPage'
 
 function ConfiguracoesView() { return <ConfiguracoesPage /> }
 function SegurancaView() { return <SegurancaPage /> }
@@ -53,3 +55,4 @@ function AuditoriaView() { return <AuditoriaPage /> }
 function AutomacoesView() { return <AutomacoesPage /> }
 function DocumentosView() { return <DocumentosPage /> }
 function RelatoriosView() { return <RelatoriosPage /> }
+function EmailView() { return <EmailConfigPage /> }
