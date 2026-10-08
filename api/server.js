@@ -1,5 +1,4 @@
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 const emailRoutes = require('./routes/emailRoutes');
 const inboxRoutes = require('./routes/inboxRoutes');
@@ -8,7 +7,8 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
 const publicRoutes = require('./routes/publicRoutes');
-const cloudflareWorker = require('./services/cloudflareWorker');
+const { sendMail } = require('./services/mailService');
+const emailTemplates = require('./services/emailTemplates');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
 
@@ -71,57 +71,12 @@ for (const [table, opts] of Object.entries(crudConfig)) {
   app.use(`/api/${table}`, createCrudRouter(table, opts));
 }
 
-// Configuração do transportador SMTP
-// As credenciais vêm de variáveis de ambiente (delivered via /run/base44/app.env)
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: parseInt(process.env.SMTP_PORT || '587', 10) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
-
 const TO_EMAIL = process.env.CONTACT_EMAIL || 'contato@contaux.com.br';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'contato@contaux.com.br';
 
-/**
- * Envia email — tenta Cloudflare Worker (MailChannels) primeiro, fallback SMTP.
- */
-async function sendMail({ to, subject, text, html, replyTo }) {
-  // Tentativa 1: Cloudflare Worker (MailChannels)
-  try {
-    await cloudflareWorker.sendEmail({
-      to,
-      from: FROM_EMAIL,
-      subject,
-      text,
-      html,
-      replyTo,
-    });
-    return { method: 'cloudflare-worker' };
-  } catch (cfErr) {
-    console.warn('Cloudflare Worker falhou, tentando SMTP:', cfErr.message);
-  }
-
-  // Tentativa 2: Fallback SMTP (nodemailer)
-  const transporter = createTransporter();
-  await transporter.sendMail({
-    from: process.env.SMTP_USER || FROM_EMAIL,
-    to,
-    replyTo,
-    subject,
-    text,
-    html,
-  });
-  return { method: 'smtp' };
-}
-
-// Disponibiliza sendMail para as rotas públicas (reset de senha)
+// Disponibiliza sendMail para as rotas públicas (reset de senha, etc.)
 app.locals.sendMail = sendMail;
+app.locals.emailTemplates = emailTemplates;
 
 // Endpoint do formulário de contato
 app.post('/api/contact', async (req, res) => {
@@ -132,31 +87,8 @@ app.post('/api/contact', async (req, res) => {
   }
 
   try {
-    const subjectLine = `[Contato do Site] ${subject || 'Nova mensagem'}`;
-    const textBody = `
-Nova mensagem recebida pelo site:
-
-Nome: ${name}
-Email: ${email}
-Telefone: ${phone || 'Não informado'}
-Assunto: ${subject || 'Não informado'}
-
-Mensagem:
-${message}
-    `;
-    const htmlBody = `
-<h2>Nova mensagem recebida pelo site</h2>
-<table style="border-collapse:collapse;width:100%;max-width:600px;">
-  <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Nome:</td><td style="padding:8px;border:1px solid #ddd;">${name}</td></tr>
-  <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Email:</td><td style="padding:8px;border:1px solid #ddd;">${email}</td></tr>
-  <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Telefone:</td><td style="padding:8px;border:1px solid #ddd;">${phone || 'Não informado'}</td></tr>
-  <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Assunto:</td><td style="padding:8px;border:1px solid #ddd;">${subject || 'Não informado'}</td></tr>
-</table>
-<h3>Mensagem:</h3>
-<p style="white-space:pre-wrap;border:1px solid #ddd;padding:15px;border-radius:5px;background:#f9f9f9;">${message}</p>
-    `;
-
-    await sendMail({ to: TO_EMAIL, subject: subjectLine, text: textBody, html: htmlBody, replyTo: email });
+    const tpl = await emailTemplates.render('contact', { name, email, phone, subject, message });
+    await sendMail({ to: TO_EMAIL, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: email });
     return res.status(200).json({ success: true, message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
     console.error('Erro ao enviar email:', error.message);
@@ -173,17 +105,44 @@ app.post('/api/newsletter', async (req, res) => {
   }
 
   try {
-    await sendMail({
-      to: TO_EMAIL,
-      subject: '[Newsletter] Nova inscrição no site',
-      text: `Novo inscrito na newsletter: ${EMAIL}`,
-      html: `<p>Novo inscrito na newsletter: <strong>${EMAIL}</strong></p>`,
-    });
-
+    const tpl = await emailTemplates.render('newsletter', { email: EMAIL });
+    await sendMail({ to: TO_EMAIL, subject: tpl.subject, text: tpl.text, html: tpl.html });
     return res.status(200).json({ success: true, message: 'Inscrição realizada com sucesso.' });
   } catch (error) {
     console.error('Erro ao registrar newsletter:', error.message);
     return res.status(500).json({ error: 'Erro ao registrar inscrição.' });
+  }
+});
+
+// ===== Templates de email — listar, preview, teste =====
+
+// Lista todos os templates disponíveis
+app.get('/api/email/templates', (req, res) => {
+  res.json({ templates: emailTemplates.listTemplates() });
+});
+
+// Preview de um template com dados de exemplo (ou fornecidos)
+app.post('/api/email/templates/preview', async (req, res) => {
+  const { template, data } = req.body;
+  if (!template) return res.status(400).json({ error: 'template é obrigatório' });
+  try {
+    const tpl = await emailTemplates.render(template, data || emailTemplates.SAMPLE_DATA[template] || {});
+    res.json({ subject: tpl.subject, html: tpl.html, text: tpl.text });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Envia email de teste para o próprio endereço
+app.post('/api/email/templates/test', async (req, res) => {
+  const { template, to } = req.body;
+  if (!template || !to) return res.status(400).json({ error: 'template e to são obrigatórios' });
+  try {
+    const tpl = await emailTemplates.render(template, emailTemplates.SAMPLE_DATA[template] || {});
+    await sendMail({ to, subject: `[TESTE] ${tpl.subject}`, text: tpl.text, html: tpl.html });
+    res.json({ success: true, message: 'Email de teste enviado.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao enviar teste: ' + err.message });
   }
 });
 
@@ -195,7 +154,6 @@ app.get('/api/health', (req, res) => {
     email: {
       cloudflare: {
         configured: !!(process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ZONE_ID),
-        workerName: cloudflareWorker.WORKER_NAME,
       },
       smtp: {
         configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),

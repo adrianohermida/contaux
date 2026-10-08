@@ -79,6 +79,15 @@ api/
 - **Contas de demo**: admin@contaux.com.br / contaux123 (superadmin), contador@contaux.com.br / contaux123 (accountant), admin@hermidamaia.com.br / contaux123 (admin Hermida Maia).
 - **JWT_SECRET**: variável de ambiente obrigatória, entregue via `/run/base44/app.env`.
 
+## Email Template System
+- **Módulo**: `api/services/emailTemplates.js` — gera HTML branded e responsivo para todos os emails do app.
+- **Branding dinâmico**: cores e nome da marca vêm da tabela `settings` (singleton), com cache de 1 minuto.
+- **Templates disponíveis**: `contact`, `newsletter`, `password_reset`, `welcome`, `invitation`.
+- **Endpoints**: `GET /api/email/templates` (listar), `POST /api/email/templates/preview` (preview com dados de exemplo), `POST /api/email/templates/test` (enviar teste).
+- **Uso**: `emailTemplates.render(templateKey, data)` → retorna `{ subject, text, html }`.
+- **Emails transacionais**: boas-vindas no registro (`publicRoutes.js`), convite de usuário (`authRoutes.js`), reset de senha (`publicRoutes.js`) — todos branded, não bloqueiam o fluxo principal se o envio falhar.
+- **sendMail consolidado**: `api/services/mailService.js` é a única fonte de envio (Cloudflare Worker → SMTP fallback). O `sendMail` duplicado em `server.js` foi removido.
+
 ## Cloudflare Email Workers
 - **email-router**: Worker with `email` handler — receives inbound emails from Cloudflare Email Routing, extracts sender/subject/body, POSTs to `/api/inbox/webhook`.
 - **email-forwarder**: Worker with `fetch` handler — sends outbound emails via MailChannels API.

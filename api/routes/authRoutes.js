@@ -135,7 +135,32 @@ router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (re
        VALUES ($1, $2, $3, $4, $5, true) RETURNING id, name, email, role, tenant_id`,
       [name, email.toLowerCase(), role, hash, targetTenant],
     );
-    res.status(201).json({ ...result.rows[0], id: String(result.rows[0].id) });
+    const newUser = result.rows[0];
+
+    // Envia email de convite branded — não bloqueia a criação se falhar
+    const { sendMail, emailTemplates } = req.app.locals;
+    if (sendMail && emailTemplates) {
+      try {
+        const roleLabels = { superadmin: 'super administrador', admin: 'administrador', accountant: 'contador', viewer: 'visualizador', client: 'cliente' };
+        const tpl = await emailTemplates.render('invitation', {
+          name,
+          email: email.toLowerCase(),
+          role: roleLabels[role] || role,
+          tempPassword: password,
+          loginUrl: `${process.env.SITE_URL || 'https://contaux.com.br'}/login`,
+        });
+        await sendMail({
+          to: email.toLowerCase(),
+          subject: tpl.subject,
+          text: tpl.text,
+          html: tpl.html,
+        });
+      } catch (mailErr) {
+        console.warn('Aviso: email de convite não enviado:', mailErr.message);
+      }
+    }
+
+    res.status(201).json({ ...newUser, id: String(newUser.id) });
   } catch (err) {
     if (err.code === '23505') {
       res.status(409).json({ error: 'Email já cadastrado' });
