@@ -152,10 +152,13 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
     let conversationHistory = [];
     if (conversation_id) {
       const histResult = await query(
-        `SELECT role, text FROM assistant_messages
-         WHERE conversation_id = $1 AND role IN ('user', 'assistant')
-         ORDER BY created_at ASC
-         LIMIT 20`,
+        `SELECT role, text FROM (
+           SELECT role, text, created_at FROM assistant_messages
+           WHERE conversation_id = $1 AND role IN ('user', 'assistant')
+           ORDER BY created_at DESC
+           LIMIT 20
+         ) recent
+         ORDER BY created_at ASC`,
         [conversation_id],
       );
       conversationHistory = histResult.rows;

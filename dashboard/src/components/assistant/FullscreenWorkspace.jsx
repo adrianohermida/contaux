@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button'
  * Mobile: alterna entre lista e conversa, preservando estado.
  */
 export default function FullscreenWorkspace({ onClose }) {
-  const { activeConvId, mobileView, setMobileView } = useAssistant()
+  const { mobileView, setMobileView } = useAssistant()
 
-  const showList = !activeConvId || mobileView !== 'conversation'
-  const showChat = !!activeConvId && mobileView === 'conversation'
+  const showList = mobileView !== 'conversation'
+  const showChat = mobileView === 'conversation'
 
   return (
     <div
