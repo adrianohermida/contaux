@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { emailApi } from '@/lib/emailApi'
-import { Zap, Rocket, RefreshCw, Check, AlertCircle, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
+import { Zap, Rocket, RefreshCw, Check, AlertCircle, ArrowDownToLine, ArrowUpFromLine, ShieldAlert } from 'lucide-react'
 
 /** Painel de gerenciamento dos Cloudflare Workers (router + forwarder) */
 export default function EmailWorkersPanel() {
@@ -20,7 +20,7 @@ export default function EmailWorkersPanel() {
       const data = await emailApi.getWorkersStatus()
       setStatus(data)
       if (data?.router?.status === 403 || data?.forwarder?.status === 403) {
-        setError('Token Cloudflare sem permissão para Workers (403). Verifique se o token tem escopo "Workers Scripts:Edit".')
+        setError('Token Cloudflare sem permissão para Workers. Verifique se o token tem escopo "Account → Workers Scripts → Read/Edit".')
       }
     } catch (err) {
       setError(err.message)
@@ -48,12 +48,13 @@ export default function EmailWorkersPanel() {
 
   const routerStatus = status?.router
   const forwarderStatus = status?.forwarder
+  const hasPermissionError = routerStatus?.status === 403 || forwarderStatus?.status === 403
 
   return (
     <div className="space-y-4">
       {error && (
-        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" /> {error}
         </div>
       )}
 
@@ -76,7 +77,7 @@ export default function EmailWorkersPanel() {
             <Button variant="outline" size="sm" onClick={loadStatus} disabled={loading}>
               <RefreshCw className="h-3.5 w-3.5" /> Status
             </Button>
-            <Button size="sm" onClick={handleDeploy} disabled={deploying}>
+            <Button size="sm" onClick={handleDeploy} disabled={deploying || hasPermissionError}>
               {deploying ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Deployando...</> : <><Rocket className="h-3.5 w-3.5" /> Deployar</>}
             </Button>
           </div>
