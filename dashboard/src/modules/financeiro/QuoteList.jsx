@@ -6,6 +6,7 @@ import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { quoteStatusLabels, quoteStatusVariants } from './lib/mockData'
 import { formatCurrency, formatDate, calcTotals } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FileSpreadsheet, Search, Plus, Pencil, ArrowRight } from 'lucide-react'
 
 export default function QuoteList({ quotes, onNew, onEdit, onConvert }) {
@@ -141,9 +142,7 @@ export default function QuoteList({ quotes, onNew, onEdit, onConvert }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              Nenhum orçamento encontrado.
-            </div>
+            <EmptyState icon={FileSpreadsheet} title="Nenhum orçamento encontrado" />
           )}
         </CardContent>
       </Card>

@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
 import { Search, Mail, Phone, Briefcase, Plus, Pencil } from 'lucide-react'
 
 export default function ContactList({ contacts, clients, loading, onNew, onEdit }) {
@@ -126,10 +128,10 @@ export default function ContactList({ contacts, clients, loading, onNew, onEdit 
           </div>
 
           {filtered.length === 0 && !loading && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum contato encontrado.</div>
+            <EmptyState icon={Mail} title="Nenhum contato encontrado" />
           )}
           {loading && (
-            <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+            <div className="flex justify-center py-12"><Spinner /></div>
           )}
         </CardContent>
       </Card>

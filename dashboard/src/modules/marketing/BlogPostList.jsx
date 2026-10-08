@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { blogStatusLabels, blogStatusVariants } from './lib/mockData'
 import { formatDate } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, FileEdit, Eye } from 'lucide-react'
 
 export default function BlogPostList({ posts, onNew, onEdit }) {
@@ -92,7 +93,7 @@ export default function BlogPostList({ posts, onNew, onEdit }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhum post encontrado.</div>
+            <EmptyState icon={FileEdit} title="Nenhum post encontrado" />
           )}
         </CardContent>
       </Card>

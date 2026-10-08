@@ -5,6 +5,8 @@ import { Select } from '@/components/ui/select'
 import { useCollection } from '@/hooks/useCollection'
 import { obligationTypeLabels, obligationStatusLabels, obligationStatusVariants } from './lib/mockData'
 import { formatDate } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
 import { CalendarDays, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 
 const statusIcons = {
@@ -109,10 +111,10 @@ export default function CalendarPage() {
             )
           })}
           {filtered.length === 0 && !loading && (
-            <div className="py-12 text-center text-muted-foreground">Nenhuma obrigação encontrada.</div>
+            <EmptyState icon={CalendarDays} title="Nenhuma obrigação encontrada" description="Cadastre obrigações fiscais para acompanhar prazos." />
           )}
           {loading && (
-            <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+            <div className="flex justify-center py-12"><Spinner /></div>
           )}
         </CardContent>
       </Card>

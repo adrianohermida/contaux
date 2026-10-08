@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { campaignStatusLabels, campaignStatusVariants, channelLabels } from './lib/mockData'
 import { formatDate } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Search, Plus, Pencil, Megaphone } from 'lucide-react'
 
 export default function CampaignList({ campaigns, onNew, onEdit }) {
@@ -98,7 +99,7 @@ export default function CampaignList({ campaigns, onNew, onEdit }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">Nenhuma campanha encontrada.</div>
+            <EmptyState icon={Megaphone} title="Nenhuma campanha encontrada" />
           )}
         </CardContent>
       </Card>

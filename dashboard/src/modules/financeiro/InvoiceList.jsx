@@ -6,6 +6,7 @@ import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { invoiceStatusLabels, invoiceStatusVariants } from './lib/mockData'
 import { formatCurrency, formatDate, calcTotals } from './lib/format'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FileText, Search, Plus, Pencil, Ban } from 'lucide-react'
 
 export default function InvoiceList({ invoices, onNew, onEdit, onCancel }) {
@@ -145,9 +146,7 @@ export default function InvoiceList({ invoices, onNew, onEdit, onCancel }) {
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              Nenhuma fatura encontrada.
-            </div>
+            <EmptyState icon={FileText} title="Nenhuma fatura encontrada" />
           )}
         </CardContent>
       </Card>
