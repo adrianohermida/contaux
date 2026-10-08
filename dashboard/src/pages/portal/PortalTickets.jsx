@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LifeBuoy, Send } from 'lucide-react'
 import { createApiClient } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 const ticketsApi = createApiClient('tickets')
 

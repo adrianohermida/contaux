@@ -194,8 +194,8 @@
         }).then(function (res) {
           resetBtn(btn);
           if (res.ok && res.data.token) {
-            localStorage.setItem('contaux_token', res.data.token);
-            localStorage.setItem('contaux_user', JSON.stringify(res.data.user));
+            localStorage.setItem('contaux-token', res.data.token);
+            localStorage.setItem('contaux-user', JSON.stringify(res.data.user));
             showAlert(modal, 'success', 'Login realizado! Redirecionando...');
             var role = res.data.user.role;
             setTimeout(function () {
@@ -229,8 +229,8 @@
         }).then(function (res) {
           resetBtn(btn);
           if (res.ok && res.data.token) {
-            localStorage.setItem('contaux_token', res.data.token);
-            localStorage.setItem('contaux_user', JSON.stringify(res.data.user));
+            localStorage.setItem('contaux-token', res.data.token);
+            localStorage.setItem('contaux-user', JSON.stringify(res.data.user));
             showAlert(modal, 'success', 'Conta criada! Redirecionando...');
             setTimeout(function () { window.location.href = '/portal'; }, 800);
           } else {
