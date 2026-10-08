@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { request } from '@/lib/api'
 
 /**
  * Provider do Assistente Contaux.
  * Mantém conversa e rascunho em memória (persiste entre rotas).
- * Não simula respostas — o estado padrão é "unavailable" até integração real.
+ * Integração real com /api/knowledge-base/ask (busca na base de conhecimento).
  */
 const AssistantContext = createContext(null)
 
@@ -14,11 +15,10 @@ function genId() {
 }
 
 export function AssistantProvider({ children }) {
-  // Três estados: collapsed (rail), expanded (column), fullscreen (overlay)
   const [panelMode, setPanelMode] = useState('collapsed')
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
-  const [status, setStatus] = useState('unavailable') // unavailable | idle | preparing
+  const [status, setStatus] = useState('idle') // idle | preparing
   const location = useLocation()
   const { user } = useAuth()
 
@@ -32,7 +32,37 @@ export function AssistantProvider({ children }) {
     setDraft('')
   }, [])
 
-  // Contexto explícito — espelho da sessão, não concede acesso
+  const sendMessage = useCallback(async (text) => {
+    const question = text.trim()
+    if (!question || status === 'preparing') return
+
+    setDraft('')
+    setMessages((prev) => [...prev, { id: genId(), role: 'user', text: question }])
+    setStatus('preparing')
+
+    try {
+      const res = await request('/knowledge-base/ask', {
+        method: 'POST',
+        body: JSON.stringify({ question }),
+      })
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'assistant',
+        text: res.answer,
+        sources: res.sources || [],
+      }])
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'assistant',
+        text: `Erro ao consultar: ${err.message}`,
+        sources: [],
+      }])
+    } finally {
+      setStatus('idle')
+    }
+  }, [status])
+
   const context = useMemo(
     () => ({
       actor: user?.name || 'Contador',
@@ -46,19 +76,11 @@ export function AssistantProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      panelMode,
-      expand,
-      collapse,
-      enterFullscreen,
-      exitFullscreen,
-      messages,
-      draft,
-      setDraft,
-      clearMessages,
-      context,
-      status,
+      panelMode, expand, collapse, enterFullscreen, exitFullscreen,
+      messages, draft, setDraft, clearMessages, sendMessage,
+      context, status,
     }),
-    [panelMode, expand, collapse, enterFullscreen, exitFullscreen, messages, draft, clearMessages, context, status],
+    [panelMode, expand, collapse, enterFullscreen, exitFullscreen, messages, draft, clearMessages, sendMessage, context, status],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>
