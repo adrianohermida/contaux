@@ -42,6 +42,8 @@ export function AssistantProvider({ children }) {
   const [convStatus, setConvStatus] = useState('active') // active | waiting_human | with_human | closed
   const [queue, setQueue] = useState([])
   const [showQueue, setShowQueue] = useState(false)
+  const [availableTools, setAvailableTools] = useState([])
+  const [pendingToolCall, setPendingToolCall] = useState(null) // tool aguardando aprovação
 
   const location = useLocation()
   const { user } = useAuth()
@@ -78,6 +80,20 @@ export function AssistantProvider({ children }) {
   useEffect(() => {
     if (user) loadConversations()
   }, [user, loadConversations])
+
+  // Carrega tools disponíveis para o role do usuário (CQ-05)
+  const loadTools = useCallback(async () => {
+    try {
+      const tools = await request('/assistant/tools')
+      setAvailableTools(tools)
+    } catch {
+      setAvailableTools([])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) loadTools()
+  }, [user, loadTools])
 
   const expand = useCallback(() => {
     setPanelMode('expanded')
@@ -192,6 +208,62 @@ export function AssistantProvider({ children }) {
       return null
     }
   }, [activeConvId, startNewConversation])
+
+  // Adiciona mensagem de tool ao chat (CQ-05)
+  const addToolMessage = useCallback(async (toolName, result) => {
+    const convId = activeConvId
+    const summary = result.success
+      ? JSON.stringify(result.result, null, 2).substring(0, 500)
+      : `❌ ${result.error || result.reason || 'Erro desconhecido'}`
+    const text = `🔧 **${toolName}**\n\n\`\`\`${summary}\`\`\``
+    const msg = { id: genId(), role: 'assistant', text, sources: [] }
+    setMessages((prev) => [...prev, msg])
+    if (convId) saveMessage(convId, 'assistant', text, [])
+  }, [activeConvId, saveMessage])
+
+  // ===== CQ-05: Ferramentas operacionais =====
+
+  // Executar uma tool (com aprovação se necessário)
+  const executeAssistantTool = useCallback(async (toolName, params, requiresApproval) => {
+    let convId = activeConvId
+    if (!convId) {
+      convId = await startNewConversation(`Tool: ${toolName}`)
+    }
+
+    const execCall = async () => {
+      try {
+        const result = await request('/assistant/tools/execute', {
+          method: 'POST',
+          body: JSON.stringify({ tool: toolName, params, conversation_id: convId }),
+        })
+        return result
+      } catch (err) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    // Se precisa aprovação, mostra o modal e espera
+    if (requiresApproval) {
+      return new Promise((resolve) => {
+        setPendingToolCall({
+          tool: toolName,
+          params,
+          description: availableTools.find((t) => t.name === toolName)?.description,
+          onApprove: async () => {
+            setPendingToolCall(null)
+            const result = await execCall()
+            resolve(result)
+          },
+          onReject: () => {
+            setPendingToolCall(null)
+            resolve({ success: false, denied: true, reason: 'Usuário cancelou' })
+          },
+        })
+      })
+    }
+
+    return execCall()
+  }, [activeConvId, startNewConversation, availableTools])
 
   // ===== CQ-04: Handoff IA→Humano =====
 
@@ -343,6 +415,8 @@ export function AssistantProvider({ children }) {
       createTask, pendingTask, setPendingTask,
       convStatus, requestHandoff, closeConversation,
       queue, loadQueue, acceptHandoff, showQueue, setShowQueue,
+      availableTools, executeAssistantTool, pendingToolCall, setPendingToolCall,
+      addToolMessage,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -351,7 +425,8 @@ export function AssistantProvider({ children }) {
      setShowHistory, openConversation, deleteConversation, startNewConversation,
      createTask, pendingTask,
      convStatus, requestHandoff, closeConversation,
-     queue, loadQueue, acceptHandoff, showQueue],
+     queue, loadQueue, acceptHandoff, showQueue,
+     availableTools, executeAssistantTool, pendingToolCall, addToolMessage],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

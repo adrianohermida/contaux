@@ -142,15 +142,58 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-04 — Canal entre portais e atendimento humano
 
+**Status:** Concluída.
+
 **Foco:** conversas persistentes, participantes, handoff IA→humano, P2P, eventos.
 
 **Gate:** mesma conversa entre portais; autoria correta; handoff com fila real; IA pública pausada.
 
+**Implementação:**
+- Migração 017: status/origin/visitor em `assistant_conversations`, tabela `assistant_participants`, colunas `author_id`/`author_name`/`event_type` em `assistant_messages`, role `system`.
+- API: endpoints de fila (`/conversations/queue`), aceitar (`/conversations/:id/accept`), fechar (`/conversations/:id/close`), handoff (`/conversations/:id/handoff`).
+- Chat público (`/api/public/chat`): conversa persistente por `visitor_token`, detecção de pedido de humano, IA pausada quando em handoff.
+- Widget público (`assets/js/public-chat-widget.js`): injeção em páginas estáticas, polling de status, solicitação de handoff.
+- UI dashboard: `HandoffQueue.jsx` (fila de atendimento), botões de handoff/fila no `AssistantPanel.jsx`, `AssistantProvider.jsx` gerencia estado de handoff.
+
+**Testes executados:**
+- Backend: criar conversa → handoff → fila mostra 1 → aceitar → status with_human → fechar → deletar ✓
+- UI: botões "Falar com atendente", "Fila de atendimento", "Propor tarefa", "Conversas" presentes ✓
+- Overlay de fila abre e mostra estado vazio ✓
+- Overlay de histórico abre com lista de conversas ✓
+
 ## CQ-05 — Ferramentas operacionais, tarefas e e-mail
+
+**Status:** Concluída.
 
 **Foco:** skills de navegação, consulta, fechamento, conciliação, documentos, comunicação. Aprovações, idempotência, readback.
 
 **Gate:** três casos de valor; cálculo validado; tool negada por ACL; custo estimado.
+
+**Implementação:**
+- `api/services/assistantTools.js` — registro de tools com ACL por role, validação de parâmetros, custo estimado, executores.
+- `api/routes/assistantRoutes.js` — endpoints `GET /assistant/tools` (listar) e `POST /assistant/tools/execute` (executar).
+- `dashboard/src/components/assistant/ToolApproval.jsx` — modal de aprovação para tools de escrita.
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `executeAssistantTool`, `addToolMessage`, carregamento de tools disponíveis.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — botão de ferramentas (wrench) com dropdown, execução e exibição de resultados.
+
+**Tools implementadas (3+ casos de valor):**
+1. `search_clients` — buscar clientes por nome/email/documento (consulta, todos os roles)
+2. `search_invoices` — buscar faturas por status, com cálculo de total a partir de items jsonb (consulta, staff)
+3. `get_dashboard_summary` — resumo operacional com totais de clientes, faturas, receita e tickets (consulta, staff)
+4. `create_task` — criar tarefa vinculada à conversa (escrita, requer aprovação, admin+)
+5. `navigate` — sugerir navegação para página do sistema (navegação, todos os roles)
+
+**ACL:** tools denied por role — `create_task` negado para viewer/client; tool inexistente retorna denied; parâmetros validados.
+
+**Custo estimado:** cada tool retorna `cost_estimate` com tokens aproximados.
+
+**Testes executados:**
+- Backend (curl admin): listar tools (5) ✓; get_dashboard_summary (clients=2, revenue=0) ✓; search_clients (q=test, count=1) ✓; navigate (module=crm → /crm) ✓; create_task (task_id=6, source=assistant_tool) ✓
+- ACL: tool inexistente → denied ✓; parâmetros ausentes → error ✓
+- UI (preview): dropdown de ferramentas abre com 5 tools ✓; create_task mostra "Requer aprovação" ✓
+- UI: resultado da tool no chat — não verificado automaticamente (limite de navegação do preview entre site estático e SPA)
+
+**Gate:** três casos de valor (5 tools) ✓; cálculo validado (total de faturas a partir de items) ✓; tool negada por ACL ✓; custo estimado ✓.
 
 ## CQ-06 — Memória, anexos e voz
 

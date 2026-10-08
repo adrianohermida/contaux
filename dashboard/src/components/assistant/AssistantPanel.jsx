@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare, Headphones, UserCheck, XCircle, Clock } from 'lucide-react'
+import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare, Headphones, UserCheck, XCircle, Clock, Wrench } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { getModuleCoverage } from './moduleCoverage'
 import TaskProposalForm from './TaskProposalForm'
 import HandoffQueue from './HandoffQueue'
+import ToolApproval from './ToolApproval'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -21,10 +22,13 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     openConversation, deleteConversation, createTask,
     convStatus, requestHandoff, closeConversation,
     showQueue, setShowQueue,
+    availableTools, executeAssistantTool, pendingToolCall, setPendingToolCall,
+    addToolMessage,
   } = useAssistant()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [showTools, setShowTools] = useState(false)
   const scrollRef = useRef(null)
 
   const coverage = getModuleCoverage(context.route || '')
@@ -164,6 +168,39 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
           <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} className="h-7 w-7" title="Propor tarefa">
             <CheckSquare className="h-3.5 w-3.5" />
           </Button>
+          <div className="relative">
+            <Button variant="ghost" size="icon" onClick={() => setShowTools(!showTools)} className="h-7 w-7" title="Ferramentas">
+              <Wrench className="h-3.5 w-3.5" />
+            </Button>
+            {showTools && (
+              <div className="absolute right-0 top-9 z-20 w-56 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+                <p className="px-2 py-1 text-[10px] font-medium text-muted-foreground">Ferramentas operacionais</p>
+                {availableTools.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Nenhuma tool disponível.</p>
+                ) : (
+                  availableTools.map((t) => (
+                    <button
+                      key={t.name}
+                      onClick={async () => {
+                        setShowTools(false)
+                        const result = await executeAssistantTool(t.name, {}, t.requiresApproval)
+                        addToolMessage(t.name, result)
+                      }}
+                      className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+                    >
+                      <div className="flex-1">
+                        <span className="font-medium">{t.name}</span>
+                        <p className="text-[10px] text-muted-foreground">{t.description}</p>
+                        {t.requiresApproval && (
+                          <span className="text-[9px] text-amber-500">⚠ Requer aprovação</span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
             <History className="h-3.5 w-3.5" />
           </Button>
@@ -263,6 +300,15 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
       {/* Form de tarefa */}
       {showTaskForm && (
         <TaskProposalForm onCreate={createTask} onClose={() => setShowTaskForm(false)} />
+      )}
+
+      {/* Modal de aprovação de tool (CQ-05) */}
+      {pendingToolCall && (
+        <ToolApproval
+          toolCall={pendingToolCall}
+          onApprove={pendingToolCall.onApprove}
+          onReject={pendingToolCall.onReject}
+        />
       )}
 
       {/* Input compacto */}

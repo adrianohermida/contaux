@@ -6,9 +6,44 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middleware/auth');
+const { listToolsForRole, executeTool } = require('../services/assistantTools');
 
 router.use(requireAuth);
+
+// ===== Ferramentas operacionais (CQ-05) =====
+
+// Listar tools disponíveis para o role do usuário
+router.get('/tools', (req, res) => {
+  res.json(listToolsForRole(req.user.role));
+});
+
+// Executar uma tool (com ACL e validação)
+router.post('/tools/execute', async (req, res) => {
+  try {
+    const { tool, params, conversation_id } = req.body;
+    if (!tool) return res.status(400).json({ error: 'tool é obrigatório' });
+
+    // Monta contexto do usuário para a tool
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const userContext = {
+      userId: req.user.id,
+      tenantId: req.user.tenant_id,
+      tenantIds,
+      role: req.user.role,
+      conversationId: conversation_id || null,
+    };
+
+    const result = await executeTool(tool, params || {}, userContext);
+    if (result.denied) return res.status(403).json(result);
+    if (!result.success) return res.status(400).json(result);
+
+    res.json(result);
+  } catch (err) {
+    console.error('[assistant] Erro ao executar tool:', err.message);
+    res.status(500).json({ error: 'Erro ao executar tool' });
+  }
+});
 
 // ===== Fila de atendimento (staff) — deve vir antes de /:id =====
 
