@@ -50,7 +50,6 @@ export default function ConhecimentoAssistant() {
         role: 'assistant',
         text: res.answer,
         sources: res.sources || [],
-        notConfigured: !res.configured,
       }])
     } catch (err) {
       setMessages((prev) => [...prev, {
