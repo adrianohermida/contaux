@@ -4,6 +4,12 @@
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
   "secrets": [
     {
+      "name": "JWT_SECRET",
+      "description": "Chave secreta para assinar tokens JWT de autenticação. Gerada automaticamente para desenvolvimento — substitua por uma chave forte em produção.",
+      "requiredAtBoot": true,
+      "generatedForDevelopment": true
+    },
+    {
       "name": "CLOUDFLARE_API_TOKEN",
       "description": "API Token do Cloudflare com permissões de Email Routing e Workers",
       "requiredAtBoot": false
