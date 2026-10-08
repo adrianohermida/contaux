@@ -71,7 +71,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/integration', integrationRoutes);
 
 // ===== Workflow Engine — execução de automações =====
-const { requireAuth } = require('./middleware/auth');
+const { requireAuth, getAccessibleTenantIds } = require('./middleware/auth');
 
 // Executa um workflow específico (gatilho manual)
 app.post('/api/workflows/:id/execute', requireAuth, async (req, res) => {
@@ -127,7 +127,8 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Pergunta é obrigatória' });
   }
   try {
-    const result = await aiService.ask(question.trim());
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await aiService.ask(question.trim(), { tenantIds });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });

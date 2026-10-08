@@ -104,9 +104,18 @@ function createCrudRouter(table, opts = {}) {
   router.post('/', async (req, res) => {
     try {
       const data = prepareData(req.body);
-      // Auto-set tenant_id se a tabela suportar e não vier no body
-      if (!noTenant && data.tenant_id === undefined) {
-        data.tenant_id = req.user.tenant_id;
+      // Valida/isola tenant_id — nunca confiar no body sem validação
+      if (!noTenant) {
+        if (data.tenant_id !== undefined) {
+          // Usuário forneceu tenant_id — valida se está na lista de acessíveis
+          const tenantIds = await getAccessibleTenantIds(req.user);
+          if (!tenantIds.includes(parseInt(data.tenant_id))) {
+            return res.status(403).json({ error: 'Tenant não autorizado' });
+          }
+        } else {
+          // Sem tenant_id no body — usa o do usuário
+          data.tenant_id = req.user.tenant_id;
+        }
       }
       const fields = Object.keys(data);
       const values = Object.values(data);

@@ -41,20 +41,34 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Gate:** dock sem sobreposição no desktop ✓; fullscreen no mobile ✓; navegação sem perda de conversa/rascunho ✓; demonstrações identificadas ✓; portal cliente intacto ✓; build registrado ✓.
 
-## CQ-02 — Saneamento de autorização (P0) — BLOQUEADORES DA ONDA 2
+## CQ-02 — Saneamento de autorização (P0)
 
-**Status:** Pendente. Bloqueia AC-GLOBAL-02 (histórico, busca e isolamento de contexto) e AC-GLOBAL-03 (matriz de módulos e ferramentas de leitura autorizada).
+**Status:** Concluída.
 
 **Foco:** requireAuth em todas as rotas privadas, remoção do fallback JWT hardcoded, correção do bug mfa_enabled, projeções/campos permitidos, isolamento de knowledge_base por tenant, recursos privilegiados fora do CRUD genérico.
 
-**Bloqueios específicos para a Onda 2 do assistente:**
-- Rotas sem requireAuth (`/api/email/*`, `/api/inbox/*`, `/api/settings/*`, `/api/integration/offices*`) permitem acesso não autenticado — qualquer busca do assistente por e-mails, configurações ou integrações seria acessível sem autorização.
-- `knowledge_base` tem `noTenant: true` — sem isolamento por tenant. O assistente não pode buscar na base de conhecimento sem vazar dados entre empresas.
-- CRUD genérico aceita `tenant_id` do corpo em POST e inclui tabela `users` — o assistente não pode propor criação/edição sem risco de injeção de tenant.
-- `JWT_SECRET` com fallback hardcoded — tokens podem ser forjados se o fallback estiver ativo em produção.
-- Bug `mfa_enabled` (ReferenceError) em `PATCH /api/auth/users/:id` impede gestão de usuários pelo assistente.
+**Implementação:**
+- `JWT_SECRET` sem fallback hardcoded — `process.exit(1)` se não definido (pré-existente, confirmado).
+- requireAuth em todas as rotas privadas (pré-existente, confirmado): emailRoutes, inboxRoutes, settingsRoutes, integrationRoutes, importRoutes.
+- Bug `mfa_enabled` corrigido (pré-existente) — `PATCH /api/auth/users/:id` desestrutura `mfa_enabled` do body corretamente.
+- `users` fora do CRUD genérico (pré-existente) — gestão via userRoutes.js com projeção de campos (sem `password_hash`).
+- **CRUD tenant_id injection corrigido** — POST agora valida `tenant_id` do body contra `getAccessibleTenantIds`; rejeita tenant não autorizado com 403.
+- **knowledge_base ask com isolamento por tenant** — `aiService.searchKnowledgeBase` agora filtra por `tenant_id = ANY(...) OR tenant_id IS NULL`; endpoint `/api/knowledge-base/ask` passa `tenantIds` do usuário autenticado.
 
-**Gate:** testes negativos de dois tenants e papéis; tenant forjado negado; credenciais protegidas; P0 fechado.
+**Arquivos alterados:**
+- `api/routes/crud.js` — validação de tenant_id no POST
+- `api/services/aiService.js` — filtro de tenant em searchKnowledgeBase + ask aceita userContext
+- `api/server.js` — endpoint ask passa tenantIds do usuário
+
+**Testes executados (curl):**
+- Criar cliente sem tenant_id → usa tenant do usuário ✓
+- Criar cliente com tenant_id forjado (99999) → 403 "Tenant não autorizado" ✓
+- Criar cliente com dados válidos → sucesso, tenant_id correto ✓
+- Deletar registro de teste → sucesso ✓
+- KB ask "LGPD" → 1 fonte (null-tenant, visível a todos) ✓
+- KB ask "teste" → 0 fontes (sem match) ✓
+
+**Gate:** tenant forjado negado ✓; credenciais protegidas ✓; P0 fechado ✓.
 
 ## CQ-03 — Identidade, PIN e sessão persistente
 

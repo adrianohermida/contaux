@@ -140,3 +140,40 @@ CQ-01: remover a coluna docked do AppLayout e restaurar `<AssistantWidget />` co
 6. **IA não comprovada** — `aiService.js` tenta bridge LLM via Base44 com fallback PostgreSQL `configured: false`. Sem IA operacional, o assistente não responde além da base de conhecimento.
 7. **Sem endpoints de conversas** — não há persistência de conversas no backend; o histórico depende apenas de localStorage (não sobrevive a logout ou troca de dispositivo).
 8. **Sem mecanismo de tarefas duráveis** — não há fila ou executor para tarefas propostas pelo assistente.
+
+## CQ-02 — Saneamento de autorização (P0)
+
+**Status:** Concluída. Branch: `global-assistant-widget`.
+
+### Achados — já corrigidos antes desta onda
+
+| Achado do CQ-00 | Estado real |
+|---|---|
+| JWT_SECRET com fallback hardcoded | Corrigido — `process.exit(1)` se ausente |
+| Rotas sem requireAuth | Corrigido — todas as rotas privadas têm auth |
+| Bug mfa_enabled (ReferenceError) | Corrigido — desestruturação correta em userRoutes.js |
+| users no CRUD genérico | Corrigido — users fora do crudConfig, gestão via userRoutes.js |
+| knowledge_base com noTenant: true | Corrigido — usa `includeNullTenant: true` (isolado + compartilhados) |
+
+### Corrigidos nesta onda
+
+| Item | Arquivo | Correção |
+|---|---|---|
+| CRUD aceita tenant_id do body sem validação | `api/routes/crud.js` | POST valida tenant_id contra `getAccessibleTenantIds`; rejeita com 403 |
+| KB ask sem filtro de tenant | `api/services/aiService.js` | `searchKnowledgeBase` agora filtra por `tenant_id = ANY(...) OR tenant_id IS NULL` |
+| Endpoint ask sem contexto de usuário | `api/server.js` | Passa `tenantIds` do usuário autenticado para `aiService.ask` |
+
+### Testes executados (curl)
+
+- Tenant forjado (99999) → 403 "Tenant não autorizado" ✓
+- Criação válida → tenant_id do usuário aplicado ✓
+- KB ask "LGPD" → 1 fonte compartilhada (null-tenant) ✓
+- KB ask "teste" → 0 fontes (sem match) ✓
+- Delete de registro de teste → sucesso ✓
+
+### Bloqueios remanescentes (não-P0, para ondas futuras)
+
+- **IA não comprovada** — `aiService.js` tenta LLM via Base44 com fallback `configured: false`. Sem LLM operacional, o assistente responde apenas com busca textual.
+- **Sem endpoints de conversas no backend** — histórico depende apenas de localStorage (CQ-04).
+- **Sem mecanismo de tarefas duráveis** — sem fila/executor (CQ-05).
+- **SELECT * no CRUD** — sem campos sensíveis nas tabelas configuradas, mas projeção explícita seria mais robusto.

@@ -30,8 +30,29 @@ function isLLMConfigured() {
  * Busca itens relevantes na base de conhecimento usando ranking do PostgreSQL.
  * Combina busca textual (ts_rank) com ILIKE para máxima cobertura.
  */
-async function searchKnowledgeBase(question, limit = 5) {
+async function searchKnowledgeBase(question, tenantIds = null, limit = 5) {
   // Busca com ILIKE — cobre termos parciais
+  // Filtra por tenant quando tenantIds é fornecido (isolamento multi-tenant)
+  if (tenantIds && tenantIds.length > 0) {
+    const ilikeResult = await query(
+      `SELECT id, title, summary, content, type, source, tags,
+              ts_headline('portuguese', content, plainto_tsquery('portuguese', $1),
+                'MaxFragments=2, MinWords=5, MaxWords=25, HighlightAll=false') AS excerpt
+       FROM knowledge_base
+       WHERE (title ILIKE $1 OR summary ILIKE $1 OR content ILIKE $1)
+       AND (status = 'published' OR status IS NULL)
+       AND (tenant_id = ANY($2::int[]) OR tenant_id IS NULL)
+       ORDER BY
+         CASE WHEN title ILIKE $1 THEN 0 ELSE 1 END,
+         ts_rank(to_tsvector('portuguese', content), plainto_tsquery('portuguese', $1)) DESC,
+         id DESC
+       LIMIT $3`,
+      [`%${question}%`, tenantIds, limit],
+    );
+    return ilikeResult.rows;
+  }
+
+  // Sem filtro de tenant (fallback — não deve ocorrer em rotas autenticadas)
   const ilikeResult = await query(
     `SELECT id, title, summary, content, type, source, tags,
             ts_headline('portuguese', content, plainto_tsquery('portuguese', $1),
@@ -46,7 +67,6 @@ async function searchKnowledgeBase(question, limit = 5) {
      LIMIT $2`,
     [`%${question}%`, limit],
   );
-
   return ilikeResult.rows;
 }
 
@@ -123,9 +143,10 @@ function buildSearchAnswer(sources) {
  * @param {string} question - Pergunta do usuário
  * @returns {Promise<{answer: string, sources: array, configured: boolean}>}
  */
-async function ask(question) {
-  // Busca contexto na base de conhecimento
-  const sources = await searchKnowledgeBase(question);
+async function ask(question, userContext = null) {
+  // Busca contexto na base de conhecimento (com isolamento por tenant)
+  const tenantIds = userContext?.tenantIds || null;
+  const sources = await searchKnowledgeBase(question, tenantIds);
 
   // Constrói contexto para o LLM (se disponível)
   const contextText = sources.length > 0
