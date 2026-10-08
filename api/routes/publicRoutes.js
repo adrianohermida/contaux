@@ -9,6 +9,36 @@ const crypto = require('crypto');
 const { query } = require('../db');
 const { signToken, JWT_SECRET } = require('../middleware/auth');
 
+// ===== LEADS DE PARCEIROS — interesse sem compromisso =====
+router.post('/partner-leads', async (req, res) => {
+  const { name, email, phone, profile, interest, marketing_opt_in } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Nome e email são obrigatórios' });
+  }
+  if (!profile || !['autonomo', 'escritorio'].includes(profile)) {
+    return res.status(400).json({ error: 'Perfil é obrigatório' });
+  }
+
+  const interests = Array.isArray(interest) ? interest : [];
+  const validInterests = ['calculos', 'guias', 'contabilidade', 'abertura'];
+  const filtered = interests.filter((i) => validInterests.includes(i));
+
+  try {
+    await query(
+      `INSERT INTO partner_leads (name, email, phone, profile, interest, marketing_opt_in)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [name.trim(), email.toLowerCase().trim(), phone || null, profile, filtered, !!marketing_opt_in],
+    );
+    res.status(201).json({
+      success: true,
+      message: 'Recebemos seu interesse. Conheça as condições e complete seu cadastro quando quiser.',
+    });
+  } catch (err) {
+    console.error('Erro ao registrar lead de parceiro:', err.message);
+    res.status(500).json({ error: 'Erro ao registrar interesse' });
+  }
+});
+
 // ===== LEADS — captação no site =====
 router.post('/leads', async (req, res) => {
   const { name, email, phone, service_interest, message } = req.body;
