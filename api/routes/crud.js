@@ -37,14 +37,15 @@ function createCrudRouter(table, opts = {}) {
     return reserved.has(name) ? `"${name}"` : name;
   }
 
-  /** Constrói cláusula WHERE de tenant isolation */
-  async function buildTenantWhere(req) {
+  /** Constrói cláusula WHERE de tenant isolation (offset = parâmetros anteriores) */
+  async function buildTenantWhere(req, offset = 0) {
     if (noTenant) return { clause: '', params: [] };
     const tenantIds = await getAccessibleTenantIds(req.user);
+    const idx = offset + 1;
     if (includeNullTenant) {
-      return { clause: `(tenant_id = ANY($1::int[]) OR tenant_id IS NULL)`, params: [tenantIds] };
+      return { clause: `(tenant_id = ANY($${idx}::int[]) OR tenant_id IS NULL)`, params: [tenantIds] };
     }
-    return { clause: `tenant_id = ANY($1::int[])`, params: [tenantIds] };
+    return { clause: `tenant_id = ANY($${idx}::int[])`, params: [tenantIds] };
   }
 
   // Listar (com busca opcional via ?q=)
@@ -81,7 +82,7 @@ function createCrudRouter(table, opts = {}) {
   // Buscar por ID
   router.get('/:id', async (req, res) => {
     try {
-      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {
         sql = `SELECT * FROM ${table} WHERE id = $1 AND ${tenantClause}`;
@@ -133,7 +134,7 @@ function createCrudRouter(table, opts = {}) {
       const fields = Object.keys(data);
       if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
 
-      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, fields.length + 1);
       const sets = fields.map((f, i) => `${col(f)} = $${i + 1}`).join(', ');
       const values = Object.values(data);
 
@@ -154,10 +155,10 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
-  // Deletar
-  router.delete('/:id', async (req, res) => {
+  // Deletar — se pinProtectedDelete, exige X-PIN-Token válido
+  const deleteHandler = async (req, res) => {
     try {
-      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {
         sql = `DELETE FROM ${table} WHERE id = $1 AND ${tenantClause} RETURNING id`;
@@ -173,7 +174,14 @@ function createCrudRouter(table, opts = {}) {
       console.error(`[${table}] Erro ao deletar:`, err.message);
       res.status(500).json({ error: 'Erro ao deletar registro' });
     }
-  });
+  };
+
+  if (opts.pinProtectedDelete) {
+    const { requirePin } = require('../middleware/pin');
+    router.delete('/:id', requirePin, deleteHandler);
+  } else {
+    router.delete('/:id', deleteHandler);
+  }
 
   /** Converte campos JSONB de volta para objetos, exclui campos sensíveis e formata id */
   function parseRow(row) {

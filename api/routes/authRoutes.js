@@ -232,4 +232,37 @@ router.post('/verify-pin', requireAuth, async (req, res) => {
   res.json({ pin_token: pinToken });
 });
 
+// POST /api/auth/set-pin — usuário define ou troca seu próprio PIN
+router.post('/set-pin', requireAuth, async (req, res) => {
+  const { new_pin, current_pin } = req.body;
+  if (!new_pin || !/^\d{4,6}$/.test(String(new_pin))) {
+    return res.status(400).json({ error: 'PIN deve ter 4 a 6 dígitos numéricos' });
+  }
+
+  try {
+    const result = await query('SELECT pin_hash FROM users WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Se já tem PIN, exige o PIN atual para trocar
+    if (result.rows[0].pin_hash) {
+      if (!current_pin) {
+        return res.status(400).json({ error: 'Informe seu PIN atual para trocar' });
+      }
+      const valid = await bcrypt.compare(String(current_pin), result.rows[0].pin_hash);
+      if (!valid) {
+        return res.status(401).json({ error: 'PIN atual incorreto' });
+      }
+    }
+
+    const pinHash = await bcrypt.hash(String(new_pin), 10);
+    await query('UPDATE users SET pin_hash = $1 WHERE id = $2', [pinHash, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erro ao definir PIN:', err.message);
+    res.status(500).json({ error: 'Erro ao definir PIN' });
+  }
+});
+
 module.exports = router;

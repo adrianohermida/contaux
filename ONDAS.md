@@ -26,9 +26,22 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 ## CQ-03 — Identidade, PIN e sessão persistente
 
+**Status:** Concluída.
+
 **Foco:** challenge de PIN no servidor, sessão limitada, refresh/revogação, cookie persistente, widget público isolado.
 
-**Gate:** PIN errado/expirado/reutilizado negado; reabrir navegador restaura sessão; logout revoga; widget isolado.
+**Implementação:**
+- Login com access token curto (15min) + refresh token em cookie httpOnly (7d).
+- Endpoint `/api/auth/refresh` renova access token via cookie.
+- Logout revoga refresh token + incrementa `token_version` (invalida todos os tokens).
+- Middleware `requirePin` valida `X-PIN-Token` (JWT com nonce de uso único, 5min).
+- Endpoint `/api/auth/verify-pin` gera challenge de PIN; `/api/auth/set-pin` para auto-serviço.
+- DELETE em tabelas sensíveis (invoices, payments, journal_entries, tax_invoices) exige PIN.
+- Frontend: `AuthContext` restaura sessão via cookie; `api.js` faz auto-refresh em 401.
+- `PinModal` (componente UI) e `PinManagementCard` (Segurança) para gestão de PIN.
+- Migração 011: `pin_hash`, `token_version`, `refresh_tokens`, `pin_challenges`.
+
+**Gate:** PIN errado/expirado/reutilizado negado ✓; reabrir navegador restaura sessão ✓; logout revoga ✓; widget isolado ✓.
 
 ## CQ-04 — Canal entre portais e atendimento humano
 

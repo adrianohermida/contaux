@@ -61,6 +61,14 @@ export async function request(path, options = {}) {
   return res.json();
 }
 
+/** DELETE com proteção de PIN — caller fornece o pin_token obtido via PinModal */
+export function pinDelete(resource, id, pinToken) {
+  return request(`/${resource}/${id}`, {
+    method: 'DELETE',
+    headers: { 'X-PIN-Token': pinToken },
+  });
+}
+
 /** Operações CRUD para um recurso */
 export function createApiClient(resource) {
   return {

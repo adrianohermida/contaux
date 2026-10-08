@@ -39,6 +39,36 @@ Data: 8 de outubro de 2026. Branch: `fix-main-2bf6db53fad0`, revisão `195f6b1b0
 - `aiService.js` tenta bridge LLM via função `aiAsk` (Base44), fallback PostgreSQL com `configured: false`. Deploy não comprovado.
 - `/api/knowledge-base/ask` chama o serviço sem contexto de usuário/tenant. Busca não filtra tenant/visibilidade. Interface ignora `configured`. Confirmado.
 
+### CQ-03 — Identidade, PIN e sessão persistente
+
+**Status:** Concluída.
+
+| Item | Estado |
+|---|---|
+| Access token curto (15min) + refresh cookie httpOnly (7d) | Implementado |
+| `/api/auth/refresh` renova access token | Implementado |
+| Logout revoga refresh + incrementa token_version | Implementado |
+| `requirePin` middleware (X-PIN-Token, nonce one-time, 5min) | Implementado |
+| `/api/auth/verify-pin` + `/api/auth/set-pin` | Implementado |
+| DELETE sensível (invoices, payments, journal_entries, tax_invoices) exige PIN | Implementado |
+| Frontend: AuthContext restaura sessão via cookie | Implementado |
+| Frontend: api.js auto-refresh em 401 | Implementado |
+| PinModal + PinManagementCard | Implementado |
+| Migração 011 (pin_hash, token_version, refresh_tokens, pin_challenges) | Aplicada |
+
+**Arquivos novos/alterados:**
+- `api/middleware/pin.js` (novo)
+- `api/routes/authRoutes.js` (+set-pin, +verify-pin)
+- `api/routes/crud.js` (pinProtectedDelete)
+- `api/server.js` (crudConfig com pinProtectedDelete)
+- `dashboard/src/components/ui/PinModal.jsx` (novo)
+- `dashboard/src/modules/admin/PinManagementCard.jsx` (novo)
+- `dashboard/src/modules/admin/SegurancaPage.jsx` (+PinManagementCard)
+- `dashboard/src/lib/api.js` (+pinDelete)
+- `dashboard/src/context/AuthContext.jsx` (cookie-based refresh)
+
+**Gate:** PIN errado/expirado/reutilizado negado ✓; reabrir navegador restaura sessão ✓; logout revoga ✓; widget isolado ✓.
+
 ### Classificação
 
 | Achado | Status |
