@@ -9,8 +9,8 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
   const initials = (user?.name || 'AD').split(' ').map((w) => w[0]).slice(0, 2).join('')
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-sm sm:px-6">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-3 backdrop-blur-sm sm:h-16 sm:px-6">
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -20,10 +20,21 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
-        <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-base font-semibold tracking-tight sm:text-lg">Dashboard</h1>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
+        {/* Atualizar — icon-only no mobile, com texto no desktop */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="sm:hidden"
+          aria-label="Atualizar"
+        >
+          <RefreshCw className={cn('h-5 w-5', refreshing && 'animate-spin')} aria-hidden="true" />
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -34,6 +45,8 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
           <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden="true" />
           Atualizar
         </Button>
+
+        {/* Tema */}
         <Button
           variant="ghost"
           size="icon"
@@ -42,12 +55,14 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
         >
           {isDark ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
         </Button>
+
+        {/* Usuário — avatar sempre visível, texto só no desktop */}
         <div className="flex items-center gap-2">
-          <div className="text-right hidden sm:block">
+          <div className="text-right hidden md:block">
             <p className="text-sm font-medium leading-tight">{user?.name || 'Usuário'}</p>
             <p className="text-xs text-muted-foreground leading-tight">{getRoleLabel(user?.role)}</p>
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
             {initials}
           </div>
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Sair">

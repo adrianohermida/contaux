@@ -42,7 +42,23 @@ export default function PortalDocuments() {
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (doc.file_url) {
+                      window.open(doc.file_url, '_blank')
+                    } else if (doc.content) {
+                      const blob = new Blob([doc.content], { type: 'text/plain' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `${doc.name || 'documento'}.txt`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }
+                  }}
+                >
                   <Download className="h-4 w-4" /> Baixar
                 </Button>
               </CardHeader>

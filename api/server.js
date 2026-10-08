@@ -6,6 +6,7 @@ const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
@@ -56,6 +57,9 @@ app.use('/api/settings', settingsRoutes);
 
 // Autenticação e gestão de usuários/tenants
 app.use('/api/auth', authRoutes);
+
+// Estatísticas agregadas (dashboard e segurança)
+app.use('/api/stats', statsRoutes);
 
 // Rotas públicas (site institucional: leads, newsletter, registro, reset de senha)
 app.use('/api/public', publicRoutes);
@@ -112,6 +116,21 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
   res.sendFile(filePath);
 });
 
+// ===== Base de Conhecimento — Assistente de IA =====
+const aiService = require('./services/aiService');
+app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
+  const { question } = req.body;
+  if (!question || !question.trim()) {
+    return res.status(400).json({ error: 'Pergunta é obrigatória' });
+  }
+  try {
+    const result = await aiService.ask(question.trim());
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });
+  }
+});
+
 // ===== Base de Conhecimento — sincronização das NBCs (CFC) =====
 const cfcSync = require('./services/cfcSync');
 const { requireRole } = require('./middleware/auth');
@@ -146,6 +165,7 @@ const crudConfig = {
   reports:          { searchFields: ['name', 'type'] },
   emails:           { searchFields: ['subject', 'from'] },
   knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], noTenant: true },
+  tasks:             { searchFields: ['title', 'assigned_to'] },
 };
 
 for (const [table, opts] of Object.entries(crudConfig)) {

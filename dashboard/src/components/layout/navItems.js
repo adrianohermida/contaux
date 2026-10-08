@@ -9,6 +9,7 @@ import {
   Settings,
   UploadCloud,
   Library,
+  CheckSquare,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
@@ -20,6 +21,7 @@ export const NAV_ITEMS = [
   { icon: LifeBuoy, label: 'Suporte', path: '/suporte' },
   { icon: Megaphone, label: 'Marketing', path: '/marketing' },
   { icon: Library, label: 'Base de Conhecimento', path: '/conhecimento' },
+  { icon: CheckSquare, label: 'Tarefas', path: '/tarefas' },
   { icon: Settings, label: 'Administração', path: '/admin' },
   { icon: UploadCloud, label: 'Importar Dados', path: '/importar' },
 ]

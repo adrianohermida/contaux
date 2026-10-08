@@ -138,9 +138,10 @@ export default function DocumentosPage() {
               <Badge variant="outline">{viewing.category || 'Sem categoria'}</Badge>
               <span className="text-xs text-muted-foreground">{typeLabels[viewing.type] || viewing.type}</span>
             </div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {viewing.content || 'Sem conteúdo disponível.'}
-            </div>
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: viewing.content || '<p>Sem conteúdo disponível.</p>' }}
+            />
           </>
         )}
       </Dialog>
