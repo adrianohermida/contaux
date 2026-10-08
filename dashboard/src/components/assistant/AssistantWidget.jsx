@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import AssistantPanel from './AssistantPanel'
+import FullscreenWorkspace from './FullscreenWorkspace'
 
 /**
  * Widget do Assistente Contaux — minimalista.
@@ -21,16 +22,7 @@ export default function AssistantWidget() {
   }, [panelMode, collapse])
 
   if (panelMode === 'fullscreen') {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex flex-col bg-card shadow-xl"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-        role="dialog"
-        aria-label="Assistente Contaux — tela cheia"
-      >
-        <AssistantPanel onClose={collapse} onFullscreen={null} fullscreen />
-      </div>
-    )
+    return <FullscreenWorkspace onClose={collapse} />
   }
 
   if (panelMode === 'expanded') {

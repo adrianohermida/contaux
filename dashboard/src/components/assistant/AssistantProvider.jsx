@@ -36,18 +36,26 @@ export function AssistantProvider({ children }) {
   const [contextMode, setContextMode] = useState(persisted.current?.contextMode || 'follow')
   const [lockedContext, setLockedContext] = useState(persisted.current?.lockedContext || null)
   const [conversations, setConversations] = useState([])
+  const [loadingConversations, setLoadingConversations] = useState(false)
+  const [hasMoreConversations, setHasMoreConversations] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [activeConvId, setActiveConvId] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [pendingTask, setPendingTask] = useState(null) // tarefa proposta pelo assistente
   const [convStatus, setConvStatus] = useState('active') // active | waiting_human | with_human | closed
   const [queue, setQueue] = useState([])
   const [showQueue, setShowQueue] = useState(false)
+  const [mobileView, setMobileView] = useState('list') // 'list' | 'conversation'
   const [availableTools, setAvailableTools] = useState([])
   const [pendingToolCall, setPendingToolCall] = useState(null) // tool aguardando aprovação
   const [memories, setMemories] = useState([])
   const [attachments, setAttachments] = useState([])
   const [proactiveSuggestions, setProactiveSuggestions] = useState([])
   const [proactiveEnabled, setProactiveEnabled] = useState(true)
+  const [projects, setProjects] = useState([])
+  const [activeProjectId, setActiveProjectId] = useState(null)
+  const [dots, setDots] = useState([])
+  const [activeDotId, setActiveDotId] = useState(null)
 
   const location = useLocation()
   const { user } = useAuth()
@@ -157,6 +165,127 @@ export function AssistantProvider({ children }) {
     return () => { clearTimeout(genTimer); clearInterval(interval) }
   }, [user, loadProactiveSuggestions, generateProactiveSuggestions])
 
+  // ===== Projetos (agrupar conversas) =====
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const list = await request('/assistant/projects')
+      setProjects(list)
+    } catch {
+      setProjects([])
+    }
+  }, [])
+
+  const createProject = useCallback(async (name, description, color) => {
+    try {
+      const proj = await request('/assistant/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name, description, color }),
+      })
+      setProjects((prev) => [proj, ...prev])
+      return proj
+    } catch {
+      return null
+    }
+  }, [])
+
+  const updateProject = useCallback(async (projectId, data) => {
+    try {
+      const proj = await request(`/assistant/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...proj } : p)))
+      return proj
+    } catch {
+      return null
+    }
+  }, [])
+
+  const deleteProject = useCallback(async (projectId) => {
+    try {
+      await request(`/assistant/projects/${projectId}`, { method: 'DELETE' })
+      setProjects((prev) => prev.filter((p) => p.id !== projectId))
+      // Desvincula conversas do projeto removido
+      setConversations((prev) => prev.map((c) =>
+        c.project_id === projectId ? { ...c, project_id: null } : c,
+      ))
+      if (activeProjectId === projectId) setActiveProjectId(null)
+    } catch {
+      // Ignora
+    }
+  }, [activeProjectId])
+
+  const assignConversationToProject = useCallback(async (convId, projectId) => {
+    try {
+      await request(`/assistant/conversations/${convId}/project`, {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      setConversations((prev) => prev.map((c) =>
+        c.id === convId ? { ...c, project_id: projectId ? String(projectId) : null } : c,
+      ))
+    } catch {
+      // Ignora
+    }
+  }, [])
+
+  // Carrega projetos ao montar
+  useEffect(() => {
+    if (user) loadProjects()
+  }, [user, loadProjects])
+
+  // ===== Dots (assistentes configuráveis) =====
+
+  const loadDots = useCallback(async () => {
+    try {
+      const list = await request('/assistant/dots')
+      setDots(list)
+    } catch {
+      setDots([])
+    }
+  }, [])
+
+  const createDot = useCallback(async (data) => {
+    try {
+      const dot = await request('/assistant/dots', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      setDots((prev) => [dot, ...prev])
+      return dot
+    } catch {
+      return null
+    }
+  }, [])
+
+  const updateDot = useCallback(async (dotId, data) => {
+    try {
+      const dot = await request(`/assistant/dots/${dotId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })
+      setDots((prev) => prev.map((d) => (d.id === dotId ? { ...d, ...dot } : d)))
+      return dot
+    } catch {
+      return null
+    }
+  }, [])
+
+  const deleteDot = useCallback(async (dotId) => {
+    try {
+      await request(`/assistant/dots/${dotId}`, { method: 'DELETE' })
+      setDots((prev) => prev.filter((d) => d.id !== dotId))
+      if (activeDotId === dotId) setActiveDotId(null)
+    } catch {
+      // Ignora
+    }
+  }, [activeDotId])
+
+  useEffect(() => {
+    if (user) loadDots()
+  }, [user, loadDots])
+
   const expand = useCallback(() => {
     setPanelMode('expanded')
     setUnreadCount(0)
@@ -194,6 +323,8 @@ export function AssistantProvider({ children }) {
     setActiveConvId(null)
     setShowHistory(false)
     setConvStatus('active')
+    setMobileView('conversation')
+    setActiveDotId(null)
   }, [])
 
   // Cria nova conversa no backend
@@ -202,7 +333,7 @@ export function AssistantProvider({ children }) {
       const title = firstMessage.length > 40 ? firstMessage.substring(0, 40) + '...' : firstMessage
       const conv = await request('/assistant/conversations', {
         method: 'POST',
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, dot_id: activeDotId }),
       })
       setActiveConvId(conv.id)
       setConversations((prev) => [conv, ...prev])
@@ -211,7 +342,7 @@ export function AssistantProvider({ children }) {
       // Fallback: conversa local sem persistência
       return null
     }
-  }, [])
+  }, [activeDotId])
 
   // Salva mensagem no backend
   const saveMessage = useCallback(async (convId, role, text, sources = null) => {
@@ -233,7 +364,9 @@ export function AssistantProvider({ children }) {
       setMessages(full.messages || [])
       setActiveConvId(convId)
       setConvStatus(full.status || 'active')
+      setActiveDotId(full.dot_id || null)
       setShowHistory(false)
+      setMobileView('conversation')
     } catch {
       // Ignora — mantém conversa atual
     }
@@ -280,8 +413,7 @@ export function AssistantProvider({ children }) {
     const text = `🔧 **${toolName}**\n\n\`\`\`${summary}\`\`\``
     const msg = { id: genId(), role: 'assistant', text, sources: [] }
     setMessages((prev) => [...prev, msg])
-    if (convId) saveMessage(convId, 'assistant', text, [])
-  }, [activeConvId, saveMessage])
+  }, [activeConvId])
 
   // ===== CQ-05: Ferramentas operacionais =====
 
@@ -458,10 +590,9 @@ export function AssistantProvider({ children }) {
         throw new Error(err.error || 'Erro ao enviar anexo')
       }
       const att = await resp.json()
-      // Adiciona mensagem de sistema no chat
+      // Adiciona mensagem de sistema no chat (não persiste — o servidor define autoria)
       const msg = { id: genId(), role: 'system', text: `📎 ${att.filename}`, event_type: 'attachment' }
       setMessages((prev) => [...prev, msg])
-      saveMessage(convId, 'system', `📎 ${att.filename}`)
       return att
     } catch (err) {
       const msg = { id: genId(), role: 'system', text: `❌ Erro: ${err.message}`, event_type: 'error' }
@@ -500,11 +631,10 @@ export function AssistantProvider({ children }) {
     if (!convId) {
       convId = await startNewConversation(question)
     }
-    // Salva mensagem do usuário
-    saveMessage(convId, 'user', question)
 
-    // Se a conversa está com humano, não chama a IA — apenas envia a mensagem
+    // Se a conversa está com humano, apenas salva a mensagem do usuário (role='user' pelo servidor)
     if (convStatus === 'with_human' || convStatus === 'waiting_human') {
+      saveMessage(convId, 'user', question)
       setStatus('idle')
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
@@ -513,19 +643,20 @@ export function AssistantProvider({ children }) {
       return
     }
 
+    // Conversa com IA: o servidor salva pergunta e resposta (autoria definida no servidor)
     try {
+      const activeConv = conversations.find((c) => c.id === convId)
       const res = await request('/knowledge-base/ask', {
         method: 'POST',
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, conversation_id: convId, dot_id: activeConv?.dot_id || activeDotId }),
       })
       const assistantMsg = {
-        id: genId(),
+        id: res.savedMessages?.assistant?.id || genId(),
         role: 'assistant',
         text: res.answer,
         sources: res.sources || [],
       }
       setMessages((prev) => [...prev, assistantMsg])
-      saveMessage(convId, 'assistant', res.answer, res.sources || [])
 
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
@@ -539,7 +670,6 @@ export function AssistantProvider({ children }) {
         sources: [],
       }
       setMessages((prev) => [...prev, errorMsg])
-      saveMessage(convId, 'assistant', `Erro ao consultar: ${err.message}`, [])
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
         return mode
@@ -547,7 +677,7 @@ export function AssistantProvider({ children }) {
     } finally {
       setStatus('idle')
     }
-  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user])
+  }, [status, activeConvId, startNewConversation, saveMessage, convStatus, user, conversations, activeDotId])
 
   // Contexto derivado: segue a tela (follow) ou usa o travado (fixed)
   const context = useMemo(() => {
@@ -579,6 +709,10 @@ export function AssistantProvider({ children }) {
       attachments, uploadAttachment, loadAttachments,
       handleVoiceTranscript,
       proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+      mobileView, setMobileView,
+      projects, loadProjects, createProject, updateProject, deleteProject,
+      assignConversationToProject, activeProjectId, setActiveProjectId,
+      dots, loadDots, createDot, updateDot, deleteDot, activeDotId, setActiveDotId,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -592,7 +726,11 @@ export function AssistantProvider({ children }) {
      memories, loadMemories, saveMemoryItem, deleteMemoryItem,
      attachments, uploadAttachment, loadAttachments,
      handleVoiceTranscript,
-     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled],
+     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+     mobileView,
+     projects, loadProjects, createProject, updateProject, deleteProject,
+     assignConversationToProject, activeProjectId,
+     dots, loadDots, createDot, updateDot, deleteDot, activeDotId],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>
