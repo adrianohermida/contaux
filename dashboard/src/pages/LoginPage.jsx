@@ -74,11 +74,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-          <p className="font-medium mb-1">Contas de demonstração:</p>
-          <p>admin@contaux.com.br / contaux123</p>
-          <p>contador@contaux.com.br / contaux123</p>
-        </div>
+
       </div>
     </div>
   )
