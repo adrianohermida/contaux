@@ -48,6 +48,8 @@ export function AssistantProvider({ children }) {
   const [attachments, setAttachments] = useState([])
   const [proactiveSuggestions, setProactiveSuggestions] = useState([])
   const [proactiveEnabled, setProactiveEnabled] = useState(true)
+  const [projects, setProjects] = useState([])
+  const [activeProjectFilter, setActiveProjectFilter] = useState(null) // project_id ou null
 
   const location = useLocation()
   const { user } = useAuth()
@@ -85,6 +87,16 @@ export function AssistantProvider({ children }) {
     if (user) loadConversations()
   }, [user, loadConversations])
 
+  // Carrega projetos do usuário (CQ-08)
+  const loadProjects = useCallback(async () => {
+    try {
+      const list = await request('/assistant/projects')
+      setProjects(list)
+    } catch {
+      setProjects([])
+    }
+  }, [])
+
   // Carrega tools disponíveis para o role do usuário (CQ-05)
   const loadTools = useCallback(async () => {
     try {
@@ -98,6 +110,10 @@ export function AssistantProvider({ children }) {
   useEffect(() => {
     if (user) loadTools()
   }, [user, loadTools])
+
+  useEffect(() => {
+    if (user) loadProjects()
+  }, [user, loadProjects])
 
   // ===== CQ-07: Proatividade interna =====
 
@@ -584,6 +600,7 @@ export function AssistantProvider({ children }) {
       attachments, uploadAttachment, loadAttachments,
       handleVoiceTranscript,
       proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+      projects, loadProjects, activeProjectFilter, setActiveProjectFilter,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -597,7 +614,8 @@ export function AssistantProvider({ children }) {
      memories, loadMemories, saveMemoryItem, deleteMemoryItem,
      attachments, uploadAttachment, loadAttachments,
      handleVoiceTranscript,
-     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled],
+     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+     projects, loadProjects, activeProjectFilter],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

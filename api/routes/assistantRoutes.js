@@ -936,6 +936,99 @@ router.get('/projects/:id/conversations', async (req, res) => {
   }
 });
 
+// Listar membros de um projeto
+router.get('/projects/:id/members', async (req, res) => {
+  try {
+    const proj = await checkProjectAccess(req.params.id, req.user);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const result = await query(
+      `SELECT m.user_id, m.role, m.created_at, u.name, u.email
+       FROM assistant_project_members m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.project_id = $1
+       ORDER BY m.created_at ASC`,
+      [req.params.id],
+    );
+    res.json(result.rows.map((r) => ({ ...r, user_id: String(r.user_id) })));
+  } catch (err) {
+    console.error('[assistant] Erro ao listar membros:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar membros' });
+  }
+});
+
+// Adicionar membro ao projeto (owner only)
+router.post('/projects/:id/members', async (req, res) => {
+  try {
+    const proj = await checkProjectAccess(req.params.id, req.user);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    // Apenas owner pode adicionar membros
+    const member = await query(
+      `SELECT role FROM assistant_project_members WHERE project_id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id],
+    );
+    if (member.rows.length === 0 || member.rows[0].role !== 'owner') {
+      return res.status(403).json({ error: 'Apenas o responsável pode adicionar membros' });
+    }
+
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id é obrigatório' });
+
+    // Verifica que o usuário é do mesmo tenant
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const targetUser = await query(
+      `SELECT id, name, email FROM users WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+      [user_id, tenantIds],
+    );
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado no tenant' });
+    }
+
+    const result = await query(
+      `INSERT INTO assistant_project_members (project_id, user_id, role) VALUES ($1, $2, 'member')
+       ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'
+       RETURNING user_id, role, created_at`,
+      [req.params.id, user_id],
+    );
+    const row = result.rows[0];
+    res.status(201).json({ ...row, user_id: String(row.user_id), name: targetUser.rows[0].name, email: targetUser.rows[0].email });
+  } catch (err) {
+    console.error('[assistant] Erro ao adicionar membro:', err.message);
+    res.status(500).json({ error: 'Erro ao adicionar membro' });
+  }
+});
+
+// Remover membro do projeto (owner only)
+router.delete('/projects/:id/members/:userId', async (req, res) => {
+  try {
+    const proj = await checkProjectAccess(req.params.id, req.user);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    // Owner não pode remover a si mesmo
+    if (String(req.user.id) === req.params.userId) {
+      return res.status(400).json({ error: 'Não é possível remover o responsável' });
+    }
+
+    const member = await query(
+      `SELECT role FROM assistant_project_members WHERE project_id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id],
+    );
+    if (member.rows.length === 0 || member.rows[0].role !== 'owner') {
+      return res.status(403).json({ error: 'Apenas o responsável pode remover membros' });
+    }
+
+    await query(
+      `DELETE FROM assistant_project_members WHERE project_id = $1 AND user_id = $2`,
+      [req.params.id, req.params.userId],
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assistant] Erro ao remover membro:', err.message);
+    res.status(500).json({ error: 'Erro ao remover membro' });
+  }
+});
+
 // Atribuir conversa a um projeto (ou desatribuir com project_id null)
 router.patch('/conversations/:id/project', async (req, res) => {
   try {

@@ -6,6 +6,7 @@ import {
 import { useAssistant } from './AssistantProvider'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
+import ProjectFilter from './ProjectFilter'
 
 /**
  * Coluna esquerda do workspace de comunicação em fullscreen.
@@ -16,6 +17,7 @@ export default function WorkspaceSidebar({ onSelectConversation, onNewConversati
   const {
     conversations, activeConvId, openConversation, clearMessages, deleteConversation,
     queue, loadQueue, acceptHandoff, convStatus,
+    activeProjectFilter, setActiveProjectFilter,
   } = useAssistant()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
@@ -29,10 +31,16 @@ export default function WorkspaceSidebar({ onSelectConversation, onNewConversati
   }, [isStaff, loadQueue])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return conversations
-    const q = search.toLowerCase()
-    return conversations.filter((c) => c.title?.toLowerCase().includes(q))
-  }, [conversations, search])
+    let list = conversations
+    if (activeProjectFilter) {
+      list = list.filter((c) => c.project_id === activeProjectFilter)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((c) => c.title?.toLowerCase().includes(q))
+    }
+    return list
+  }, [conversations, search, activeProjectFilter])
 
   const aiConvs = filtered.filter(
     (c) => (c.conversation_kind === 'ai' || (!c.conversation_kind && c.status === 'active')),
@@ -84,7 +92,11 @@ export default function WorkspaceSidebar({ onSelectConversation, onNewConversati
       }`}
     >
       <button onClick={() => handleSelect(conv.id)} className="flex flex-1 items-center gap-2 text-left min-w-0">
-        <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+        {conv.project_color ? (
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: conv.project_color }} title={conv.project_name} />
+        ) : (
+          <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs">{conv.title}</p>
           <p className="text-[10px] text-muted-foreground">
@@ -125,10 +137,8 @@ export default function WorkspaceSidebar({ onSelectConversation, onNewConversati
       {/* Seções */}
       <div className="flex-1 overflow-y-auto px-1.5 py-2 space-y-1">
         {/* Projetos */}
-        <SectionHeader icon={FolderKanban} label="Projetos" count={0} sectionKey="projects" />
-        {!collapsed.projects && (
-          <p className="px-3 py-2 text-[10px] text-muted-foreground italic">Em breve</p>
-        )}
+        <SectionHeader icon={FolderKanban} label="Projetos" sectionKey="projects" />
+        {!collapsed.projects && <ProjectFilter />}
 
         {/* Conversas com IA */}
         <SectionHeader icon={Bot} label="Conversas com IA" count={aiConvs.length} sectionKey="ai" accent="text-primary" />
