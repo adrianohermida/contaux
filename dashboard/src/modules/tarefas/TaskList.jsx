@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { taskStatusLabels, taskStatusVariants, taskPriorityLabels, taskPriorityVariants } from './lib/labels'
 import { Search, Plus, Pencil, CheckSquare, Trash2, Calendar } from 'lucide-react'
 
-export default function TaskList({ tasks, loading, onNew, onEdit, onToggleDone, onDelete }) {
+export default function TaskList({ tasks, loading, onNew, onEdit, onToggleDone, onStatusChange, onDelete }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -97,7 +97,16 @@ export default function TaskList({ tasks, loading, onNew, onEdit, onToggleDone, 
                           <Badge variant={taskPriorityVariants[t.priority]}>{taskPriorityLabels[t.priority]}</Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant={taskStatusVariants[t.status]}>{taskStatusLabels[t.status]}</Badge>
+                          <Select
+                            value={t.status}
+                            onChange={(e) => onStatusChange?.(t, e.target.value)}
+                            className="h-8 w-36 text-xs"
+                            aria-label="Alterar status"
+                          >
+                            {Object.entries(taskStatusLabels).map(([k, v]) => (
+                              <option key={k} value={k}>{v}</option>
+                            ))}
+                          </Select>
                         </td>
                         <td className="px-4 py-3">
                           {t.due_date ? (
@@ -129,7 +138,16 @@ export default function TaskList({ tasks, loading, onNew, onEdit, onToggleDone, 
                         <p className={`font-medium ${t.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{t.title}</p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           <Badge variant={taskPriorityVariants[t.priority]}>{taskPriorityLabels[t.priority]}</Badge>
-                          <Badge variant={taskStatusVariants[t.status]}>{taskStatusLabels[t.status]}</Badge>
+                          <Select
+                            value={t.status}
+                            onChange={(e) => onStatusChange?.(t, e.target.value)}
+                            className="h-7 w-32 text-xs"
+                            aria-label="Alterar status"
+                          >
+                            {Object.entries(taskStatusLabels).map(([k, v]) => (
+                              <option key={k} value={k}>{v}</option>
+                            ))}
+                          </Select>
                         </div>
                         <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
                           {t.due_date && (

@@ -4,12 +4,14 @@ export const taskStatusLabels = {
   todo: 'A Fazer',
   in_progress: 'Em Andamento',
   done: 'Concluída',
+  cancelled: 'Cancelada',
 }
 
 export const taskStatusVariants = {
   todo: 'outline',
   in_progress: 'secondary',
   done: 'default',
+  cancelled: 'destructive',
 }
 
 export const taskPriorityLabels = {
