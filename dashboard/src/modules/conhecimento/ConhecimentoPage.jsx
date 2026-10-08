@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import ConhecimentoList from './ConhecimentoList'
 import ConhecimentoForm from './ConhecimentoForm'
 import ConhecimentoDetail from './ConhecimentoDetail'
+import ConhecimentoAssistant from './ConhecimentoAssistant'
 
 const TYPE_TABS = [
   { value: 'all', label: 'Todos' },
@@ -196,6 +197,8 @@ export default function ConhecimentoPage() {
         onSave={handleSave}
         editingItem={editing}
       />
+
+      <ConhecimentoAssistant />
     </div>
   )
 }

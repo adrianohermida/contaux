@@ -116,6 +116,21 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
   res.sendFile(filePath);
 });
 
+// ===== Base de Conhecimento — Assistente de IA =====
+const aiService = require('./services/aiService');
+app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
+  const { question } = req.body;
+  if (!question || !question.trim()) {
+    return res.status(400).json({ error: 'Pergunta é obrigatória' });
+  }
+  try {
+    const result = await aiService.ask(question.trim());
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });
+  }
+});
+
 // ===== Base de Conhecimento — sincronização das NBCs (CFC) =====
 const cfcSync = require('./services/cfcSync');
 const { requireRole } = require('./middleware/auth');
