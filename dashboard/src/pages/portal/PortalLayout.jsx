@@ -58,7 +58,7 @@ export default function PortalLayout() {
 
         <main className="flex-1 p-3 sm:p-4 lg:p-6">
           {/* Nav mobile — bottom bar icon-first */}
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around border-t border-border bg-background/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex h-14 items-center justify-around border-t border-border bg-background/95 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             {PORTAL_NAV.map((item) => (
               <NavLink
                 key={item.path}
@@ -66,13 +66,13 @@ export default function PortalLayout() {
                 end={item.path === '/portal'}
                 className={({ isActive }) =>
                   cn(
-                    'flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors',
+                    'flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors',
                     isActive ? 'text-primary' : 'text-muted-foreground',
                   )
                 }
               >
-                <item.icon className="h-5 w-5" />
-                {item.label}
+                <item.icon className="h-5 w-5 shrink-0" strokeWidth={2} />
+                <span className="leading-none">{item.label}</span>
               </NavLink>
             ))}
           </nav>

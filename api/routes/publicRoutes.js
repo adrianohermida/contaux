@@ -230,4 +230,251 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// ===== CHAT PÚBLICO — assistente de atendimento do site (CQ-04) =====
+// Suporta conversas persistentes com visitor_token e handoff IA→humano.
+
+const QUICK = [
+  {
+    match: /servi[çc]o|oferec|fazem|trabalham/,
+    answer: 'A Contaux oferece:<br>• Contabilidade para advogados<br>• Cálculos judiciais<br>• Guias e planos de pagamento<br>• Pareceres contábeis<br><br>Veja detalhes em <a href="/services.html">nossos serviços</a>.',
+  },
+  {
+    match: /atendimento|suporte|falar|contato|whatsapp|telefone|email/,
+    answer: 'Oferecemos atendimento por chat, e-mail, telefone e videoconferência.<br><br>Acesse nossa <a href="/contato.html">página de contato</a> para falar com nossa equipe.',
+  },
+  {
+    match: /parceiro|parceria|indic|indicar|comiss/,
+    answer: 'Temos um programa de parceria para escritórios e profissionais que indicam clientes.<br><br>Conheça as condições em <a href="/parceiros.html">nossa página de parceiros</a>.',
+  },
+  {
+    match: /pre[çc]o|valor|custo|quanto|plan|mensal/,
+    answer: 'Nossos planos variam conforme o porte do escritório e os serviços contratados.<br><br>Confira os planos em <a href="/pricing.html">nossa página de preços</a>.',
+  },
+  {
+    match: /contador|falar com|especialista|consult|humano|pessoa|atendente/,
+    answer: 'Para falar diretamente com um contador, acesse nossa <a href="/contato.html">página de contato</a> e escolha o canal de sua preferência. Respondemos em até 1 dia útil.',
+    collectContact: true,
+    wantsHuman: true,
+  },
+];
+
+// Criar ou recuperar conversa pública por visitor_token
+async function getOrCreatePublicConversation(visitorToken, visitorName) {
+  if (visitorToken) {
+    const existing = await query(
+      `SELECT id, status, visitor_token FROM assistant_conversations WHERE visitor_token = $1`,
+      [visitorToken],
+    );
+    if (existing.rows.length > 0) return existing.rows[0];
+  }
+
+  const token = crypto.randomBytes(16).toString('hex');
+  const result = await query(
+    `INSERT INTO assistant_conversations (title, origin, visitor_token, visitor_name, status)
+     VALUES ($1, 'public', $2, $3, 'active')
+     RETURNING id, status, visitor_token`,
+    [`Atendimento público${visitorName ? ' — ' + visitorName : ''}`, token, visitorName || null],
+  );
+
+  await query(
+    `INSERT INTO assistant_participants (conversation_id, role, display_name)
+     VALUES ($1, 'visitor', $2)`,
+    [result.rows[0].id, visitorName || 'Visitante'],
+  );
+
+  return result.rows[0];
+}
+
+// POST /chat — enviar mensagem (com persistência e handoff)
+router.post('/chat', async (req, res) => {
+  const { message, visitor_token, visitor_name } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Mensagem é obrigatória' });
+  }
+
+  try {
+    const conv = await getOrCreatePublicConversation(visitor_token, visitor_name);
+    const convId = conv.id;
+
+    // Salva mensagem do visitante
+    await query(
+      `INSERT INTO assistant_messages (conversation_id, role, text, author_name)
+       VALUES ($1, 'user', $2, $3)`,
+      [convId, message.trim(), visitor_name || 'Visitante'],
+    );
+    await query(`UPDATE assistant_conversations SET updated_at = now() WHERE id = $1`, [convId]);
+
+    // Se a conversa está com humano ou aguardando, IA pausada
+    if (conv.status === 'waiting_human' || conv.status === 'with_human') {
+      return res.json({
+        answer: conv.status === 'waiting_human'
+          ? 'Sua mensagem foi enviada. Aguarde um atendente.'
+          : 'Mensagem enviada para o atendente.',
+        visitor_token: conv.visitor_token,
+        conversation_id: String(convId),
+        status: conv.status,
+        ai_paused: true,
+      });
+    }
+
+    // Detecta pedido de atendimento humano
+    const msg = message.trim().toLowerCase();
+    for (const q of QUICK) {
+      if (q.match && q.match.test(msg) && q.wantsHuman) {
+        await query(
+          `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, updated_at = now()
+           WHERE id = $1`,
+          [convId, 'Visitante solicitou atendimento humano'],
+        );
+        await query(
+          `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
+           VALUES ($1, 'system', $2, 'handoff_requested', $3)`,
+          [convId, 'Transferindo para atendimento humano...', visitor_name || 'Visitante'],
+        );
+        return res.json({
+          answer: 'Estou transferindo você para um atendente. Aguarde um momento...',
+          visitor_token: conv.visitor_token,
+          conversation_id: String(convId),
+          status: 'waiting_human',
+          ai_paused: true,
+        });
+      }
+    }
+
+    // Respostas rápidas (sem custo de IA)
+    for (const q of QUICK) {
+      if (q.match && q.match.test(msg)) {
+        await query(
+          `INSERT INTO assistant_messages (conversation_id, role, text, author_name)
+           VALUES ($1, 'assistant', $2, 'Assistente')`,
+          [convId, q.answer.replace(/<br>/g, '\n')],
+        );
+        return res.json({
+          answer: q.answer,
+          collectContact: !!q.collectContact,
+          visitor_token: conv.visitor_token,
+          conversation_id: String(convId),
+          status: 'active',
+        });
+      }
+    }
+
+    // Busca na base de conhecimento (itens públicos, sem auth)
+    try {
+      const aiService = require('../services/aiService');
+      const result = await aiService.ask(message.trim(), { tenantIds: null });
+      if (result.sources && result.sources.length > 0) {
+        const answer = result.answer.replace(/\n/g, '<br>');
+        await query(
+          `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_name)
+           VALUES ($1, 'assistant', $2, $3, 'Assistente')`,
+          [convId, result.answer, JSON.stringify(result.sources)],
+        );
+        return res.json({
+          answer,
+          collectContact: false,
+          visitor_token: conv.visitor_token,
+          conversation_id: String(convId),
+          status: 'active',
+        });
+      }
+    } catch (e) {
+      // Ignora erro — cai no fallback
+    }
+
+    // Fallback genérico
+    const fallback = 'Não tenho essa informação no momento, mas nossa equipe pode ajudar!<br><br>Acesse nossa <a href="/contato.html">página de contato</a> e fale com um especialista.';
+    await query(
+      `INSERT INTO assistant_messages (conversation_id, role, text, author_name)
+       VALUES ($1, 'assistant', $2, 'Assistente')`,
+      [convId, fallback.replace(/<br>/g, '\n')],
+    );
+    res.json({
+      answer: fallback,
+      collectContact: true,
+      visitor_token: conv.visitor_token,
+      conversation_id: String(convId),
+      status: 'active',
+    });
+  } catch (err) {
+    console.error('Erro no chat público:', err.message);
+    res.status(500).json({ error: 'Erro ao processar mensagem' });
+  }
+});
+
+// GET /chat/status — verificar status da conversa (polling do widget)
+router.get('/chat/status', async (req, res) => {
+  const { visitor_token, since } = req.query;
+  if (!visitor_token) return res.status(400).json({ error: 'visitor_token é obrigatório' });
+
+  try {
+    const conv = await query(
+      `SELECT id, status FROM assistant_conversations WHERE visitor_token = $1`,
+      [visitor_token],
+    );
+    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const convId = conv.rows[0].id;
+    const sinceDate = since ? new Date(parseInt(since)) : new Date(0);
+
+    // Busca mensagens novas (do staff/sistema) desde o último poll
+    const msgs = await query(
+      `SELECT id, role, text, author_name, event_type, created_at
+       FROM assistant_messages
+       WHERE conversation_id = $1 AND created_at > $2
+         AND (role = 'assistant' OR role = 'system' OR (role = 'user' AND author_name IS NOT NULL AND author_name != 'Visitante' AND author_name != $3))
+       ORDER BY created_at ASC`,
+      [convId, sinceDate, req.query.visitor_name || 'Visitante'],
+    );
+
+    res.json({
+      status: conv.rows[0].status,
+      messages: msgs.rows.map((m) => ({
+        id: String(m.id),
+        role: m.role,
+        text: m.text,
+        author_name: m.author_name,
+        event_type: m.event_type,
+        created_at: m.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('Erro ao buscar status do chat:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar status' });
+  }
+});
+
+// POST /chat/handoff — visitante solicita handoff explicitamente
+router.post('/chat/handoff', async (req, res) => {
+  const { visitor_token, reason } = req.body;
+  if (!visitor_token) return res.status(400).json({ error: 'visitor_token é obrigatório' });
+
+  try {
+    const conv = await query(
+      `SELECT id, status FROM assistant_conversations WHERE visitor_token = $1`,
+      [visitor_token],
+    );
+    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+    if (conv.rows[0].status !== 'active') {
+      return res.json({ status: conv.rows[0].status, ai_paused: true });
+    }
+
+    await query(
+      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, updated_at = now()
+       WHERE id = $1`,
+      [conv.rows[0].id, reason || 'Visitante solicitou atendimento humano'],
+    );
+    await query(
+      `INSERT INTO assistant_messages (conversation_id, role, text, event_type, author_name)
+       VALUES ($1, 'system', $2, 'handoff_requested', 'Visitante')`,
+      [conv.rows[0].id, 'Transferindo para atendimento humano...'],
+    );
+
+    res.json({ success: true, status: 'waiting_human', ai_paused: true });
+  } catch (err) {
+    console.error('Erro ao solicitar handoff público:', err.message);
+    res.status(500).json({ error: 'Erro ao solicitar handoff' });
+  }
+});
+
 module.exports = router;

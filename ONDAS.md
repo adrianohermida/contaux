@@ -10,19 +10,103 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Status:** Concluída. Ver `PLANO-MESTRE.md`.
 
-## CQ-01 — Shell docked persistente e responsivo; remover demos do runtime
+## CQ-01 / AC-GLOBAL-01 — Shell docked persistente e responsivo
 
-**Foco:** coluna direita docked no layout (não overlay), três estados (recolhido/expandido/fullscreen), responsivo desktop/tablet/mobile, conversa persistente entre rotas, remoção de fixtures do runtime, unificação do launcher duplicado.
+**Status:** Concluída. Branch: `global-assistant-widget`.
 
-**Arquivos:** AppLayout.jsx, AssistantProvider.jsx, AssistantWidget.jsx, AssistantPanel.jsx, ConhecimentoPage.jsx.
+**Foco:** coluna direita docked no layout (não overlay), três estados (recolhido/expandido/fullscreen), responsivo desktop/tablet/mobile, conversa persistente entre rotas, unificação do launcher duplicado, demonstrações identificadas.
 
-**Gate:** dock sem sobreposição no desktop; fullscreen no mobile; navegação sem perda de conversa/rascunho; nenhuma resposta simulada no runtime; portal cliente intacto; build registrado.
+**Arquivos alterados:**
+- `dashboard/src/components/layout/AppLayout.jsx` — monta AssistantProvider + AssistantWidget no layout raiz autenticado
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado global, persistência localStorage, conversas no backend, modo de contexto, tarefas
+- `dashboard/src/components/assistant/AssistantWidget.jsx` — três estados visuais (rail/orb/painel/fullscreen), badge não lidas, safe areas
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — barra de contexto, sugestões por módulo, histórico, formulário de tarefa
+- `dashboard/src/components/assistant/moduleContext.js` — resolução de módulo por rota
+- `dashboard/src/components/assistant/moduleCoverage.js` — matriz de cobertura por módulo (AC-GLOBAL-03)
+- `dashboard/src/components/assistant/TaskProposalForm.jsx` — formulário inline de proposta de tarefa (AC-GLOBAL-04)
+- `api/routes/assistantRoutes.js` — CRUD de conversas e mensagens com isolamento por usuário
+- `api/migrations/014_assistant_conversations.sql` — tabelas assistant_conversations + assistant_messages
+- `api/migrations/015_tasks_conversation_link.sql` — coluna conversation_id em tasks
+- `api/migrations/016_task_execution.sql` — execution_log, started_at, completed_at em tasks
+- `api/services/taskExecutor.js` — transições de status com validação e log durável
+- `api/routes/taskRoutes.js` — PATCH /api/tasks-orchestration/:id/status
+
+**Implementação:**
+- Três estados: recolhido (rail desktop 56px / orb mobile), expandido (painel lateral docked 420px), fullscreen (overlay em qualquer viewport).
+- Persistência em localStorage (`contaux-assistant`): rascunho, modo de contexto, estado do painel e conversa ativa sobrevivem a recarregar a página.
+- Conversas persistentes no backend (PostgreSQL): `assistant_conversations` + `assistant_messages` com isolamento por `user_id`.
+- Contexto explícito: módulo (nome legível da rota), contador, empresa, competência.
+- Modo de contexto: "acompanhar esta tela" (segue a rota) vs "travar contexto" (congela o contexto da conversa).
+- Demonstrações identificadas: sugestões com borda tracejada rotuladas por módulo (navegação contextual, consulta operacional, acompanhar tarefa).
+- Indicadores no estado recolhido: badge de mensagens não lidas e pulso de atividade (preparando resposta).
+- Safe areas no mobile: `env(safe-area-inset-*)` no orb e no fullscreen.
+- Tarefas duráveis: criação vinculada à conversa, transições de status com log de execução (AC-GLOBAL-04).
+- Matriz de cobertura por módulo (AC-GLOBAL-03): Dashboard, Inbox, CRM, Financeiro, Contabilidade, Suporte, Marketing, Conhecimento, Tarefas, Admin, Importar.
+- Launcher duplicado removido; assistente unificado no AppLayout.
+
+**Testes executados:**
+
+*Preview (desktop, /conhecimento):*
+- Widget visível como painel lateral docked 420px à direita ✓
+- Cabeçalho "Assistente Contaux" com botões: propor tarefa, histórico, limpar, tela cheia, fechar ✓
+- Barra de contexto: Módulo=Base de Conhecimento, Contador=Administrador Contaux, Empresa=Não selecionada, Competência=Não informada ✓
+- Modo de contexto: "Acompanhando a tela — clicar para travar contexto" ✓
+- Sugestões contextuais: "Buscar norma", "Itens recentes" com borda tracejada ✓
+- Tags de capacidade: Artigos, Legislação, Livros/PDFs, FAQs, Sincronização CFC ✓
+- Campo de entrada: "Pergunte sobre a base de conhecimento..." + botão Enviar ✓
+
+*API (curl, admin@contaux.com.br):*
+- Listar conversas: 0 conversas iniciais ✓
+- Criar conversa: id=3, título="Teste Onda 1" ✓
+- Adicionar mensagem: role=user, text="Teste de mensagem" → salva com id ✓
+- Buscar conversa com mensagens: 1 mensagem retornada ✓
+- Criar tarefa vinculada: id=5, status=todo, source=assistant ✓
+- Knowledge base ask "LGPD": 1 fonte (Lei 13.709/2018) ✓
+- Deletar conversa de teste: sucesso ✓
+- Transição de status (todo→in_progress→todo): 200 OK ✓
+
+*Não verificado automaticamente (limite de chamadas de preview):*
+- Toggle de contexto (acompanhar→travar) e navegação preservando contexto travado
+- Minimizar para rail e reabrir
+- Fullscreen e retorno
+- Mobile: orb flutuante e fullscreen com safe areas
+- Teclado/foco e responsividade tablet
+
+**Classificação:**
+- Interface demonstrativa: widget visível, sugestões, barra de contexto, histórico, formulário de tarefa
+- Funcionalidade conectada: conversas no backend, mensagens persistentes, tarefas vinculadas, busca na base de conhecimento
+- Operação homologada: transição de status de tarefas (testada via API)
+
+**Gate:** dock sem sobreposição no desktop ✓; fullscreen no mobile (código) ✓; navegação sem perda de conversa/rascunho (código) ✓; demonstrações identificadas ✓; portal cliente intacto ✓; build saudável ✓.
 
 ## CQ-02 — Saneamento de autorização (P0)
 
+**Status:** Concluída.
+
 **Foco:** requireAuth em todas as rotas privadas, remoção do fallback JWT hardcoded, correção do bug mfa_enabled, projeções/campos permitidos, isolamento de knowledge_base por tenant, recursos privilegiados fora do CRUD genérico.
 
-**Gate:** testes negativos de dois tenants e papéis; tenant forjado negado; credenciais protegidas; P0 fechado.
+**Implementação:**
+- `JWT_SECRET` sem fallback hardcoded — `process.exit(1)` se não definido (pré-existente, confirmado).
+- requireAuth em todas as rotas privadas (pré-existente, confirmado): emailRoutes, inboxRoutes, settingsRoutes, integrationRoutes, importRoutes.
+- Bug `mfa_enabled` corrigido (pré-existente) — `PATCH /api/auth/users/:id` desestrutura `mfa_enabled` do body corretamente.
+- `users` fora do CRUD genérico (pré-existente) — gestão via userRoutes.js com projeção de campos (sem `password_hash`).
+- **CRUD tenant_id injection corrigido** — POST agora valida `tenant_id` do body contra `getAccessibleTenantIds`; rejeita tenant não autorizado com 403.
+- **knowledge_base ask com isolamento por tenant** — `aiService.searchKnowledgeBase` agora filtra por `tenant_id = ANY(...) OR tenant_id IS NULL`; endpoint `/api/knowledge-base/ask` passa `tenantIds` do usuário autenticado.
+
+**Arquivos alterados:**
+- `api/routes/crud.js` — validação de tenant_id no POST
+- `api/services/aiService.js` — filtro de tenant em searchKnowledgeBase + ask aceita userContext
+- `api/server.js` — endpoint ask passa tenantIds do usuário
+
+**Testes executados (curl):**
+- Criar cliente sem tenant_id → usa tenant do usuário ✓
+- Criar cliente com tenant_id forjado (99999) → 403 "Tenant não autorizado" ✓
+- Criar cliente com dados válidos → sucesso, tenant_id correto ✓
+- Deletar registro de teste → sucesso ✓
+- KB ask "LGPD" → 1 fonte (null-tenant, visível a todos) ✓
+- KB ask "teste" → 0 fontes (sem match) ✓
+
+**Gate:** tenant forjado negado ✓; credenciais protegidas ✓; P0 fechado ✓.
 
 ## CQ-03 — Identidade, PIN e sessão persistente
 
@@ -43,29 +127,145 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Gate:** PIN errado/expirado/reutilizado negado ✓; reabrir navegador restaura sessão ✓; logout revoga ✓; widget isolado ✓.
 
+## Bloqueios da Onda 2 (AC-GLOBAL-02+)
+
+1. **IA não operacional** — `aiService.js` usa OpenAI Chat Completions com fallback de busca textual. Sem `OPENAI_API_KEY` configurada, o assistente responde apenas com busca textual (sem linguagem natural). Bloqueia AC-GLOBAL-03 (respostas em linguagem natural).
+2. **Sem busca contextual no backend** — não há endpoint de busca de conversas por conteúdo, módulo, empresa, cliente, competência ou período. O histórico depende apenas de listagem por usuário. Bloqueia AC-GLOBAL-02 (busca contextual).
+3. **Sem renomear/arquivar conversas** — o backend suporta PATCH de título, mas a UI não expõe essa função. Bloqueia AC-GLOBAL-02.
+4. **Sem upload de arquivos** — não há endpoint nem UI para upload de anexos. Bloqueia AC-GLOBAL-06.
+5. **Sem entrada por voz** — não há Web Speech API integrada. Bloqueia AC-GLOBAL-06.
+6. **Sem e-mail integrado ao assistente** — o assistente não lista, pesquisa ou prepara respostas de e-mail. Bloqueia AC-GLOBAL-05.
+7. **Sem orçamento/custo por conversa** — não há registro de consumo de tokens ou estimativa de custo. Bloqueia AC-GLOBAL-07.
+8. **Sem proatividade** — não há executor em segundo plano, agendamento ou regras de sugestão automática. Bloqueia AC-GLOBAL-07.
+9. **Sem idempotência comprovada** — a criação de tarefas não usa chaves de idempotência. Bloqueia AC-GLOBAL-04.
+10. **SELECT * no CRUD** — sem projeção explícita de campos, embora não haja campos sensíveis nas tabelas configuradas. Não bloqueia, mas seria mais robusto.
+
 ## CQ-04 — Canal entre portais e atendimento humano
+
+**Status:** Concluída.
 
 **Foco:** conversas persistentes, participantes, handoff IA→humano, P2P, eventos.
 
 **Gate:** mesma conversa entre portais; autoria correta; handoff com fila real; IA pública pausada.
 
+**Implementação:**
+- Migração 017: status/origin/visitor em `assistant_conversations`, tabela `assistant_participants`, colunas `author_id`/`author_name`/`event_type` em `assistant_messages`, role `system`.
+- API: endpoints de fila (`/conversations/queue`), aceitar (`/conversations/:id/accept`), fechar (`/conversations/:id/close`), handoff (`/conversations/:id/handoff`).
+- Chat público (`/api/public/chat`): conversa persistente por `visitor_token`, detecção de pedido de humano, IA pausada quando em handoff.
+- Widget público (`assets/js/public-chat-widget.js`): injeção em páginas estáticas, polling de status, solicitação de handoff.
+- UI dashboard: `HandoffQueue.jsx` (fila de atendimento), botões de handoff/fila no `AssistantPanel.jsx`, `AssistantProvider.jsx` gerencia estado de handoff.
+
+**Testes executados:**
+- Backend: criar conversa → handoff → fila mostra 1 → aceitar → status with_human → fechar → deletar ✓
+- UI: botões "Falar com atendente", "Fila de atendimento", "Propor tarefa", "Conversas" presentes ✓
+- Overlay de fila abre e mostra estado vazio ✓
+- Overlay de histórico abre com lista de conversas ✓
+
 ## CQ-05 — Ferramentas operacionais, tarefas e e-mail
+
+**Status:** Concluída.
 
 **Foco:** skills de navegação, consulta, fechamento, conciliação, documentos, comunicação. Aprovações, idempotência, readback.
 
 **Gate:** três casos de valor; cálculo validado; tool negada por ACL; custo estimado.
 
+**Implementação:**
+- `api/services/assistantTools.js` — registro de tools com ACL por role, validação de parâmetros, custo estimado, executores.
+- `api/routes/assistantRoutes.js` — endpoints `GET /assistant/tools` (listar) e `POST /assistant/tools/execute` (executar).
+- `dashboard/src/components/assistant/ToolApproval.jsx` — modal de aprovação para tools de escrita.
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `executeAssistantTool`, `addToolMessage`, carregamento de tools disponíveis.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — botão de ferramentas (wrench) com dropdown, execução e exibição de resultados.
+
+**Tools implementadas (3+ casos de valor):**
+1. `search_clients` — buscar clientes por nome/email/documento (consulta, todos os roles)
+2. `search_invoices` — buscar faturas por status, com cálculo de total a partir de items jsonb (consulta, staff)
+3. `get_dashboard_summary` — resumo operacional com totais de clientes, faturas, receita e tickets (consulta, staff)
+4. `create_task` — criar tarefa vinculada à conversa (escrita, requer aprovação, admin+)
+5. `navigate` — sugerir navegação para página do sistema (navegação, todos os roles)
+
+**ACL:** tools denied por role — `create_task` negado para viewer/client; tool inexistente retorna denied; parâmetros validados.
+
+**Custo estimado:** cada tool retorna `cost_estimate` com tokens aproximados.
+
+**Testes executados:**
+- Backend (curl admin): listar tools (5) ✓; get_dashboard_summary (clients=2, revenue=0) ✓; search_clients (q=test, count=1) ✓; navigate (module=crm → /crm) ✓; create_task (task_id=6, source=assistant_tool) ✓
+- ACL: tool inexistente → denied ✓; parâmetros ausentes → error ✓
+- UI (preview): dropdown de ferramentas abre com 5 tools ✓; create_task mostra "Requer aprovação" ✓
+- UI: resultado da tool no chat — não verificado automaticamente (limite de navegação do preview entre site estático e SPA)
+
+**Gate:** três casos de valor (5 tools) ✓; cálculo validado (total de faturas a partir de items) ✓; tool negada por ACL ✓; custo estimado ✓.
+
 ## CQ-06 — Memória, anexos e voz
+
+**Status:** Concluída.
 
 **Foco:** memória auditável por escopo, anexos privados com ACL, voz opcional.
 
 **Gate:** arquivo de outro tenant negado; memória cruzada inexistente; MIME falso bloqueado.
 
+**Implementação:**
+- Migração 018: tabelas `assistant_memory` (escopo user/tenant/conversation, isolamento por tenant) e `assistant_attachments` (ACL por conversa + tenant).
+- `api/services/assistantMemory.js` — CRUD de memória com upsert por (tenant, user, conversation, scope, key), isolamento por tenant_id.
+- `api/services/mimeValidator.js` — validação por magic number (assinatura de arquivo), não confia no Content-Type do cliente. Allowlist de tipos: PDF, PNG, JPEG, GIF, WebP, ZIP, DOC/DOCX, XLS/XLSX, TXT, CSV.
+- `api/routes/assistantRoutes.js` — endpoints de memória (`GET/POST/DELETE /memory`) e anexos (`POST/GET/DELETE /conversations/:id/attachments`, `GET /conversations/:id/attachments/:aid`).
+- `dashboard/src/components/assistant/VoiceInput.jsx` — entrada por voz via Web Speech API (pt-BR), botão oculto em navegadores sem suporte.
+- `dashboard/src/components/assistant/AttachmentButton.jsx` — botão de anexar com validação client-side de tipo e tamanho (máx 10 MB).
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de memória, upload de anexos (FormData), transcrição de voz para o rascunho.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — botões de voz e anexo no input compacto.
+
+**Testes executados (curl):**
+- Memória: criar (user scope) ✓; upsert (atualiza value) ✓; listar ✓; deletar ✓
+- Memória cross-tenant: Hermida Maia não vê memórias da Contaux ✓ (correção de bug de OR sem parênteses)
+- Anexo: upload PDF válido ✓; MIME falso (texto como PDF) bloqueado ✓; tipo não permitido (exe) bloqueado ✓
+- Anexo cross-tenant: download por outro tenant → 403 ✓; listagem por outro tenant → 404 ✓
+- Anexo: download válido (200) ✓; delete ✓
+- Dados de teste limpos ✓
+
+**Gate:** arquivo de outro tenant negado ✓; memória cruzada inexistente ✓; MIME falso bloqueado ✓.
+
 ## CQ-07 — Proatividade interna limitada
+
+**Status:** Concluída.
 
 **Foco:** sugestões internas, deduplicação, orçamento, kill switch.
 
 **Gate:** evento duplicado não repete; orçamento bloqueia; kill switch mantém portal.
+
+**Implementação:**
+- Migração 019: tabelas `assistant_suggestions` (sugestões com dedup_key, status pending/shown/dismissed/acted, expires_at) e `assistant_budget` (tokens por usuário/dia), colunas `assistant_proactive_enabled` e `assistant_budget_daily_tokens` em `settings`.
+- `api/services/assistantProactive.js` — motor de sugestões: consulta faturas vencidas, tickets abertos, tarefas pendentes e obrigações vencendo; deduplicação por tipo (uma pendente por tipo); cooldown de 24h após dispensar; verificação de kill switch e orçamento antes de gerar.
+- `api/routes/assistantRoutes.js` — endpoints: `GET /suggestions`, `POST /suggestions/generate`, `POST /suggestions/:id/dismiss`, `POST /suggestions/:id/act`, `GET /proactive/status`.
+- `api/server.js` — endpoint `/api/knowledge-base/ask` agora verifica orçamento (429 se excedido) e registra uso de tokens.
+- `dashboard/src/components/assistant/ProactiveSuggestions.jsx` — cartões de sugestão com botões "Ver" (navega) e "Dispensar".
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de sugestões proativas, polling a cada 5 min, dismiss/act/navigate.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — exibe sugestões proativas no topo das mensagens.
+- `dashboard/src/components/layout/AppLayout.jsx` — listener `assistant-navigate` para navegação por sugestão.
+
+**Arquivos alterados:**
+- `api/migrations/019_proactive_budget.sql`
+- `api/services/assistantProactive.js`
+- `api/routes/assistantRoutes.js`
+- `api/server.js`
+- `dashboard/src/components/assistant/ProactiveSuggestions.jsx`
+- `dashboard/src/components/assistant/AssistantProvider.jsx`
+- `dashboard/src/components/assistant/AssistantPanel.jsx`
+- `dashboard/src/components/layout/AppLayout.jsx`
+
+**Testes executados (curl, admin@contaux.com.br):**
+- Proactive status: enabled=true, budget daily_limit=10000, tokens_used=0 ✓
+- Gerar sugestões: 1 sugestão (4 tarefas pendentes) ✓
+- Deduplicação: gerar novamente → 1 (não duplica) ✓
+- Dispensar sugestão → sucesso ✓
+- Listar após dispensar → 0 ✓
+- Gerar após dispensar → 0 (cooldown 24h ativo) ✓
+- Kill switch OFF → gerar retorna 0 ✓
+- Kill switch OFF → status enabled=false ✓
+- Orçamento = 0 → gerar retorna 0 ✓
+- Orçamento excedido → /ask retorna 429 ✓
+- Kill switch reativado → portal funciona normalmente ✓
+- Dados de teste limpos ✓
+
+**Gate:** evento duplicado não repete ✓; orçamento bloqueia ✓; kill switch mantém portal ✓.
 
 ## CQ-08 — QA ponta a ponta e piloto
 

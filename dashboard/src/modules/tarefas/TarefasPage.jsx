@@ -2,9 +2,10 @@ import { useState } from 'react'
 import TaskList from './TaskList'
 import TaskForm from './TaskForm'
 import { useCollection } from '@/hooks/useCollection'
+import { request } from '@/lib/api'
 
 export default function TarefasPage() {
-  const { items: tasks, create, update, remove, loading } = useCollection('tasks')
+  const { items: tasks, create, update, remove, loading, reload } = useCollection('tasks')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -20,9 +21,23 @@ export default function TarefasPage() {
     setFormOpen(false)
   }
 
+  // Transição de status via orquestração durável (AC-GLOBAL-04)
+  const handleStatusChange = async (task, newStatus) => {
+    if (task.status === newStatus) return
+    try {
+      await request(`/tasks-orchestration/${task.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      reload()
+    } catch (err) {
+      alert(err.message || 'Erro ao alterar status')
+    }
+  }
+
   const handleToggleDone = async (task) => {
     const newStatus = task.status === 'done' ? 'todo' : 'done'
-    await update(task.id, { status: newStatus })
+    await handleStatusChange(task, newStatus)
   }
 
   const handleDelete = async (id) => {
@@ -41,6 +56,7 @@ export default function TarefasPage() {
         onNew={handleNew}
         onEdit={handleEdit}
         onToggleDone={handleToggleDone}
+        onStatusChange={handleStatusChange}
         onDelete={handleDelete}
       />
       <TaskForm open={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} editingTask={editing} />

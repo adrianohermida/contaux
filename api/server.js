@@ -9,6 +9,8 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
+const taskRoutes = require('./routes/taskRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
 const workflowEngine = require('./services/workflowEngine');
@@ -70,8 +72,14 @@ app.use('/api/public', publicRoutes);
 // Integração com escritórios parceiros (Hermida Maia e outros)
 app.use('/api/integration', integrationRoutes);
 
+// Assistente — conversas persistentes (AC-GLOBAL-02)
+app.use('/api/assistant', assistantRoutes);
+
+// Orquestração de tarefas — transições de status com log durável (AC-GLOBAL-04)
+app.use('/api/tasks-orchestration', taskRoutes);
+
 // ===== Workflow Engine — execução de automações =====
-const { requireAuth } = require('./middleware/auth');
+const { requireAuth, getAccessibleTenantIds } = require('./middleware/auth');
 
 // Executa um workflow específico (gatilho manual)
 app.post('/api/workflows/:id/execute', requireAuth, async (req, res) => {
@@ -121,14 +129,30 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
 
 // ===== Base de Conhecimento — Assistente de IA =====
 const aiService = require('./services/aiService');
+const { recordUsage, getBudgetStatus } = require('./services/assistantProactive');
 app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
   const { question } = req.body;
   if (!question || !question.trim()) {
     return res.status(400).json({ error: 'Pergunta é obrigatória' });
   }
   try {
-    const result = await aiService.ask(question.trim());
-    res.json(result);
+    // Verifica orçamento antes de processar
+    const budget = await getBudgetStatus(req.user.id, req.user.tenant_id);
+    if (budget.budget_exceeded) {
+      return res.status(429).json({
+        error: 'Orçamento diário do assistente excedido. Tente novamente amanhã.',
+        budget,
+      });
+    }
+
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const result = await aiService.ask(question.trim(), { tenantIds });
+
+    // Registra uso no orçamento (estimativa: ~500 tokens por requisição)
+    const estimatedTokens = result.configured ? 500 : 200;
+    await recordUsage(req.user.id, req.user.tenant_id, estimatedTokens, 0);
+
+    res.json({ ...result, budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens } });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });
   }

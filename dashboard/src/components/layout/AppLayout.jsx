@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -6,6 +6,7 @@ import { AssistantProvider } from '@/components/assistant/AssistantProvider'
 import AssistantWidget from '@/components/assistant/AssistantWidget'
 
 export default function AppLayout() {
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('contaux-sidebar-collapsed') === 'true'
@@ -35,6 +36,15 @@ export default function AppLayout() {
     document.documentElement.classList.toggle('dark', isDark)
     localStorage.setItem('contaux-theme', isDark ? 'dark' : 'light')
   }, [isDark])
+
+  // Navegação por sugestão proativa do assistente (CQ-07)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail) navigate(e.detail)
+    }
+    window.addEventListener('assistant-navigate', handler)
+    return () => window.removeEventListener('assistant-navigate', handler)
+  }, [navigate])
 
   const handleRefresh = () => {
     setRefreshing(true)

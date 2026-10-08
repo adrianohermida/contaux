@@ -79,9 +79,15 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
+  // Valida se o parâmetro id é um inteiro válido
+  function isValidId(id) {
+    return /^\d+$/.test(id);
+  }
+
   // Buscar por ID
   router.get('/:id', async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {
@@ -104,9 +110,18 @@ function createCrudRouter(table, opts = {}) {
   router.post('/', async (req, res) => {
     try {
       const data = prepareData(req.body);
-      // Auto-set tenant_id se a tabela suportar e não vier no body
-      if (!noTenant && data.tenant_id === undefined) {
-        data.tenant_id = req.user.tenant_id;
+      // Valida/isola tenant_id — nunca confiar no body sem validação
+      if (!noTenant) {
+        if (data.tenant_id !== undefined) {
+          // Usuário forneceu tenant_id — valida se está na lista de acessíveis
+          const tenantIds = await getAccessibleTenantIds(req.user);
+          if (!tenantIds.includes(parseInt(data.tenant_id))) {
+            return res.status(403).json({ error: 'Tenant não autorizado' });
+          }
+        } else {
+          // Sem tenant_id no body — usa o do usuário
+          data.tenant_id = req.user.tenant_id;
+        }
       }
       const fields = Object.keys(data);
       const values = Object.values(data);
@@ -127,6 +142,7 @@ function createCrudRouter(table, opts = {}) {
   // Atualizar
   router.patch('/:id', async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const data = prepareData(req.body);
       delete data.id;
       // Não permitir alterar tenant_id via CRUD
@@ -158,6 +174,7 @@ function createCrudRouter(table, opts = {}) {
   // Deletar — se pinProtectedDelete, exige X-PIN-Token válido
   const deleteHandler = async (req, res) => {
     try {
+      if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
       const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
       let sql, params;
       if (tenantClause) {
