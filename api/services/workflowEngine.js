@@ -144,7 +144,7 @@ async function executeWorkflow(workflow, context = {}) {
   // Registra execução no log de auditoria
   try {
     await query(
-      `INSERT INTO audit_logs (user, action, entity_type, entity_id, details)
+      `INSERT INTO audit_logs ("user", action, entity_type, entity_id, details)
        VALUES ($1, $2, $3, $4, $5)`,
       [
         context.triggered_by || 'system',
