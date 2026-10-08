@@ -19,7 +19,8 @@ export default function AppLayout() {
 
   const handleRefresh = () => {
     setRefreshing(true)
-    setTimeout(() => setRefreshing(false), 1000)
+    window.dispatchEvent(new CustomEvent('app-refresh'))
+    setTimeout(() => setRefreshing(false), 800)
   }
 
   return (

@@ -23,7 +23,7 @@ export default function Sidebar({ isOpen, onClose }) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
-          <a href="/inicio" className="flex items-center gap-2">
+          <a href="/" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
               C
             </span>
@@ -63,7 +63,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Voltar para o site */}
         <div className="border-t border-sidebar-border p-3">
           <a
-            href="/inicio"
+            href="/"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             ← Voltar para o site

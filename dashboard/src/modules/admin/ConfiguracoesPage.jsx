@@ -5,7 +5,7 @@ import { Input, Label } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useCollection } from '@/hooks/useCollection'
 import { useTheme } from '@/hooks/useTheme'
-import { roleLabels, roleVariants } from './lib/mockData'
+import { roleLabels, roleVariants } from '@/lib/roles'
 import { Building2, Users, Check, Palette } from 'lucide-react'
 
 /** Cores de marca predefinidas para seleção rápida */

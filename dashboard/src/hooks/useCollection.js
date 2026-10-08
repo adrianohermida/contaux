@@ -27,6 +27,13 @@ export function useCollection(resource) {
     reload();
   }, [reload]);
 
+  // Recarrega quando o usuário clica "Atualizar" no Header
+  useEffect(() => {
+    const handler = () => reload();
+    window.addEventListener('app-refresh', handler);
+    return () => window.removeEventListener('app-refresh', handler);
+  }, [reload]);
+
   const create = useCallback(async (data) => {
     const created = await api.create(data);
     setItems((prev) => [created, ...prev]);

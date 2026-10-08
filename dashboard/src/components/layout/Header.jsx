@@ -2,6 +2,7 @@ import { Menu, Moon, Sun, RefreshCw, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { getRoleLabel } from '@/lib/roles'
 
 export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, refreshing }) {
   const { user, logout } = useAuth()
@@ -44,7 +45,7 @@ export default function Header({ onMenuClick, isDark, onToggleTheme, onRefresh, 
         <div className="flex items-center gap-2">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-tight">{user?.name || 'Usuário'}</p>
-            <p className="text-xs text-muted-foreground leading-tight">{user?.role || ''}</p>
+            <p className="text-xs text-muted-foreground leading-tight">{getRoleLabel(user?.role)}</p>
           </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
             {initials}
