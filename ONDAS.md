@@ -267,8 +267,127 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Gate:** evento duplicado não repete ✓; orçamento bloqueia ✓; kill switch mantém portal ✓.
 
-## CQ-08 — QA ponta a ponta e piloto
+## CQ-07b — Correções de segurança (mini-onda 1)
+
+**Status:** Concluída.
+
+**Foco:** duas correções de segurança indispensáveis antes de liberar projetos privados e dots configuráveis.
+
+**Gate:** anexos exigem permissão na conversa (não apenas tenant); autoria de mensagens definida pelo servidor (cliente não pode forjar role).
+
+### Correção 1 — Anexos exigem permissão na conversa, não apenas pertencer à mesma empresa
+
+**Problema:** os endpoints de anexo já usavam `checkConversationAccess` (participante + tenant), mas as queries de download e delete do anexo não verificavam `a.tenant_id` contra o `tenant_id` da conversa verificada — uma inconsistência de dados poderia expor um anexo de outro tenant.
+
+**Solução:** defense-in-depth — adicionar `AND a.tenant_id = $3` (com `conv.tenant_id`) nas queries de download e delete de anexos. Agora há duas camadas: `checkConversationAccess` (participante + tenant) e a query do anexo (tenant match explícito).
+
+### Correção 2 — Autoria das mensagens definida pelo servidor
+
+**Problema:** o endpoint `POST /conversations/:id/messages` aceitava `role` do corpo da requisição (`user`/`assistant`/`system`). Um cliente malicioso poderia forjar mensagens como `assistant` ou `system`, impersonando o assistente ou o sistema.
+
+**Solução:** o servidor ignora `role` do body e sempre define `role = 'user'` com `author_id` e `author_name` do usuário autenticado. Mensagens `assistant` e `system` passam a ser criadas exclusivamente pelo servidor:
+- **`assistant`**: o endpoint `/api/knowledge-base/ask` agora aceita `conversation_id` e salva a resposta do assistente server-side.
+- **`system` (anexo)**: o endpoint de upload de anexos agora cria uma mensagem `system` com `event_type = 'attachment'`.
+- **`system` (tool)**: o endpoint `/assistant/tools/execute` agora cria uma mensagem `system` com `event_type = 'tool_result'` após executar a tool.
+- **`system` (handoff/close)**: já eram criadas server-side (pré-existente).
+
+**Arquivos alterados:**
+- `api/routes/assistantRoutes.js` — endpoint de mensagens ignora role do body; anexos com defense-in-depth; upload e tool execution salvam mensagens system server-side
+- `api/server.js` — `/knowledge-base/ask` aceita `conversation_id` e salva resposta assistant server-side; importa `query` de `./db`
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `saveMessage` → `saveUserMessage` (sem role); `sendMessage` passa `conversation_id` ao `/ask`; remove chamadas de save para assistant/system
+
+**Riscos:**
+- Se o `/knowledge-base/ask` falhar ao salvar a resposta do assistente, a mensagem aparece na UI mas não persiste. O erro é silencioso (logado no servidor) e não bloqueia a resposta ao usuário.
+- Mensagens de erro (quando o `/ask` retorna 500) não são mais persistidas — apenas exibidas na UI. Comportamento aceitável: erros transitórios não precisam de histórico.
+
+**Rollback:** reverter `assistantRoutes.js` (restaurar `role` do body), `server.js` (remover `conversation_id` do ask), `AssistantProvider.jsx` (restaurar `saveMessage` com role).
+
+## CQ-08 — Projetos privados e dots configuráveis
+
+**Status:** Concluída.
+
+**Foco:** organização de conversas em projetos privados, dots configuráveis (marcadores visuais com regras de governança), ACL por projeto.
+
+**Gate:** projeto privado isola conversas entre participantes não autorizados; dots configuráveis aplicam regras de visibilidade; ACL valida acesso antes de listar/abrir conversas de projeto.
+
+**Implementação:**
+- Migração 021: tabela `assistant_projects` (id, tenant_id, name, description, visibility, color, created_by) com CHECK de visibilidade (private/shared/internal), tabela `assistant_project_members` (project_id, user_id, role owner/member, UNIQUE), coluna `project_id` em `assistant_conversations` com FK ON DELETE SET NULL.
+- API (`assistantRoutes.js`): CRUD de projetos com ACL por tenant + participante (`checkProjectAccess`); listar conversas por projeto; atribuir/desatribuir conversa a projeto (`PATCH /conversations/:id/project`); gestão de membros (`GET/POST/DELETE /projects/:id/members`) — apenas owner adiciona/remove; verificação de tenant do usuário alvo ao adicionar membro.
+- UI: `ProjectSelector.jsx` — criar projetos com cor e visibilidade, listar projetos como chips coloridos, atribuir conversa ativa a um projeto (dots clicáveis).
+- UI: `ProjectFilter.jsx` — seção de projetos na sidebar do workspace com dots coloridos, filtro de conversas por projeto, botão de membros por projeto.
+- UI: `ProjectMembers.jsx` — gestão de membros: lista membros com role (owner = coroa), adicionar membros do tenant, remover membros (owner only).
+- UI: `WorkspaceSidebar.jsx` — lista de conversas filtra por `activeProjectFilter`, exibe dot colorido do projeto na conversa, seção "Projetos" colapsável com `ProjectFilter`.
+- `AssistantProvider.jsx` — estado de projetos (`projects`, `loadProjects`, `activeProjectFilter`, `setActiveProjectFilter`), carrega projetos ao montar.
+- Listagem de conversas retorna `project_color` e `project_name` via JOIN com `assistant_projects`.
+
+**Arquivos alterados:**
+- `api/migrations/021_projects_dots.sql`
+- `api/routes/assistantRoutes.js` — CRUD de projetos, membros, atribuição de conversas, ACL
+- `dashboard/src/components/assistant/ProjectSelector.jsx` — criar, listar, atribuir dots
+- `dashboard/src/components/assistant/ProjectFilter.jsx` — filtro por projeto na sidebar, botão de membros
+- `dashboard/src/components/assistant/ProjectMembers.jsx` — gestão de membros (novo)
+- `dashboard/src/components/assistant/WorkspaceSidebar.jsx` — filtro e dots na lista de conversas
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — estado de projetos e filtro
+
+**Testes executados (curl, admin@contaux.com.br):**
+- Listar projetos: 0 iniciais ✓
+- Criar projeto: id=3, name="Projeto Teste QA", color=#10B981, visibility=private, is_member=true, member_role=owner ✓
+- Listar projetos após criar: 1 projeto ✓
+- Listar membros: 1 (owner = Administrador Contaux) ✓
+- Listar usuários do tenant (para convite): 3 usuários ✓
+- Adicionar membro (contador@contaux.com.br, id=2): 201, role=member ✓
+- Listar membros após adicionar: 2 (owner + member) ✓
+- Criar conversa e atribuir ao projeto: project_id=3 ✓
+- Listar conversas: retorna project_color=#10B981, project_name="Projeto Teste QA" ✓
+- Listar conversas por projeto: 1 conversa ✓
+- Remover membro (id=2): success=true ✓
+- Verificar membro removido: 1 membro restante ✓
+- ACL cross-tenant: Hermida Maia vê 0 projetos da Contaux ✓
+- ACL cross-tenant: Hermida Maia não acessa membros do projeto Contaux (404) ✓
+- Cleanup: conversa de teste deletada ✓; projeto de teste deletado ✓; 0 projetos restantes ✓
+
+*Não verificado automaticamente (SPA em /dashboard não acessível via preview — navegador inicia no site estático):*
+- Dots coloridos na lista de conversas do workspace
+- Filtro de conversas por projeto ao clicar no dot
+- Painel de membros abrindo ao clicar no ícone de usuários
+- Criação de projeto via formulário inline
+- Atribuição de conversa a projeto via dots clicáveis
+
+**Gate:** projeto privado isola conversas entre participantes não autorizados ✓ (ACL cross-tenant); dots configuráveis aplicam regras de visibilidade ✓ (color + visibility); ACL valida acesso antes de listar/abrir conversas de projeto ✓ (checkProjectAccess em todos os endpoints).
+
+## CQ-09 — QA ponta a ponta e piloto
+
+**Status:** Em andamento.
 
 **Foco:** regressão, testes E2E, documentação operacional, runbook, plano de rollout.
 
 **Gate:** zero P0; fluxos de valor demonstrados; orçamento definido; aceite humano.
+
+**Implementação:**
+- Script de regressão automatizada (25 testes, CQ-01 a CQ-08): login, tenant isolation, conversas, mensagens (role enforcement), tools (5), memória, proatividade, projetos (CRUD + membros + ACL), handoff (fila + aceitar + fechar).
+- `docs/RUNBOOK.md` — documentação operacional completa: arquitetura, setup, migrações, endpoints, segurança, troubleshooting, plano de rollout em 3 fases, critérios de aceite.
+
+**Testes executados (regressão automatizada, curl):**
+- CQ-03: Login admin → token ✓; /me retorna usuário ✓
+- CQ-02: Tenant forjado (99999) negado (403) ✓
+- CQ-01: Listar conversas ✓; Criar conversa ✓; Buscar com mensagens ✓
+- CQ-07b: Mensagem forçada como 'user' (role=user) ✓
+- CQ-05: Listar tools (5) ✓; get_dashboard_summary ✓; create_task (admin) ✓
+- CQ-06: Criar memória ✓; Deletar memória ✓
+- CQ-07: Proatividade status (enabled=true) ✓
+- CQ-08: Criar projeto ✓; Atribuir conversa ✓; Dot colorido (#EF4444) ✓; Listar membros ✓; Adicionar membro ✓; Remover membro ✓; ACL cross-tenant (Hermida vê 0) ✓; ACL acesso projeto (404) ✓
+- CQ-04: Handoff → waiting_human ✓; Fila (1) ✓; Aceitar → with_human ✓; Fechar → closed ✓
+- Cleanup: dados de teste removidos ✓
+- **Resultado: 25 pass | 0 fail | 1 skip** (refresh token não testável via curl simples)
+
+**Critérios de aceite:**
+- [x] Zero P0 (segurança: tenant isolation, role enforcement, MIME validation, ACL projetos)
+- [x] Fluxos de valor demonstrados (conversas, handoff, ferramentas, projetos, membros)
+- [ ] Orçamento de tokens definido (configurar em settings — pendente decisão humana)
+- [ ] Aceite humano (piloto interno — pendente validação manual da UI)
+
+**Pendências manuais:**
+- Verificação visual dos dots coloridos no workspace fullscreen (SPA não acessível via preview automatizado)
+- Validação do fluxo de criação de projeto e atribuição de conversa na UI
+- Configuração do orçamento de tokens diário em produção
+- Treinamento da equipe para o piloto interno

@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Sparkles, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Sparkles, X, ArrowLeft } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import AssistantPanel from './AssistantPanel'
 import FullscreenWorkspace from './FullscreenWorkspace'
@@ -8,11 +8,13 @@ import FullscreenWorkspace from './FullscreenWorkspace'
  * Widget do Assistente Contaux — minimalista.
  * Desktop: coluna docked (recolhida = rail 48px, expandida = 360px).
  * Mobile: orb flutuante (recolhido) ou overlay fullscreen (expandido).
+ * Fullscreen: workspace de comunicação com coluna esquerda + conversa.
  */
 export default function AssistantWidget() {
   const { panelMode, expand, collapse, enterFullscreen, unreadCount, status } = useAssistant()
   const hasUnread = unreadCount > 0
   const isActive = status === 'preparing'
+  const [mobileView, setMobileView] = useState('list') // 'list' | 'chat'
 
   useEffect(() => {
     if (panelMode === 'collapsed') return
@@ -20,6 +22,11 @@ export default function AssistantWidget() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [panelMode, collapse])
+
+  // Reset mobile view ao sair do fullscreen
+  useEffect(() => {
+    if (panelMode !== 'fullscreen') setMobileView('list')
+  }, [panelMode])
 
   if (panelMode === 'fullscreen') {
     return <FullscreenWorkspace onClose={collapse} />

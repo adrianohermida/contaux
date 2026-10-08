@@ -46,6 +46,7 @@ services:
       - POSTGRES_PASSWORD=contaux123
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./db/init-postgres-role.sql:/docker-entrypoint-initdb.d/init-postgres-role.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "contaux", "-d", "contaux"]
       interval: 5s
@@ -60,7 +61,9 @@ services:
     volumes:
       - ./api:/app
       - api_node_modules:/app/node_modules
-    command: ["sh", "-ec", "npm install && exec node --watch server.js"]
+    # Use --watch-path to watch only source dirs, excluding uploads/ (file uploads
+    # would otherwise restart the server via node --watch).
+    command: ["sh", "-ec", "npm install && exec node --watch --watch-path=routes --watch-path=services --watch-path=middleware --watch-path=migrations --watch-path=db.js --watch-path=server.js server.js"]
     env_file:
       - /run/base44/app.env
     environment:

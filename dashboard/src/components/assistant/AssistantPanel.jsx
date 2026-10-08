@@ -8,6 +8,7 @@ import ToolApproval from './ToolApproval'
 import VoiceInput from './VoiceInput'
 import AttachmentButton from './AttachmentButton'
 import ProactiveSuggestions from './ProactiveSuggestions'
+import { ProjectSelector } from './ProjectSelector'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -93,7 +94,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
                 }`}
               >
                 <button onClick={() => openConversation(conv.id)} className="flex flex-1 items-center gap-2 text-left min-w-0">
-                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  {conv.project_color ? (
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: conv.project_color }} title={conv.project_name} />
+                  ) : (
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{conv.title}</p>
                     <p className="text-[10px] text-muted-foreground">
@@ -112,12 +117,17 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
             ))
           )}
         </div>
+
+        {/* Seletor de projetos e dots configuráveis (CQ-08) */}
+        <div className="shrink-0 border-t border-border px-3 py-2">
+          <ProjectSelector />
+        </div>
       </div>
     )
   }
 
-  // ===== Overlay: fila de atendimento (staff) =====
-  if (showQueue) {
+  // ===== Overlay: fila de atendimento (não em fullscreen — sidebar cuida) =====
+  if (showQueue && !fullscreen) {
     return <HandoffQueue onClose={() => setShowQueue(false)} />
   }
 
@@ -166,9 +176,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
               <XCircle className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={() => setShowQueue(true)} className="h-7 w-7" title="Fila de atendimento">
-            <Headphones className="h-3.5 w-3.5" />
-          </Button>
+          {!fullscreen && (
+            <Button variant="ghost" size="icon" onClick={() => setShowQueue(true)} className="h-7 w-7" title="Fila de atendimento">
+              <Headphones className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => setShowTaskForm(true)} className="h-7 w-7" title="Propor tarefa">
             <CheckSquare className="h-3.5 w-3.5" />
           </Button>
