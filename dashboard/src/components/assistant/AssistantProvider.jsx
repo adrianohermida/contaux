@@ -36,6 +36,9 @@ export function AssistantProvider({ children }) {
   const [contextMode, setContextMode] = useState(persisted.current?.contextMode || 'follow')
   const [lockedContext, setLockedContext] = useState(persisted.current?.lockedContext || null)
   const [conversations, setConversations] = useState([])
+  const [loadingConversations, setLoadingConversations] = useState(false)
+  const [hasMoreConversations, setHasMoreConversations] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [activeConvId, setActiveConvId] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [pendingTask, setPendingTask] = useState(null) // tarefa proposta pelo assistente

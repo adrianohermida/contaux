@@ -379,10 +379,13 @@ router.delete('/dots/:id', async (req, res) => {
 
 // ===== Conversas =====
 
-// Listar conversas do usuário (mais recentes primeiro)
+// Listar conversas do usuário (mais recentes primeiro) — paginado
 // Inclui conversas onde o usuário é dono, responsável ou participante
 router.get('/conversations', async (req, res) => {
   try {
+    const offset = Math.max(0, parseInt(req.query.offset || '0', 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '50', 10)));
+
     const result = await query(
       `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
               c.project_id, c.dot_id, c.created_at, c.updated_at,
@@ -391,16 +394,29 @@ router.get('/conversations', async (req, res) => {
        WHERE c.user_id = $1 OR c.assigned_to = $1
          OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $1)
        ORDER BY c.updated_at DESC
-       LIMIT 50`,
+       LIMIT $2 OFFSET $3`,
+      [req.user.id, limit, offset],
+    );
+
+    const countResult = await query(
+      `SELECT count(*) AS total FROM assistant_conversations c
+       WHERE c.user_id = $1 OR c.assigned_to = $1
+         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $1)`,
       [req.user.id],
     );
-    res.json(result.rows.map((r) => ({
-      ...r,
-      id: String(r.id),
-      project_id: r.project_id ? String(r.project_id) : null,
-      dot_id: r.dot_id ? String(r.dot_id) : null,
-      context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
-    })));
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    res.json({
+      conversations: result.rows.map((r) => ({
+        ...r,
+        id: String(r.id),
+        project_id: r.project_id ? String(r.project_id) : null,
+        dot_id: r.dot_id ? String(r.dot_id) : null,
+        context: typeof r.context === 'string' ? JSON.parse(r.context) : r.context,
+      })),
+      total,
+      hasMore: offset + result.rows.length < total,
+    });
   } catch (err) {
     console.error('[assistant] Erro ao listar conversas:', err.message);
     res.status(500).json({ error: 'Erro ao buscar conversas' });
