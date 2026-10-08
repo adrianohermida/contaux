@@ -352,6 +352,9 @@ MigrationBackup/
 # Legacy reference
 legacy/node_modules/
 
+# Dashboard build output (Dockerfile.prod builds from source)
+dashboard/dist/
+
 # Production deploy
 .env.prod
 certbot/

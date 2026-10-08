@@ -30,6 +30,42 @@
       "requiredAtBoot": false
     },
     {
+      "name": "CLOUDFLARE_WORKER_API_KEY",
+      "description": "Chave compartilhada entre a API e os Workers do Cloudflare para autenticar webhooks de inbox. Gerada para desenvolvimento — substitua por uma chave forte em produção.",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": true
+    },
+    {
+      "name": "CLOUDFLARE_WORKER_NAME",
+      "description": "Nome do Worker legacy de envio de emails (default: contaux-email-sender)",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_WORKERS_DOMAIN",
+      "description": "Domínio base dos Workers (default: contaux.workers.dev)",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_WORKERS_SUBDOMAIN",
+      "description": "Subdomínio do Worker de envio (default: igual ao WORKER_NAME)",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_ROUTER_WORKER_NAME",
+      "description": "Nome do Worker de inbound email-router (default: contaux-email-router)",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "CLOUDFLARE_FORWARDER_WORKER_NAME",
+      "description": "Nome do Worker de outbound email-forwarder (default: contaux-email-forwarder)",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "API_PUBLIC_URL",
+      "description": "URL pública da API para webhooks de email inbound (ex: https://api.contaux.com.br)",
+      "requiredAtBoot": false
+    },
+    {
       "name": "SMTP_HOST",
       "description": "Host SMTP para fallback de envio de emails",
       "requiredAtBoot": false,
