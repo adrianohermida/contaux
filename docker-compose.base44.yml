@@ -65,6 +65,7 @@ services:
       - /run/base44/app.env
     environment:
       - BASE44_PREVIEW_MODE=${BASE44_PREVIEW_MODE:-}
+      - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX:-}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_NAME=contaux

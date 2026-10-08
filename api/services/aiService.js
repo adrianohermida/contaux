@@ -1,16 +1,35 @@
 /**
- * Serviço de IA — integração com OpenAI para o assistente da Base de Conhecimento.
- * Usa a API de Chat Completions para responder perguntas com base no conteúdo da KB.
+ * Serviço de IA — integração com o Base44 AI Gateway.
+ * Usa o gateway OpenAI-compatible da Base44 para responder perguntas
+ * com base no conteúdo da Base de Conhecimento.
+ *
+ * O app ID é extraído automaticamente de BASE44_PUBLIC_HOST_SUFFIX.
+ * O token de serviço (BASE44_SERVICE_TOKEN) deve ser configurado nos secrets.
  */
 const { query } = require('../db');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+/** Extrai o App ID do BASE44_PUBLIC_HOST_SUFFIX (formato: {appId}--b-{branchId}...) */
+function getAppId() {
+  const suffix = process.env.BASE44_PUBLIC_HOST_SUFFIX || '';
+  const appId = suffix.split('--')[0];
+  return appId || process.env.BASE44_APP_ID || '';
+}
+
+/** URL base do gateway AI da Base44 */
+function getGatewayBaseURL() {
+  const appId = getAppId();
+  const serverUrl = process.env.BASE44_API_URL || 'https://base44.app';
+  return `${serverUrl}/api/apps/${appId}/ai/openai/v1`;
+}
+
+/** Token de autenticação do serviço (service role) */
+function getServiceToken() {
+  return process.env.BASE44_SERVICE_TOKEN || '';
+}
 
 /** Verifica se a IA está configurada */
 function isConfigured() {
-  return !!OPENAI_API_KEY;
+  return !!getAppId() && !!getServiceToken();
 }
 
 /**
@@ -31,7 +50,8 @@ async function searchContext(question, limit = 5) {
 }
 
 /**
- * Responde uma pergunta do usuário com base na Base de Conhecimento.
+ * Responde uma pergunta do usuário com base na Base de Conhecimento,
+ * usando o Base44 AI Gateway (OpenAI-compatible).
  * @param {string} question - Pergunta do usuário
  * @returns {Promise<{answer: string, sources: array, configured: boolean}>}
  */
@@ -39,7 +59,7 @@ async function ask(question) {
   if (!isConfigured()) {
     return {
       configured: false,
-      answer: 'O assistente de IA não está configurado. Adicione a chave da API OpenAI (OPENAI_API_KEY) nas configurações de secrets.',
+      answer: 'O assistente de IA não está configurado. Configure o BASE44_SERVICE_TOKEN nos secrets da plataforma Base44 para ativar o assistente.',
       sources: [],
     };
   }
@@ -56,14 +76,17 @@ async function ask(question) {
 
   const systemPrompt = `Você é um assistente especialista em contabilidade e legislação brasileira, integrado à Base de Conhecimento da Contaux Contadoria. Responda em português brasileiro, de forma clara e objetiva. Use o contexto fornecido da base de conhecimento para fundamentar suas respostas. Se a pergunta não estiver relacionada ao contexto, indique que não há informação suficiente na base de conhecimento.\n\nContexto da Base de Conhecimento:\n${contextText}`;
 
-  const response = await fetch(OPENAI_URL, {
+  const baseURL = getGatewayBaseURL();
+  const token = getServiceToken();
+
+  const response = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: 'automatic',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: question },
@@ -75,8 +98,15 @@ async function ask(question) {
 
   if (!response.ok) {
     const err = await response.text();
-    console.error('Erro na API OpenAI:', err);
-    throw new Error('Erro ao consultar a IA');
+    console.error('Erro no Base44 AI Gateway:', err);
+    if (response.status === 403) {
+      return {
+        configured: false,
+        answer: 'O app precisa estar publicado na Base44 para usar o AI Gateway. Publique o app e tente novamente.',
+        sources: [],
+      };
+    }
+    throw new Error('Erro ao consultar a IA via Base44 AI Gateway');
   }
 
   const data = await response.json();
