@@ -13,6 +13,7 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const apiBase = (env.API_URL || 'http://localhost:3001').replace(/\/$/, '');
+  const origin = request.headers.get('Origin');
 
   // Constrói a URL de destino: /api/settings → ${API_URL}/api/settings
   const targetUrl = `${apiBase}${url.pathname}${url.search}`;
@@ -34,11 +35,27 @@ export async function onRequest(context) {
   try {
     const response = await fetch(targetUrl, proxyInit);
 
-    // Adiciona headers CORS caso o backend não os tenha
+    // Repassa headers da resposta, incluindo Set-Cookie para sessão persistente
     const respHeaders = new Headers(response.headers);
-    respHeaders.set('Access-Control-Allow-Origin', '*');
+
+    // CORS com credenciais: ecoa o Origin da requisição (nunca '*')
+    // — 'Access-Control-Allow-Origin: *' + credentials é rejeitado pelo navegador
+    if (origin) {
+      respHeaders.set('Access-Control-Allow-Origin', origin);
+      respHeaders.set('Access-Control-Allow-Credentials', 'true');
+      respHeaders.set('Vary', 'Origin');
+    }
     respHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     respHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Garante que Set-Cookie seja repassado (Cloudflare pode filtrar)
+    const setCookies = response.headers.getAll('Set-Cookie');
+    if (setCookies.length > 0) {
+      respHeaders.delete('Set-Cookie');
+      for (const cookie of setCookies) {
+        respHeaders.append('Set-Cookie', cookie);
+      }
+    }
 
     return new Response(response.body, {
       status: response.status,
@@ -54,14 +71,18 @@ export async function onRequest(context) {
 }
 
 // Handle preflight OPTIONS
-export async function onRequestOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
+export async function onRequestOptions(context) {
+  const { request } = context;
+  const origin = request.headers.get('Origin');
+  const headers = {
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
+  if (origin) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Credentials'] = 'true';
+    headers['Vary'] = 'Origin';
+  }
+  return new Response(null, { status: 204, headers });
 }

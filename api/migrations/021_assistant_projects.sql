@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS assistant_projects (
   created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE SET NULL,
   name        TEXT NOT NULL,
   description TEXT,
+  visibility  TEXT NOT NULL DEFAULT 'private'
+    CHECK (visibility IN ('private', 'shared', 'internal')),
   color       TEXT DEFAULT '#3763EB',
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()
