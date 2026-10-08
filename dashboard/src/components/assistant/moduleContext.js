@@ -31,24 +31,5 @@ export function resolveModule(pathname) {
   return SUBROUTE_MAP[pathname] || ROUTE_MODULE_MAP[pathname] || 'Contaux'
 }
 
-/** Demonstrações identificadas — não executam ações reais. */
-export const DEMO_SUGGESTIONS = [
-  {
-    id: 'demo-nav',
-    label: 'Navegação contextual',
-    description: 'O assistente acompanha o módulo atual e mostra o contexto em uso.',
-    prompt: 'Explique como você acompanha o contexto da tela atual',
-  },
-  {
-    id: 'demo-query',
-    label: 'Consulta operacional',
-    description: 'Demonstração de busca em dados autorizados (sem dados reais).',
-    prompt: 'Demonstre uma consulta operacional simulada',
-  },
-  {
-    id: 'demo-task',
-    label: 'Acompanhar tarefa',
-    description: 'Demonstração de proposta e acompanhamento de tarefa.',
-    prompt: 'Demonstre como propõe e acompanha uma tarefa',
-  },
-]
+// Re-exporta a matriz de cobertura (AC-GLOBAL-03) para compatibilidade
+export { getModuleCoverage, DEFAULT_SUGGESTIONS as DEMO_SUGGESTIONS } from './moduleCoverage'

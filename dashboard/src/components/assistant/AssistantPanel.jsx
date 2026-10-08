@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
-import { DEMO_SUGGESTIONS } from './moduleContext'
+import { getModuleCoverage } from './moduleCoverage'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -25,6 +25,10 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
   } = useAssistant()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
+
+  // Sugestões contextuais baseadas no módulo atual (AC-GLOBAL-03)
+  const coverage = getModuleCoverage(context.route || '')
+  const suggestions = coverage.suggestions
 
   const handleSubmit = (e) => {
     e?.preventDefault()
@@ -195,20 +199,31 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
                 Pergunte sobre legislação, normas contábeis (NBCs) ou artigos da base de conhecimento.
               </p>
             </div>
-            {/* Demonstrações identificadas */}
+            {/* Sugestões contextuais do módulo (AC-GLOBAL-03) */}
             <div className="w-full space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Demonstrações</p>
-              {DEMO_SUGGESTIONS.map((demo) => (
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Sugestões — {context.module}
+              </p>
+              {suggestions.map((s) => (
                 <button
-                  key={demo.id}
-                  onClick={() => handleDemo(demo.prompt)}
+                  key={s.id}
+                  onClick={() => handleDemo(s.prompt)}
                   disabled={preparing}
                   className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-left text-xs transition-colors hover:bg-primary/10 disabled:opacity-50"
                 >
-                  <span className="font-medium text-primary">{demo.label}</span>
-                  <span className="block text-muted-foreground mt-0.5">{demo.description}</span>
+                  <span className="font-medium text-primary">{s.label}</span>
+                  <span className="block text-muted-foreground mt-0.5">{s.description}</span>
                 </button>
               ))}
+              {coverage.capabilities.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {coverage.capabilities.map((cap) => (
+                    <span key={cap} className="inline-flex items-center rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
