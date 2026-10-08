@@ -133,4 +133,5 @@ api/
 - `api/services/cfcSync.js` rastreia `cfc.org.br/tecnica/normas-brasileiras-de-contabilidade/` (+ categorias), baixa PDFs/DOCX do SRE, extrai o texto (pdf-parse/mammoth) e grava em `knowledge_base` (`external_code` único, `source_url`). Migração `008`.
 - Endpoints: `POST /api/knowledge-base/sync` (`{mode:'full'|'incremental'}`, admin+) e `GET /api/knowledge-base/sync/status`. Botão "Sincronizar NBCs (CFC)" na página.
 - Agendamento: checagem diária de normas novas e reprocessamento completo a cada 365 dias. Desligado no sandbox (`BASE44_PREVIEW_MODE=1`) ou com `KB_SYNC_AUTO=0`.
-- A extração é textual (sem LLM); resumo vem da ementa/descrição do SRE. Arquivos `.doc` binários não têm texto extraído (só o link).
+- A extração é textual (sem LLM); resumo vem do campo "Descrição:" do SRE. Arquivos `.doc` binários não têm texto extraído (só o link).
+- **Correção de URL**: páginas SRE em `www1.cfc.org.br` retornam tabela vazia — o código converte para `www2.cfc.org.br` antes de buscar. Título extraído do campo "Descrição:" (não "Ementa:"). Fallback de URL de download via parâmetro `arquivo` da URL quando a página SRE não tem links de download.

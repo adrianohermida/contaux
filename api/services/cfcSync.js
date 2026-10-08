@@ -81,20 +81,28 @@ function tagsFor(title) {
 async function processDoc(d) {
   let title = d.code, summary = '', source = d.code, pdfUrl = d.url, published = null;
   if (d.kind === 'sre') {
-    const html = await fetchText(d.url);
+    // Páginas SRE em www1 retornam tabela vazia — sempre usar www2
+    const sreUrl = d.url.replace('://www1.cfc.org.br', '://www2.cfc.org.br');
+    const html = await fetchText(sreUrl);
     const raw = (label) => {
       const m = html.match(new RegExp(label + '[^<]*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>', 'i'));
       return m ? decode(m[1]).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t\r]+/g, ' ').replace(/\n\s*/g, '\n').trim() : '';
     };
     const field = (label) => raw(label).replace(/\s+/g, ' ');
-    const ementa = raw('Ementa:');
+    // SRE usa "Descrição:" (não "Ementa:") como campo principal
+    const descricao = field('Descri');
     const revoked = /^SIM/i.test(field('foi revogada'));
     const pdf = (html.match(/href="([^"]+\.pdf)"/i) || [])[1];
     const doc = (html.match(/href="([^"]+\.docx?)"/i) || [])[1];
     pdfUrl = pdf || doc || null;
-    const firstLine = ementa.split('\n').find((x) => x.trim()) || '';
+    // Fallback: usar parâmetro "arquivo" da URL se não houver link de download na página
+    if (!pdfUrl) {
+      const arquivo = new URL(sreUrl).searchParams.get('arquivo');
+      if (arquivo) pdfUrl = `https://www1.cfc.org.br/sisweb/SRE/docs/${arquivo}`;
+    }
+    const firstLine = descricao.split('\n').find((x) => x.trim()) || '';
     title = (firstLine.replace(/,\s*DE\s.*$/i, '') || d.code).slice(0, 200);
-    summary = (field('Descri') || ementa.split('\n').slice(1).join(' ')).slice(0, 500);
+    summary = descricao.slice(0, 500);
     published = field('Data de Publica');
     source = `CFC ${d.code}` + (published ? ` — DOU ${published}` : '') + (revoked ? ' (REVOGADA)' : '');
     d.revoked = revoked;
