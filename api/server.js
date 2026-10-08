@@ -130,8 +130,9 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
 // ===== Base de Conhecimento — Assistente de IA =====
 const aiService = require('./services/aiService');
 const { recordUsage, getBudgetStatus } = require('./services/assistantProactive');
+const { query } = require('./db');
 app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
-  const { question } = req.body;
+  const { question, conversation_id } = req.body;
   if (!question || !question.trim()) {
     return res.status(400).json({ error: 'Pergunta é obrigatória' });
   }
@@ -146,13 +147,62 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
     }
 
     const tenantIds = await getAccessibleTenantIds(req.user);
-    const result = await aiService.ask(question.trim(), { tenantIds });
+
+    // Busca histórico da conversa atual (últimas 20 mensagens) para contexto da IA
+    let conversationHistory = [];
+    if (conversation_id) {
+      const histResult = await query(
+        `SELECT role, text FROM assistant_messages
+         WHERE conversation_id = $1 AND role IN ('user', 'assistant')
+         ORDER BY created_at ASC
+         LIMIT 20`,
+        [conversation_id],
+      );
+      conversationHistory = histResult.rows;
+    }
+
+    const result = await aiService.ask(question.trim(), { tenantIds, conversationHistory });
+
+    // Salva mensagens no servidor (autoria definida pelo servidor, não pelo cliente)
+    let savedMessages = null;
+    if (conversation_id) {
+      // Salva a pergunta do usuário
+      const userMsg = await query(
+        `INSERT INTO assistant_messages (conversation_id, role, text, author_id, author_name)
+         VALUES ($1, 'user', $2, $3, $4)
+         RETURNING id, role, text, author_id, author_name, created_at`,
+        [conversation_id, question.trim(), req.user.id, req.user.name],
+      );
+
+      // Salva a resposta da IA
+      const aiMsg = await query(
+        `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_name)
+         VALUES ($1, 'assistant', $2, $3, 'Assistente')
+         RETURNING id, role, text, sources, author_name, created_at`,
+        [conversation_id, result.answer, result.sources ? JSON.stringify(result.sources) : null],
+      );
+
+      await query(`UPDATE assistant_conversations SET updated_at = now() WHERE id = $1`, [conversation_id]);
+
+      savedMessages = {
+        user: { ...userMsg.rows[0], id: String(userMsg.rows[0].id) },
+        assistant: {
+          ...aiMsg.rows[0],
+          id: String(aiMsg.rows[0].id),
+          sources: typeof aiMsg.rows[0].sources === 'string' ? JSON.parse(aiMsg.rows[0].sources) : aiMsg.rows[0].sources,
+        },
+      };
+    }
 
     // Registra uso no orçamento (estimativa: ~500 tokens por requisição)
     const estimatedTokens = result.configured ? 500 : 200;
     await recordUsage(req.user.id, req.user.tenant_id, estimatedTokens, 0);
 
-    res.json({ ...result, budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens } });
+    res.json({
+      ...result,
+      budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens },
+      savedMessages,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao consultar o assistente' });
   }

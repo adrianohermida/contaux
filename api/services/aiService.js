@@ -69,18 +69,28 @@ Cite as fontes pelo título quando relevante. Não invente informações.`;
  * Chama a API do OpenAI (Chat Completions) com o contexto da base de conhecimento.
  * Retorna null se a API não estiver configurada ou falhar.
  */
-async function tryLLMResponse(question, contextText) {
+async function tryLLMResponse(question, contextText, conversationHistory = []) {
   if (!isLLMConfigured()) return null;
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    {
-      role: 'user',
-      content: contextText
-        ? `Contexto da Base de Conhecimento:\n\n${contextText}\n\n---\n\nPergunta: ${question}`
-        : `Pergunta: ${question}\n\n(Obs: nenhum item relevante foi encontrado na base de conhecimento para esta pergunta.)`,
-    },
   ];
+
+  // Inclui histórico da conversa atual (últimas 10 mensagens) para contexto contínuo
+  const recentHistory = conversationHistory.slice(-10);
+  for (const msg of recentHistory) {
+    if (msg.role === 'user' || msg.role === 'assistant') {
+      messages.push({ role: msg.role, content: msg.text });
+    }
+  }
+
+  // Pergunta atual com contexto da base de conhecimento
+  messages.push({
+    role: 'user',
+    content: contextText
+      ? `Contexto da Base de Conhecimento:\n\n${contextText}\n\n---\n\nPergunta: ${question}`
+      : `Pergunta: ${question}\n\n(Obs: nenhum item relevante foi encontrado na base de conhecimento para esta pergunta.)`,
+  });
 
   try {
     const response = await fetch(OPENAI_API_URL, {
@@ -154,6 +164,7 @@ function buildSearchAnswer(sources) {
 async function ask(question, userContext = null) {
   // Busca contexto na base de conhecimento (com isolamento por tenant)
   const tenantIds = userContext?.tenantIds || null;
+  const conversationHistory = userContext?.conversationHistory || [];
   const sources = await searchKnowledgeBase(question, tenantIds);
 
   // Constrói contexto para o LLM (se disponível)
@@ -164,7 +175,7 @@ async function ask(question, userContext = null) {
     : '';
 
   // Tenta resposta via LLM (backend function deployada)
-  const llmAnswer = await tryLLMResponse(question, contextText);
+  const llmAnswer = await tryLLMResponse(question, contextText, conversationHistory);
 
   if (llmAnswer) {
     return {

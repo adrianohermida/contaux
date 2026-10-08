@@ -57,8 +57,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     }
   }
 
-  // ===== Overlay: lista de conversas =====
-  if (showHistory) {
+  // ===== Overlay: lista de conversas (não mostra em fullscreen — a sidebar já cuida) =====
+  if (showHistory && !fullscreen) {
     return (
       <div className="flex h-full flex-col bg-card">
         <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
@@ -205,9 +205,11 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
-            <History className="h-3.5 w-3.5" />
-          </Button>
+          {!fullscreen && (
+            <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} className="h-7 w-7" title="Conversas">
+              <History className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" onClick={clearMessages} className="h-7 w-7" title="Limpar">
               <Trash2 className="h-3.5 w-3.5" />

@@ -139,17 +139,20 @@ router.get('/proactive/status', async (req, res) => {
 // ===== Fila de atendimento (staff) — deve vir antes de /:id =====
 
 // Listar conversas aguardando atendimento humano (staff only)
+// SEGURANÇA: filtra por tenants acessíveis ao usuário — não libera por cargo genérico
 router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
+    const tenantIds = await getAccessibleTenantIds(req.user);
     const result = await query(
-      `SELECT c.id, c.title, c.status, c.origin, c.visitor_name, c.handoff_reason,
-              c.created_at, c.updated_at,
+      `SELECT c.id, c.title, c.status, c.origin, c.conversation_kind, c.visitor_name,
+              c.handoff_reason, c.tenant_id, c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id AND role = 'user') AS msg_count,
               (SELECT max(created_at) FROM assistant_messages WHERE conversation_id = c.id) AS last_msg_at
        FROM assistant_conversations c
-       WHERE c.status = 'waiting_human'
+       WHERE c.status = 'waiting_human' AND c.tenant_id = ANY($1::int[])
        ORDER BY c.updated_at ASC
        LIMIT 50`,
+      [tenantIds],
     );
     res.json(result.rows.map((r) => ({ ...r, id: String(r.id) })));
   } catch (err) {
@@ -161,14 +164,16 @@ router.get('/conversations/queue', requireRole('admin', 'superadmin', 'accountan
 // ===== Conversas =====
 
 // Listar conversas do usuário (mais recentes primeiro)
+// Inclui conversas onde o usuário é dono, responsável ou participante
 router.get('/conversations', async (req, res) => {
   try {
     const result = await query(
-      `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to,
+      `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
               c.created_at, c.updated_at,
               (SELECT count(*) FROM assistant_messages WHERE conversation_id = c.id) AS message_count
        FROM assistant_conversations c
-       WHERE c.user_id = $1
+       WHERE c.user_id = $1 OR c.assigned_to = $1
+         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $1)
        ORDER BY c.updated_at DESC
        LIMIT 50`,
       [req.user.id],
@@ -189,9 +194,9 @@ router.post('/conversations', async (req, res) => {
   try {
     const { title, context } = req.body;
     const result = await query(
-      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin)
-       VALUES ($1, $2, $3, $4, 'internal')
-       RETURNING id, title, context, status, origin, created_at, updated_at`,
+      `INSERT INTO assistant_conversations (user_id, tenant_id, title, context, origin, conversation_kind)
+       VALUES ($1, $2, $3, $4, 'internal', 'ai')
+       RETURNING id, title, context, status, origin, conversation_kind, created_at, updated_at`,
       [req.user.id, req.user.tenant_id, title || 'Nova conversa', context ? JSON.stringify(context) : null],
     );
     const row = result.rows[0];
@@ -218,7 +223,7 @@ router.post('/conversations', async (req, res) => {
 router.get('/conversations/:id', async (req, res) => {
   try {
     const convResult = await query(
-      `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to,
+      `SELECT c.id, c.title, c.context, c.status, c.origin, c.assigned_to, c.conversation_kind,
               c.handoff_reason, c.visitor_name, c.created_at, c.updated_at
        FROM assistant_conversations c
        WHERE c.id = $1 AND (c.user_id = $2 OR c.assigned_to = $2
@@ -333,7 +338,7 @@ router.post('/conversations/:id/handoff', async (req, res) => {
     }
 
     await query(
-      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, updated_at = now()
+      `UPDATE assistant_conversations SET status = 'waiting_human', handoff_reason = $2, conversation_kind = 'support', updated_at = now()
        WHERE id = $1`,
       [convId, reason || null],
     );
@@ -353,21 +358,32 @@ router.post('/conversations/:id/handoff', async (req, res) => {
 });
 
 // Aceitar handoff (staff only)
+// SEGURANÇA: atribuição atômica concorrente-safe + restrição de tenant
 router.post('/conversations/:id/accept', requireRole('admin', 'superadmin', 'accountant'), async (req, res) => {
   try {
     const convId = req.params.id;
+    const tenantIds = await getAccessibleTenantIds(req.user);
 
-    const conv = await query(
-      `SELECT id, status FROM assistant_conversations WHERE id = $1 AND status = 'waiting_human'`,
-      [convId],
+    // UPDATE atômico: só sucesso se status ainda é 'waiting_human' E tenant é acessível
+    // Isso garante que dois staff não assumam o mesmo atendimento (race condition)
+    const result = await query(
+      `UPDATE assistant_conversations
+       SET status = 'with_human', assigned_to = $1, conversation_kind = 'support', updated_at = now()
+       WHERE id = $2 AND status = 'waiting_human' AND tenant_id = ANY($3::int[])
+       RETURNING id, tenant_id`,
+      [req.user.id, convId, tenantIds],
     );
-    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada ou não aguarda atendimento' });
 
-    await query(
-      `UPDATE assistant_conversations SET status = 'with_human', assigned_to = $2, updated_at = now()
-       WHERE id = $1`,
-      [convId, req.user.id],
-    );
+    if (result.rows.length === 0) {
+      // Distingue: não existe, já assumido, ou sem permissão de tenant
+      const conv = await query(
+        `SELECT id, status, tenant_id FROM assistant_conversations WHERE id = $1`,
+        [convId],
+      );
+      if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
+      if (conv.rows[0].status !== 'waiting_human') return res.status(409).json({ error: 'Atendimento já foi assumido' });
+      return res.status(403).json({ error: 'Sem permissão para este tenant' });
+    }
 
     // Adiciona staff como participante se ainda não for
     await query(
@@ -423,11 +439,12 @@ router.post('/conversations/:id/close', requireRole('admin', 'superadmin', 'acco
 // ===== Mensagens =====
 
 // Adicionar mensagem a uma conversa
+// SEGURANÇA: role é sempre 'user' — definido pelo servidor, não pelo navegador.
+// Mensagens 'assistant' e 'system' só são criadas pelo backend (rotas internas).
 router.post('/conversations/:id/messages', async (req, res) => {
   try {
-    const { role, text, sources } = req.body;
-    if (!role || !text) return res.status(400).json({ error: 'role e text são obrigatórios' });
-    if (!['user', 'assistant', 'system'].includes(role)) return res.status(400).json({ error: 'role inválido' });
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text é obrigatório' });
 
     // Verifica acesso à conversa
     const convCheck = await query(
@@ -438,18 +455,13 @@ router.post('/conversations/:id/messages', async (req, res) => {
     );
     if (convCheck.rows.length === 0) return res.status(404).json({ error: 'Conversa não encontrada' });
 
+    // Role sempre 'user' — o servidor define a autoria, nunca o cliente
+    const role = 'user';
     const result = await query(
-      `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_id, author_name)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO assistant_messages (conversation_id, role, text, author_id, author_name)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, role, text, sources, author_id, author_name, event_type, created_at`,
-      [
-        req.params.id,
-        role,
-        text,
-        sources ? JSON.stringify(sources) : null,
-        role === 'user' ? req.user.id : null,
-        role === 'user' ? req.user.name : null,
-      ],
+      [req.params.id, role, text, req.user.id, req.user.name],
     );
     const row = result.rows[0];
 
@@ -654,27 +666,33 @@ router.get('/conversations/:id/attachments', async (req, res) => {
   }
 });
 
-// Download de anexo — ACL: acesso à conversa + tenant match
+// Download de anexo — ACL: exige permissão na conversa, não apenas mesmo tenant
 router.get('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
+    // Verifica acesso à conversa: dono, responsável, participante ou superadmin
+    const convCheck = await query(
+      `SELECT c.id FROM assistant_conversations c
+       WHERE c.id = $1 AND (
+         c.user_id = $2 OR c.assigned_to = $2
+         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2)
+         OR $3 = 'superadmin'
+       )`,
+      [req.params.id, req.user.id, req.user.role],
+    );
+    if (convCheck.rows.length === 0) return res.status(403).json({ error: 'Sem permissão para esta conversa' });
+
     const att = await query(
-      `SELECT a.filename, a.mime_type, a.file_path, a.tenant_id, c.user_id, c.assigned_to
+      `SELECT a.filename, a.mime_type, a.file_path, a.tenant_id
        FROM assistant_attachments a
-       JOIN assistant_conversations c ON c.id = a.conversation_id
        WHERE a.id = $1 AND a.conversation_id = $2`,
       [req.params.aid, req.params.id],
     );
     if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const a = att.rows[0];
-    // Verifica acesso: dono, assigned, ou participante
-    const hasAccess = a.user_id === req.user.id || a.assigned_to === req.user.id ||
-      req.user.role === 'superadmin' || a.tenant_id === req.user.tenant_id;
-    if (!hasAccess) return res.status(403).json({ error: 'Sem permissão para este anexo' });
-
-    // Valida tenant — arquivo de outro tenant negado
+    // Superadmin bypassa tenant; demais devem pertencer ao mesmo tenant
     if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Anexo pertence a outro tenant' });
+      return res.status(403).json({ error: 'Sem permissão para este anexo' });
     }
 
     const filePath = path.join(attDir, a.file_path);
@@ -688,17 +706,30 @@ router.get('/conversations/:id/attachments/:aid', async (req, res) => {
   }
 });
 
-// Deletar anexo
+// Deletar anexo — exige permissão na conversa, não apenas mesmo tenant
 router.delete('/conversations/:id/attachments/:aid', async (req, res) => {
   try {
+    // Verifica acesso à conversa: dono, responsável, participante ou superadmin
+    const convCheck = await query(
+      `SELECT c.id FROM assistant_conversations c
+       WHERE c.id = $1 AND (
+         c.user_id = $2 OR c.assigned_to = $2
+         OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = c.id AND p.user_id = $2)
+         OR $3 = 'superadmin'
+       )`,
+      [req.params.id, req.user.id, req.user.role],
+    );
+    if (convCheck.rows.length === 0) return res.status(403).json({ error: 'Sem permissão para esta conversa' });
+
     const att = await query(
-      `SELECT a.file_path, a.tenant_id FROM assistant_attachments a
+      `SELECT a.file_path, a.tenant_id, a.uploaded_by FROM assistant_attachments a
        WHERE a.id = $1 AND a.conversation_id = $2`,
       [req.params.aid, req.params.id],
     );
     if (att.rows.length === 0) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const a = att.rows[0];
+    // Superadmin bypassa tenant; demais devem pertencer ao mesmo tenant
     if (a.tenant_id !== req.user.tenant_id && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Sem permissão' });
     }

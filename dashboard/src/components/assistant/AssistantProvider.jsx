@@ -42,6 +42,7 @@ export function AssistantProvider({ children }) {
   const [convStatus, setConvStatus] = useState('active') // active | waiting_human | with_human | closed
   const [queue, setQueue] = useState([])
   const [showQueue, setShowQueue] = useState(false)
+  const [mobileView, setMobileView] = useState('list') // 'list' | 'conversation'
   const [availableTools, setAvailableTools] = useState([])
   const [pendingToolCall, setPendingToolCall] = useState(null) // tool aguardando aprovação
   const [memories, setMemories] = useState([])
@@ -194,6 +195,7 @@ export function AssistantProvider({ children }) {
     setActiveConvId(null)
     setShowHistory(false)
     setConvStatus('active')
+    setMobileView('conversation')
   }, [])
 
   // Cria nova conversa no backend
@@ -234,6 +236,7 @@ export function AssistantProvider({ children }) {
       setActiveConvId(convId)
       setConvStatus(full.status || 'active')
       setShowHistory(false)
+      setMobileView('conversation')
     } catch {
       // Ignora — mantém conversa atual
     }
@@ -280,8 +283,7 @@ export function AssistantProvider({ children }) {
     const text = `🔧 **${toolName}**\n\n\`\`\`${summary}\`\`\``
     const msg = { id: genId(), role: 'assistant', text, sources: [] }
     setMessages((prev) => [...prev, msg])
-    if (convId) saveMessage(convId, 'assistant', text, [])
-  }, [activeConvId, saveMessage])
+  }, [activeConvId])
 
   // ===== CQ-05: Ferramentas operacionais =====
 
@@ -458,10 +460,9 @@ export function AssistantProvider({ children }) {
         throw new Error(err.error || 'Erro ao enviar anexo')
       }
       const att = await resp.json()
-      // Adiciona mensagem de sistema no chat
+      // Adiciona mensagem de sistema no chat (não persiste — o servidor define autoria)
       const msg = { id: genId(), role: 'system', text: `📎 ${att.filename}`, event_type: 'attachment' }
       setMessages((prev) => [...prev, msg])
-      saveMessage(convId, 'system', `📎 ${att.filename}`)
       return att
     } catch (err) {
       const msg = { id: genId(), role: 'system', text: `❌ Erro: ${err.message}`, event_type: 'error' }
@@ -500,11 +501,10 @@ export function AssistantProvider({ children }) {
     if (!convId) {
       convId = await startNewConversation(question)
     }
-    // Salva mensagem do usuário
-    saveMessage(convId, 'user', question)
 
-    // Se a conversa está com humano, não chama a IA — apenas envia a mensagem
+    // Se a conversa está com humano, apenas salva a mensagem do usuário (role='user' pelo servidor)
     if (convStatus === 'with_human' || convStatus === 'waiting_human') {
+      saveMessage(convId, 'user', question)
       setStatus('idle')
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
@@ -513,19 +513,19 @@ export function AssistantProvider({ children }) {
       return
     }
 
+    // Conversa com IA: o servidor salva pergunta e resposta (autoria definida no servidor)
     try {
       const res = await request('/knowledge-base/ask', {
         method: 'POST',
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, conversation_id: convId }),
       })
       const assistantMsg = {
-        id: genId(),
+        id: res.savedMessages?.assistant?.id || genId(),
         role: 'assistant',
         text: res.answer,
         sources: res.sources || [],
       }
       setMessages((prev) => [...prev, assistantMsg])
-      saveMessage(convId, 'assistant', res.answer, res.sources || [])
 
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
@@ -539,7 +539,6 @@ export function AssistantProvider({ children }) {
         sources: [],
       }
       setMessages((prev) => [...prev, errorMsg])
-      saveMessage(convId, 'assistant', `Erro ao consultar: ${err.message}`, [])
       setPanelMode((mode) => {
         if (mode === 'collapsed') setUnreadCount((c) => c + 1)
         return mode
@@ -579,6 +578,7 @@ export function AssistantProvider({ children }) {
       attachments, uploadAttachment, loadAttachments,
       handleVoiceTranscript,
       proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+      mobileView, setMobileView,
     }),
     [panelMode, expand, collapse, enterFullscreen, exitFullscreen,
      messages, draft, clearMessages, sendMessage,
@@ -592,7 +592,8 @@ export function AssistantProvider({ children }) {
      memories, loadMemories, saveMemoryItem, deleteMemoryItem,
      attachments, uploadAttachment, loadAttachments,
      handleVoiceTranscript,
-     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled],
+     proactiveSuggestions, dismissProactive, actOnProactive, proactiveEnabled,
+     mobileView],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>
