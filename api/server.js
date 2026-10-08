@@ -3,6 +3,7 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const emailRoutes = require('./routes/emailRoutes');
 const inboxRoutes = require('./routes/inboxRoutes');
+const importRoutes = require('./routes/importRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
@@ -19,6 +20,9 @@ app.use('/api/email', emailRoutes);
 
 // Rotas da caixa de entrada (inbox)
 app.use('/api/inbox', inboxRoutes);
+
+// Rotas de importação em massa
+app.use('/api/import', importRoutes);
 
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {

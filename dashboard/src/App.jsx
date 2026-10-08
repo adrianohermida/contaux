@@ -10,6 +10,7 @@ const ContabilidadePage = lazy(() => import('@/modules/contabilidade/Contabilida
 const SuportePage = lazy(() => import('@/modules/suporte/SuportePage'))
 const MarketingPage = lazy(() => import('@/modules/marketing/MarketingPage'))
 const AdminPage = lazy(() => import('@/modules/admin/AdminPage'))
+const ImportPage = lazy(() => import('@/modules/import/ImportPage'))
 
 function Loading() {
   return (
@@ -55,6 +56,9 @@ export default function App() {
         <Route path="/marketing" element={withSuspense(<MarketingPage view="campaigns" />)} />
         <Route path="/marketing/blog" element={withSuspense(<MarketingPage view="blog" />)} />
         <Route path="/marketing/fidelidade" element={withSuspense(<MarketingPage view="loyalty" />)} />
+
+        {/* Importação de Dados */}
+        <Route path="/importar" element={withSuspense(<ImportPage />)} />
 
         {/* Administração */}
         <Route path="/admin" element={withSuspense(<AdminPage view="settings" />)} />

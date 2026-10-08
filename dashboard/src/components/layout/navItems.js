@@ -7,6 +7,7 @@ import {
   LifeBuoy,
   Megaphone,
   Settings,
+  UploadCloud,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
@@ -18,4 +19,5 @@ export const NAV_ITEMS = [
   { icon: LifeBuoy, label: 'Suporte', path: '/suporte' },
   { icon: Megaphone, label: 'Marketing', path: '/marketing' },
   { icon: Settings, label: 'Administração', path: '/admin' },
+  { icon: UploadCloud, label: 'Importar Dados', path: '/importar' },
 ]
