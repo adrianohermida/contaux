@@ -66,6 +66,12 @@ cat > "$DIST/_redirects" << 'REDIRECTS'
 /admin/*         /dashboard/index.html  200
 /importar        /dashboard/index.html  200
 /importar/*      /dashboard/index.html  200
+
+# Portal do Cliente e Login — também servidos pela SPA
+/login           /dashboard/index.html  200
+/login/*         /dashboard/index.html  200
+/portal          /dashboard/index.html  200
+/portal/*        /dashboard/index.html  200
 REDIRECTS
 
 echo "==> Removendo arquivos que não devem ir para produção"
