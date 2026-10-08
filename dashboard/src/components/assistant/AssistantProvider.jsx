@@ -1,8 +1,12 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { DEMO_SUGGESTIONS, matchFixture, getFixtureResponse } from './fixtures'
 
+/**
+ * Provider do Assistente Contaux.
+ * Mantém conversa e rascunho em memória (persiste entre rotas).
+ * Não simula respostas — o estado padrão é "unavailable" até integração real.
+ */
 const AssistantContext = createContext(null)
 
 function genId() {
@@ -10,19 +14,22 @@ function genId() {
 }
 
 export function AssistantProvider({ children }) {
-  const [isOpen, setIsOpen] = useState(false)
+  // Três estados: collapsed (rail), expanded (column), fullscreen (overlay)
+  const [panelMode, setPanelMode] = useState('collapsed')
   const [messages, setMessages] = useState([])
-  const [status, setStatus] = useState('idle') // idle | preparing | demo
+  const [draft, setDraft] = useState('')
+  const [status, setStatus] = useState('unavailable') // unavailable | idle | preparing
   const location = useLocation()
   const { user } = useAuth()
 
-  const open = useCallback(() => setIsOpen(true), [])
-  const close = useCallback(() => setIsOpen(false), [])
-  const toggle = useCallback(() => setIsOpen((v) => !v), [])
+  const expand = useCallback(() => setPanelMode('expanded'), [])
+  const collapse = useCallback(() => setPanelMode('collapsed'), [])
+  const enterFullscreen = useCallback(() => setPanelMode('fullscreen'), [])
+  const exitFullscreen = useCallback(() => setPanelMode('expanded'), [])
 
   const clearMessages = useCallback(() => {
     setMessages([])
-    setStatus('idle')
+    setDraft('')
   }, [])
 
   // Contexto explícito — espelho da sessão, não concede acesso
@@ -31,40 +38,27 @@ export function AssistantProvider({ children }) {
       actor: user?.name || 'Contador',
       role: user?.role || '—',
       route: location.pathname,
-      company: null, // Empresa não selecionada (demo)
-      period: null, // Competência não informada (demo)
+      company: null,
+      period: null,
     }),
     [user, location.pathname],
   )
 
-  const sendMessage = useCallback(
-    (text) => {
-      const userMsg = { id: genId(), role: 'user', text }
-      setMessages((prev) => [...prev, userMsg])
-      setStatus('preparing')
-
-      // Simula latência de preparo antes da resposta fictícia
-      setTimeout(() => {
-        const fixtureId = matchFixture(text)
-        const fixture = fixtureId ? getFixtureResponse(fixtureId) : null
-        const assistantMsg = {
-          id: genId(),
-          role: 'assistant',
-          text: fixture
-            ? null
-            : 'Esta é uma demonstração. Tente: "Prepare o checklist do fechamento", "Explique a diferença de conciliação" ou "Rascunhe uma cobrança".',
-          fixture,
-        }
-        setMessages((prev) => [...prev, assistantMsg])
-        setStatus('demo')
-      }, 700)
-    },
-    [],
-  )
-
   const value = useMemo(
-    () => ({ isOpen, open, close, toggle, messages, sendMessage, clearMessages, context, status }),
-    [isOpen, open, close, toggle, messages, sendMessage, clearMessages, context, status],
+    () => ({
+      panelMode,
+      expand,
+      collapse,
+      enterFullscreen,
+      exitFullscreen,
+      messages,
+      draft,
+      setDraft,
+      clearMessages,
+      context,
+      status,
+    }),
+    [panelMode, expand, collapse, enterFullscreen, exitFullscreen, messages, draft, clearMessages, context, status],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

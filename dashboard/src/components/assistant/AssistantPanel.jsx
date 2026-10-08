@@ -1,39 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Sparkles, X, Trash2, Send } from 'lucide-react'
+import { Sparkles, X, Trash2, Maximize2, Minimize2 } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
 import { Button } from '@/components/ui/button'
-import AssistantMessages from './AssistantMessages'
-import { DEMO_SUGGESTIONS } from './fixtures'
 
-export default function AssistantPanel({ onClose }) {
-  const { messages, sendMessage, clearMessages, context, status } = useAssistant()
-  const [input, setInput] = useState('')
+/**
+ * Painel do Assistente Contaux.
+ * Estado padrão: unavailable (sem IA conectada).
+ * Não usa fixtures no runtime — mostra estado vazio/não configurado.
+ */
+export default function AssistantPanel({ onClose, onFullscreen, fullscreen = false }) {
+  const { messages, draft, setDraft, clearMessages, context, status } = useAssistant()
   const inputRef = useRef(null)
   const scrollRef = useRef(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    if (!fullscreen) inputRef.current?.focus()
+  }, [fullscreen])
 
   // Auto-rolar para o final ao receber mensagens
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, status])
 
-  const handleSubmit = (e) => {
-    e?.preventDefault()
-    const text = input.trim()
-    if (!text || status === 'preparing') return
-    sendMessage(text)
-    setInput('')
-  }
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSubmit(e)
+      // Sem envio real — assistente indisponível
     }
   }
 
@@ -47,13 +39,23 @@ export default function AssistantPanel({ onClose }) {
           </div>
           <div>
             <h2 className="text-sm font-semibold leading-tight">Assistente Contaux</h2>
-            <span className="text-xs font-medium text-warning">Demonstração</span>
+            <span className="text-xs font-medium text-muted-foreground">Indisponível</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" onClick={clearMessages} aria-label="Limpar conversa" className="h-8 w-8">
               <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+          {onFullscreen && !fullscreen && (
+            <Button variant="ghost" size="icon" onClick={onFullscreen} aria-label="Tela cheia" className="h-8 w-8">
+              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+          {fullscreen && (
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Sair de tela cheia" className="h-8 w-8">
+              <Minimize2 className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar assistente" className="h-8 w-8">
@@ -86,57 +88,50 @@ export default function AssistantPanel({ onClose }) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <p className="text-sm text-muted-foreground">Olá! Sou o Assistente Contaux (demo).</p>
-            <p className="text-xs text-muted-foreground">Experimente as ações abaixo:</p>
-            <div className="w-full space-y-2">
-              {DEMO_SUGGESTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => sendMessage(s.label)}
-                  className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
-                >
-                  {s.label}
-                </button>
-              ))}
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Sparkles className="h-6 w-6" aria-hidden="true" />
             </div>
+            <p className="text-sm font-medium">Assistente Contaux</p>
+            <p className="text-xs text-muted-foreground max-w-[260px]">
+              O assistente ainda não está configurado. A integração com IA será ativada em breve.
+              Por enquanto, você pode navegar normalmente pelo portal.
+            </p>
           </div>
         ) : (
-          <>
-            <AssistantMessages messages={messages} onNavigate={navigate} />
-            {status === 'preparing' && (
-              <div className="flex justify-start">
-                <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  Organizando o pedido...
-                </div>
+          messages.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground'
+                }`}
+              >
+                {msg.text}
               </div>
-            )}
-          </>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Compositor */}
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3">
-        <div className="flex gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Digite sua mensagem... (Demonstração)"
-            rows={2}
-            className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            disabled={status === 'preparing'}
-          />
-          <Button type="submit" size="icon" disabled={!input.trim() || status === 'preparing'} aria-label="Enviar mensagem">
-            <Send className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      </form>
+      {/* Compositor — desabilitado enquanto assistente estiver indisponível */}
+      <div className="shrink-0 border-t border-border p-3">
+        <textarea
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Assistente indisponível"
+          rows={2}
+          disabled
+          className="w-full resize-none rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground focus-visible:outline-none"
+        />
+      </div>
 
       {/* Rodapé discreto */}
       <footer className="shrink-0 border-t border-border px-4 py-2">
         <p className="text-center text-xs text-muted-foreground">
-          Modo demonstração — dados fictícios. Nenhuma IA ou API de negócio ativa.
+          Não configurado — aguardando integração de IA.
         </p>
       </footer>
     </div>
