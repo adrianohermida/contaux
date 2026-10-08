@@ -4,9 +4,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { Dialog } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/ui/empty-state'
+import { SkeletonCard } from '@/components/ui/skeleton'
 import { useCollection } from '@/hooks/useCollection'
 import DocumentForm from './DocumentForm'
-import { Search, FolderOpen, FileText, Eye, Plus, Pencil, X } from 'lucide-react'
+import { Search, FolderOpen, FileText, Eye, Plus, Pencil } from 'lucide-react'
 
 const typeLabels = {
   template: 'Template',
@@ -103,13 +106,16 @@ export default function DocumentosPage() {
       </div>
 
       {filtered.length === 0 && !loading && (
-        <div className="py-12 text-center text-muted-foreground">
-          <FolderOpen className="mx-auto h-12 w-12 mb-2 opacity-50" />
-          Nenhum documento encontrado.
-        </div>
+        <EmptyState
+          icon={FolderOpen}
+          title="Nenhum documento encontrado"
+          description="Crie um novo documento ou ajuste os filtros de busca."
+        />
       )}
       {loading && (
-        <div className="py-12 text-center text-muted-foreground">Carregando...</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       )}
 
       <DocumentForm
@@ -120,28 +126,24 @@ export default function DocumentosPage() {
       />
 
       {/* Modal de visualização */}
-      {viewing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setViewing(null)} />
-          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg">
-            <div className="mb-4 flex items-start justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">{viewing.name}</h2>
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge variant="outline">{viewing.category || 'Sem categoria'}</Badge>
-                  <span className="text-xs text-muted-foreground">{typeLabels[viewing.type] || viewing.type}</span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setViewing(null)} aria-label="Fechar">
-                <X className="h-4 w-4" />
-              </Button>
+      <Dialog
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        title={viewing?.name}
+        className="max-w-2xl"
+      >
+        {viewing && (
+          <>
+            <div className="mb-4 flex items-center gap-2">
+              <Badge variant="outline">{viewing.category || 'Sem categoria'}</Badge>
+              <span className="text-xs text-muted-foreground">{typeLabels[viewing.type] || viewing.type}</span>
             </div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
               {viewing.content || 'Sem conteúdo disponível.'}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
     </div>
   )
 }
