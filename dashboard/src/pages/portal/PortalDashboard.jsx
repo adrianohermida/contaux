@@ -5,6 +5,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Receipt, FileText, LifeBuoy, Clock } from 'lucide-react'
 import { createApiClient } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 const invoicesApi = createApiClient('invoices')
 const ticketsApi = createApiClient('tickets')
@@ -103,7 +104,4 @@ export default function PortalDashboard() {
   )
 }
 
-// cn import inline para evitar arquivo separado
-function cn(...classes) {
-  return classes.filter(Boolean).join(' ')
-}
+
