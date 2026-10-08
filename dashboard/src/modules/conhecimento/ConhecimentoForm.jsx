@@ -5,7 +5,7 @@ import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { UploadCloud, X, Lock, Globe, FileText } from 'lucide-react'
-import { request } from '@/lib/api'
+import { request, getAccessToken } from '@/lib/api'
 
 const AREA_TAGS = ['Tributário', 'Trabalhista', 'Societário', 'Fiscal', 'Contábil', 'LGPD']
 const TYPES = [
@@ -51,7 +51,8 @@ export default function ConhecimentoForm({ open, onClose, onSave, editingItem })
       fd.append('visibility', form.visibility || 'private')
       const res = await fetch('/api/knowledge-base/upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('contaux-token')}` },
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
         body: fd,
       })
       if (!res.ok) throw new Error('Falha no upload')

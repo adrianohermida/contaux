@@ -7,19 +7,14 @@ import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/ui/toast'
 import { request } from '@/lib/api'
 import { Shield, KeyRound, Smartphone, AlertTriangle, Clock, Monitor } from 'lucide-react'
+import PinManagementCard from './PinManagementCard'
 
-function formatLogin(dateStr) {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now - d
-  const diffMin = Math.floor(diffMs / 60000)
-  const diffH = Math.floor(diffMin / 60)
-  const diffD = Math.floor(diffH / 24)
-  if (diffMin < 1) return 'agora mesmo'
-  if (diffMin < 60) return `há ${diffMin} min`
-  if (diffH < 24) return `há ${diffH}h`
-  return `há ${diffD}d`
+function formatLogin(s) {
+  if (!s) return '—'
+  const m = Math.floor((Date.now() - new Date(s)) / 60000)
+  if (m < 1) return 'agora mesmo'
+  if (m < 60) return `há ${m} min`
+  return m < 1440 ? `há ${Math.floor(m / 60)}h` : `há ${Math.floor(m / 1440)}d`
 }
 
 export default function SegurancaPage() {
@@ -80,34 +75,25 @@ export default function SegurancaPage() {
 
       {/* Status de segurança */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <KeyRound className="h-8 w-8 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{mfaCount}/{totalUsers}</p>
-              <p className="text-xs text-muted-foreground">Usuários com MFA</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Smartphone className="h-8 w-8 text-muted-foreground" />
-            <div>
-              <p className="text-2xl font-bold">{activeSessions}</p>
-              <p className="text-xs text-muted-foreground">Sessões ativas</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className="h-8 w-8 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{threats}</p>
-              <p className="text-xs text-muted-foreground">Ameaças detectadas</p>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { Icon: KeyRound, val: `${mfaCount}/${totalUsers}`, label: 'Usuários com MFA', cls: 'text-primary' },
+          { Icon: Smartphone, val: activeSessions, label: 'Sessões ativas', cls: 'text-muted-foreground' },
+          { Icon: AlertTriangle, val: threats, label: 'Ameaças detectadas', cls: 'text-primary' },
+        ].map(({ Icon, val, label, cls }, i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <Icon className={`h-8 w-8 ${cls}`} />
+              <div>
+                <p className="text-2xl font-bold">{val}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {/* PIN de Segurança — auto-serviço */}
+      <PinManagementCard />
 
       {/* MFA — lista de usuários com toggle */}
       <Card>

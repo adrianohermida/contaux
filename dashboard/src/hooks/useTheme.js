@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { applyBrandTheme } from '@/lib/theme';
+import { request } from '@/lib/api';
 
 const STORAGE_KEY = 'contaux-settings';
 
@@ -42,9 +43,7 @@ export function useTheme() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/settings');
-      if (!res.ok) throw new Error('Falha ao carregar configurações');
-      const data = await res.json();
+      const data = await request('/settings');
       const merged = { ...DEFAULT_SETTINGS, ...data };
       setSettings(merged);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
@@ -62,13 +61,10 @@ export function useTheme() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/settings', {
+      const data = await request('/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings),
       });
-      if (!res.ok) throw new Error('Falha ao salvar configurações');
-      const data = await res.json();
       const merged = { ...DEFAULT_SETTINGS, ...data };
       setSettings(merged);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));

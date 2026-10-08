@@ -6,6 +6,7 @@ const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const { sendMail } = require('./services/mailService');
@@ -55,8 +56,10 @@ app.use('/api/import', importRoutes);
 // Configurações de branding (singleton)
 app.use('/api/settings', settingsRoutes);
 
-// Autenticação e gestão de usuários/tenants
+// Autenticação (login, refresh, logout, me, PIN)
 app.use('/api/auth', authRoutes);
+// Gestão de usuários e tenants (admin+)
+app.use('/api/auth', userRoutes);
 
 // Estatísticas agregadas (dashboard e segurança)
 app.use('/api/stats', statsRoutes);
@@ -145,12 +148,12 @@ const crudConfig = {
   contacts:        { jsonbFields: ['tags'], searchFields: ['name', 'email'] },
   contact_notes:   { searchFields: ['content', 'author'] },
   contact_activities: { searchFields: ['description'] },
-  invoices:        { jsonbFields: ['items'], searchFields: ['number', 'client_name'] },
+  invoices:        { jsonbFields: ['items'], searchFields: ['number', 'client_name'], pinProtectedDelete: true },
   quotes:          { jsonbFields: ['items'], searchFields: ['number', 'client_name'] },
-  payments:        { searchFields: ['client_name', 'invoice_number'] },
+  payments:        { searchFields: ['client_name', 'invoice_number'], pinProtectedDelete: true },
   accounts:        { searchFields: ['code', 'name'] },
-  journal_entries: { jsonbFields: ['lines'], searchFields: ['description', 'reference'] },
-  tax_invoices:    { jsonbFields: ['items', 'taxes'], searchFields: ['number', 'client_name'] },
+  journal_entries: { jsonbFields: ['lines'], searchFields: ['description', 'reference'], pinProtectedDelete: true },
+  tax_invoices:    { jsonbFields: ['items', 'taxes'], searchFields: ['number', 'client_name'], pinProtectedDelete: true },
   obligations:     { searchFields: ['title', 'description'] },
   tickets:         { jsonbFields: ['messages'], searchFields: ['subject', 'client_name'] },
   processes:       { searchFields: ['client_name', 'process_number', 'subject'] },
@@ -158,13 +161,12 @@ const crudConfig = {
   blog_posts:      { searchFields: ['title', 'slug', 'category'] },
   loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'] },
   customer_points:  { searchFields: ['client_name'] },
-  users:            { searchFields: ['name', 'email'] },
-  audit_logs:       { searchFields: ['user', 'action', 'details'] },
+  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'] },
   workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'] },
   documents:        { searchFields: ['name', 'category'] },
   reports:          { searchFields: ['name', 'type'] },
   emails:           { searchFields: ['subject', 'from'] },
-  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], noTenant: true },
+  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], includeNullTenant: true },
   tasks:             { searchFields: ['title', 'assigned_to'] },
 };
 
@@ -218,12 +220,12 @@ app.post('/api/newsletter', async (req, res) => {
 // ===== Templates de email — listar, preview, teste =====
 
 // Lista todos os templates disponíveis
-app.get('/api/email/templates', (req, res) => {
+app.get('/api/email/templates', requireAuth, (req, res) => {
   res.json({ templates: emailTemplates.listTemplates() });
 });
 
 // Preview de um template com dados de exemplo (ou fornecidos)
-app.post('/api/email/templates/preview', async (req, res) => {
+app.post('/api/email/templates/preview', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   const { template, data } = req.body;
   if (!template) return res.status(400).json({ error: 'template é obrigatório' });
   try {
@@ -235,7 +237,7 @@ app.post('/api/email/templates/preview', async (req, res) => {
 });
 
 // Envia email de teste para o próprio endereço
-app.post('/api/email/templates/test', async (req, res) => {
+app.post('/api/email/templates/test', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   const { template, to } = req.body;
   if (!template || !to) return res.status(400).json({ error: 'template e to são obrigatórios' });
   try {

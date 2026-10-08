@@ -1,8 +1,13 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { DEMO_SUGGESTIONS, matchFixture, getFixtureResponse } from './fixtures'
+import { request } from '@/lib/api'
 
+/**
+ * Provider do Assistente Contaux.
+ * Mantém conversa e rascunho em memória (persiste entre rotas).
+ * Integração real com /api/knowledge-base/ask (busca na base de conhecimento).
+ */
 const AssistantContext = createContext(null)
 
 function genId() {
@@ -10,61 +15,72 @@ function genId() {
 }
 
 export function AssistantProvider({ children }) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [panelMode, setPanelMode] = useState('collapsed')
   const [messages, setMessages] = useState([])
-  const [status, setStatus] = useState('idle') // idle | preparing | demo
+  const [draft, setDraft] = useState('')
+  const [status, setStatus] = useState('idle') // idle | preparing
   const location = useLocation()
   const { user } = useAuth()
 
-  const open = useCallback(() => setIsOpen(true), [])
-  const close = useCallback(() => setIsOpen(false), [])
-  const toggle = useCallback(() => setIsOpen((v) => !v), [])
+  const expand = useCallback(() => setPanelMode('expanded'), [])
+  const collapse = useCallback(() => setPanelMode('collapsed'), [])
+  const enterFullscreen = useCallback(() => setPanelMode('fullscreen'), [])
+  const exitFullscreen = useCallback(() => setPanelMode('expanded'), [])
 
   const clearMessages = useCallback(() => {
     setMessages([])
-    setStatus('idle')
+    setDraft('')
   }, [])
 
-  // Contexto explícito — espelho da sessão, não concede acesso
+  const sendMessage = useCallback(async (text) => {
+    const question = text.trim()
+    if (!question || status === 'preparing') return
+
+    setDraft('')
+    setMessages((prev) => [...prev, { id: genId(), role: 'user', text: question }])
+    setStatus('preparing')
+
+    try {
+      const res = await request('/knowledge-base/ask', {
+        method: 'POST',
+        body: JSON.stringify({ question }),
+      })
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'assistant',
+        text: res.answer,
+        sources: res.sources || [],
+      }])
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: genId(),
+        role: 'assistant',
+        text: `Erro ao consultar: ${err.message}`,
+        sources: [],
+      }])
+    } finally {
+      setStatus('idle')
+    }
+  }, [status])
+
   const context = useMemo(
     () => ({
       actor: user?.name || 'Contador',
       role: user?.role || '—',
       route: location.pathname,
-      company: null, // Empresa não selecionada (demo)
-      period: null, // Competência não informada (demo)
+      company: null,
+      period: null,
     }),
     [user, location.pathname],
   )
 
-  const sendMessage = useCallback(
-    (text) => {
-      const userMsg = { id: genId(), role: 'user', text }
-      setMessages((prev) => [...prev, userMsg])
-      setStatus('preparing')
-
-      // Simula latência de preparo antes da resposta fictícia
-      setTimeout(() => {
-        const fixtureId = matchFixture(text)
-        const fixture = fixtureId ? getFixtureResponse(fixtureId) : null
-        const assistantMsg = {
-          id: genId(),
-          role: 'assistant',
-          text: fixture
-            ? null
-            : 'Esta é uma demonstração. Tente: "Prepare o checklist do fechamento", "Explique a diferença de conciliação" ou "Rascunhe uma cobrança".',
-          fixture,
-        }
-        setMessages((prev) => [...prev, assistantMsg])
-        setStatus('demo')
-      }, 700)
-    },
-    [],
-  )
-
   const value = useMemo(
-    () => ({ isOpen, open, close, toggle, messages, sendMessage, clearMessages, context, status }),
-    [isOpen, open, close, toggle, messages, sendMessage, clearMessages, context, status],
+    () => ({
+      panelMode, expand, collapse, enterFullscreen, exitFullscreen,
+      messages, draft, setDraft, clearMessages, sendMessage,
+      context, status,
+    }),
+    [panelMode, expand, collapse, enterFullscreen, exitFullscreen, messages, draft, clearMessages, sendMessage, context, status],
   )
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

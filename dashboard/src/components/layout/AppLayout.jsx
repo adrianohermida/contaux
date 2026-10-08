@@ -48,19 +48,23 @@ export default function AppLayout() {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className={sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'} style={{ transition: 'padding 0.3s' }}>
-          <Header
-            onMenuClick={() => setSidebarOpen(true)}
-            isDark={isDark}
-            onToggleTheme={() => setIsDark((v) => !v)}
-            onRefresh={handleRefresh}
-            refreshing={refreshing}
-          />
-          <main className="p-3 sm:p-4 lg:p-6">
-            <Outlet />
-          </main>
+          <div className="flex">
+            <div className="flex-1 min-w-0">
+              <Header
+                onMenuClick={() => setSidebarOpen(true)}
+                isDark={isDark}
+                onToggleTheme={() => setIsDark((v) => !v)}
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+              />
+              <main className="p-3 sm:p-4 lg:p-6">
+                <Outlet />
+              </main>
+            </div>
+            <AssistantWidget />
+          </div>
         </div>
       </div>
-      <AssistantWidget />
     </AssistantProvider>
   )
 }

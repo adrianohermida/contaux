@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import ConhecimentoList from './ConhecimentoList'
 import ConhecimentoForm from './ConhecimentoForm'
 import ConhecimentoDetail from './ConhecimentoDetail'
-import ConhecimentoAssistant from './ConhecimentoAssistant'
+// ConhecimentoAssistant removido — assistente unificado no AppLayout (CQ-01)
 
 const TYPE_TABS = [
   { value: 'all', label: 'Todos' },
@@ -198,7 +198,6 @@ export default function ConhecimentoPage() {
         editingItem={editing}
       />
 
-      <ConhecimentoAssistant />
     </div>
   )
 }

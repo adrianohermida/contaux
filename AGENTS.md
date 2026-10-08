@@ -77,6 +77,8 @@ api/
 - **Frontend**: `AuthContext` (login/logout/token), `ProtectedRoute` (staff), `PortalRoute` (client). Login em `/login`, dashboard em `/dashboard`, portal em `/portal`.
 - **Contas de demo**: admin@contaux.com.br / contaux123 (superadmin), contador@contaux.com.br / contaux123 (accountant), admin@hermidamaia.com.br / contaux123 (admin Hermida Maia).
 - **JWT_SECRET**: variável de ambiente obrigatória, entregue via `/run/base44/app.env`.
+- **Sessão persistente (CQ-03)**: access token curto (15min) em memória + refresh token em cookie httpOnly (7d, path `/api/auth`). `AuthContext` restaura sessão via `POST /api/auth/refresh` ao montar. `api.js` faz auto-refresh em 401. Logout revoga refresh token + incrementa `token_version` (invalida todos os tokens).
+- **PIN de operações sensíveis (CQ-03)**: `POST /api/auth/verify-pin` gera um `pin_token` (JWT com nonce one-time, 5min). Middleware `requirePin` (`api/middleware/pin.js`) valida `X-PIN-Token` em DELETE de tabelas sensíveis (invoices, payments, journal_entries, tax_invoices). `POST /api/auth/set-pin` para auto-serviço. UI: `PinModal` + `PinManagementCard` na página de Segurança.
 
 ## Email Template System
 - **Módulo**: `api/services/emailTemplates.js` — gera HTML branded e responsivo para todos os emails do app.

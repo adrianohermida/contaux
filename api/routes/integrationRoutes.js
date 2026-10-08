@@ -5,14 +5,18 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db');
+const { requireAuth, requireRole } = require('../middleware/auth');
 const partnerAuth = require('../middleware/partnerAuth');
 
-// ===== ROTAS ADMIN (Contaux, sem partnerAuth) =====
+// Middleware de auth para rotas admin (Contaux)
+const adminAuth = [requireAuth, requireRole('superadmin', 'admin')];
+
+// ===== ROTAS ADMIN (Contaux) — exigem autenticação + admin =====
 // Devem vir ANTES das rotas /:id para não serem capturadas
 
 // --- Escritórios ---
 
-router.get('/offices', async (req, res) => {
+router.get('/offices', adminAuth, async (req, res) => {
   try {
     const result = await query('SELECT * FROM partner_offices ORDER BY id DESC');
     res.json(result.rows);
@@ -21,7 +25,7 @@ router.get('/offices', async (req, res) => {
   }
 });
 
-router.post('/offices', async (req, res) => {
+router.post('/offices', adminAuth, async (req, res) => {
   const { external_id, name, webhook_url, contact_email, contact_phone } = req.body;
   if (!external_id || !name) {
     return res.status(400).json({ error: 'external_id e name são obrigatórios' });
@@ -43,7 +47,7 @@ router.post('/offices', async (req, res) => {
   }
 });
 
-router.delete('/offices/:id', async (req, res) => {
+router.delete('/offices/:id', adminAuth, async (req, res) => {
   try {
     const result = await query(
       'UPDATE partner_offices SET active = false, updated_at = now() WHERE id = $1 RETURNING id',
@@ -56,7 +60,7 @@ router.delete('/offices/:id', async (req, res) => {
   }
 });
 
-router.post('/offices/:id/regenerate-key', async (req, res) => {
+router.post('/offices/:id/regenerate-key', adminAuth, async (req, res) => {
   const apiKey = 'tx_partner_' + require('crypto').randomBytes(16).toString('hex');
   try {
     const result = await query(
@@ -72,7 +76,7 @@ router.post('/offices/:id/regenerate-key', async (req, res) => {
 
 // --- Listar TODOS (admin) — antes de /:id ---
 
-router.get('/service-requests/all', async (req, res) => {
+router.get('/service-requests/all', adminAuth, async (req, res) => {
   try {
     const result = await query(
       `SELECT sr.*, po.name as office_name FROM partner_service_requests sr
@@ -85,7 +89,7 @@ router.get('/service-requests/all', async (req, res) => {
   }
 });
 
-router.get('/cases/all', async (req, res) => {
+router.get('/cases/all', adminAuth, async (req, res) => {
   try {
     const result = await query(
       `SELECT pc.*, po.name as office_name FROM partner_cases pc
@@ -98,7 +102,7 @@ router.get('/cases/all', async (req, res) => {
   }
 });
 
-router.get('/custas/all', async (req, res) => {
+router.get('/custas/all', adminAuth, async (req, res) => {
   try {
     const result = await query(
       `SELECT pc.*, po.name as office_name FROM partner_custas pc
@@ -113,7 +117,7 @@ router.get('/custas/all', async (req, res) => {
 
 // --- Admin: atualizar status ---
 
-router.patch('/service-requests/:id/status', async (req, res) => {
+router.patch('/service-requests/:id/status', adminAuth, async (req, res) => {
   const { status } = req.body;
   const validStatus = ['pending', 'accepted', 'in_progress', 'completed', 'rejected'];
   if (!validStatus.includes(status)) {
@@ -141,7 +145,7 @@ router.patch('/service-requests/:id/status', async (req, res) => {
   }
 });
 
-router.post('/custas', async (req, res) => {
+router.post('/custas', adminAuth, async (req, res) => {
   const { partner_office_id, partner_case_id, case_number, custas_type, amount, due_date, notes } = req.body;
   if (!partner_office_id || !custas_type || !due_date) {
     return res.status(400).json({ error: 'partner_office_id, custas_type e due_date são obrigatórios' });
@@ -166,7 +170,7 @@ router.post('/custas', async (req, res) => {
   }
 });
 
-router.patch('/custas/:id/status', async (req, res) => {
+router.patch('/custas/:id/status', adminAuth, async (req, res) => {
   const { status } = req.body;
   if (!['pending', 'paid', 'overdue'].includes(status)) {
     return res.status(400).json({ error: 'Status inválido' });

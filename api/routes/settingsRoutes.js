@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
 const DEFAULTS = {
   name: 'Contaux Contadoria',
@@ -15,7 +16,7 @@ const DEFAULTS = {
 };
 
 // GET — retorna o singleton (ou defaults se a tabela não existir ainda)
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const result = await query('SELECT * FROM settings WHERE id = 1');
     if (result.rows.length === 0) {
@@ -31,8 +32,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT — upsert do singleton
-router.put('/', async (req, res) => {
+// PUT — upsert do singleton (admin+)
+router.put('/', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   try {
     const { name, primary_color, timezone, locale } = req.body;
     const result = await query(
