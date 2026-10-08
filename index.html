@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="assets/css/tiny-slider.css" />
     <link rel="stylesheet" href="assets/css/glightbox.min.css" />
     <link rel="stylesheet" href="assets/css/main.css" />
+    <link rel="stylesheet" href="assets/css/modals.css" />
 
     <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -108,7 +109,7 @@
                             </div>
                             <!-- navbar collapse -->
                             <div class="button">
-                                <a href="https://contauxcontadoria.freshdesk.com/support/login" class="btn">Login</a>
+                                <a href="#" class="btn" data-ctx-login>Login</a>
                             </div>
                         </nav>
                         <!-- navbar -->
@@ -761,7 +762,7 @@
                     <div class="subscribe-text wow fadeInLeft">
                         <h4>Boletim Informativo</h4>
                         <p class="">Inscreva-se e receba conteúdo exclusivo sobre contadoria especializada no setor jurídico</p>
-                        <form action="mail/mail.php" method="get" target="_blank" class="newsletter-inner">
+                        <form class="newsletter-inner">
                             <input name="EMAIL" placeholder="Seu endereço de e-mail" class="common-input"
                                 onfocus="this.placeholder = ''" onblur="this.placeholder = 'Seu endereço de e-mail'"
                                 required="" type="email">
@@ -777,7 +778,7 @@
                         <h4>Quer abrir sua PJ gratuitamente?</h4>
                         <p>Condições exclusivas para conveniados.</p>
                         <div class="button">
-                            <a href="#" class="btn">Fale com um especialista</a>
+                            <a href="#" class="btn" data-ctx-lead>Fale com um especialista</a>
                         </div>
                     </div>
                 </div>
@@ -882,6 +883,7 @@
     <script src="assets/js/imagesloaded.min.js"></script>
     <script src="assets/js/isotope.min.js"></script>
     <script src="assets/js/main.js"></script>
+    <script src="assets/js/site-modals.js"></script>
     <script type="text/javascript">
         //========= testimonial 
         tns({

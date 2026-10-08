@@ -7,6 +7,7 @@ const importRoutes = require('./routes/importRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const authRoutes = require('./routes/authRoutes');
+const publicRoutes = require('./routes/publicRoutes');
 const cloudflareWorker = require('./services/cloudflareWorker');
 const createCrudRouter = require('./routes/crud');
 const { runMigrations } = require('./migrations');
@@ -32,6 +33,9 @@ app.use('/api/settings', settingsRoutes);
 
 // Autenticação e gestão de usuários/tenants
 app.use('/api/auth', authRoutes);
+
+// Rotas públicas (site institucional: leads, newsletter, registro, reset de senha)
+app.use('/api/public', publicRoutes);
 
 // Integração com escritórios parceiros (Hermida Maia e outros)
 app.use('/api/integration', integrationRoutes);
@@ -115,6 +119,9 @@ async function sendMail({ to, subject, text, html, replyTo }) {
   });
   return { method: 'smtp' };
 }
+
+// Disponibiliza sendMail para as rotas públicas (reset de senha)
+app.locals.sendMail = sendMail;
 
 // Endpoint do formulário de contato
 app.post('/api/contact', async (req, res) => {
