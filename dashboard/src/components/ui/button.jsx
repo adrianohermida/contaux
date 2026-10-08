@@ -6,6 +6,8 @@ const variants = {
   ghost: 'hover:bg-accent hover:text-accent-foreground',
   destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
   success: 'bg-success text-success-foreground hover:bg-success/90',
+  warning: 'bg-warning text-warning-foreground hover:bg-warning/90',
+  link: 'text-primary underline-offset-4 hover:underline',
 }
 
 const sizes = {
@@ -15,7 +17,7 @@ const sizes = {
   icon: 'h-9 w-9',
 }
 
-export function Button({ className, variant = 'default', size = 'default', ...props }) {
+export function Button({ className, variant = 'default', size = 'default', loading = false, disabled, children, ...props }) {
   return (
     <button
       className={cn(
@@ -24,7 +26,17 @@ export function Button({ className, variant = 'default', size = 'default', ...pr
         sizes[size],
         className,
       )}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading && (
+        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      )}
+      {children}
+    </button>
   )
 }

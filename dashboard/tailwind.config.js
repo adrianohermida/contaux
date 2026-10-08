@@ -5,9 +5,24 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        none: '0px',
         sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+        full: '9999px',
+      },
+      boxShadow: {
+        none: 'none',
+        sm: '0 1px 2px 0 hsl(20 14% 12% / 0.05)',
+        md: '0 4px 6px -1px hsl(20 14% 12% / 0.08), 0 2px 4px -2px hsl(20 14% 12% / 0.05)',
+        lg: '0 10px 15px -3px hsl(20 14% 12% / 0.10), 0 4px 6px -4px hsl(20 14% 12% / 0.05)',
+        xl: '0 20px 25px -5px hsl(20 14% 12% / 0.12), 0 8px 10px -6px hsl(20 14% 12% / 0.06)',
+      },
+      fontWeight: {
+        regular: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
       },
       colors: {
         background: 'hsl(var(--background))',
