@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Library, Plus, Search } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Library, Plus, Search, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +32,32 @@ export default function ConhecimentoPage() {
   const [tagFilter, setTagFilter] = useState(null)
   const [search, setSearch] = useState('')
   const { toast } = useToast()
+  const [sync, setSync] = useState(null)
+
+  // Acompanha o progresso da sincronização das NBCs (CFC)
+  useEffect(() => {
+    let timer
+    const poll = async () => {
+      try {
+        const st = await request('/knowledge-base/sync/status')
+        setSync((prev) => {
+          if (prev?.running && !st.running) toast(`Sincronização concluída: ${st.imported} normas importadas`, 'success')
+          return st
+        })
+        if (st.running) timer = setTimeout(poll, 3000)
+      } catch { /* ignora */ }
+    }
+    poll()
+    return () => clearTimeout(timer)
+  }, [sync?.running])
+
+  const handleSync = async (mode) => {
+    try {
+      const r = await request('/knowledge-base/sync', { method: 'POST', body: JSON.stringify({ mode }) })
+      toast(r.started ? 'Sincronização com o CFC iniciada' : r.reason, r.started ? 'info' : 'error')
+      if (r.started) setSync({ running: true, progress: null })
+    } catch (e) { toast(e.message, 'error') }
+  }
 
   const filtered = useMemo(() => {
     let result = items
@@ -80,7 +106,16 @@ export default function ConhecimentoPage() {
           <h1 className="text-2xl font-bold">Base de Conhecimento</h1>
           <p className="text-sm text-muted-foreground">Repositório de artigos, legislação, livros e FAQs — fonte de inteligência da plataforma</p>
         </div>
-        <Button onClick={handleNew}><Plus className="h-4 w-4" /> Novo Item</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => handleSync('incremental')} disabled={sync?.running}
+            title="Baixa novas normas e revisões do site do CFC">
+            <RefreshCw className={cn('h-4 w-4', sync?.running && 'animate-spin')} />
+            {sync?.running
+              ? `Sincronizando${sync.progress?.total ? ` ${sync.progress.done}/${sync.progress.total}` : '...'}`
+              : 'Sincronizar NBCs (CFC)'}
+          </Button>
+          <Button onClick={handleNew}><Plus className="h-4 w-4" /> Novo Item</Button>
+        </div>
       </div>
 
       {/* Busca */}

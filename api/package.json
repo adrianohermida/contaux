@@ -1,7 +1,7 @@
 {
   "name": "contaux-api",
   "version": "1.0.0",
-  "description": "API de envio de emails do formulário de contato Contaux",
+  "description": "API de envio de emails do formul\u00e1rio de contato Contaux",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -13,6 +13,8 @@
     "pg": "^8.13.0",
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "1.1.1",
+    "mammoth": "^1.8.0"
   }
 }

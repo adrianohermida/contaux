@@ -112,6 +112,14 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) =
   res.sendFile(filePath);
 });
 
+// ===== Base de Conhecimento — sincronização das NBCs (CFC) =====
+const cfcSync = require('./services/cfcSync');
+const { requireRole } = require('./middleware/auth');
+app.post('/api/knowledge-base/sync', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
+  res.json(await cfcSync.run(req.body?.mode === 'full' ? 'full' : 'incremental'));
+});
+app.get('/api/knowledge-base/sync/status', requireAuth, async (req, res) => res.json(await cfcSync.status()));
+
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {
   clients:         { jsonbFields: ['tags', 'address', 'fiscal'], searchFields: ['name', 'document', 'email'] },
@@ -253,6 +261,7 @@ async function start() {
   }
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Contaux API rodando na porta ${PORT}`);
+    cfcSync.schedule();
   });
 }
 

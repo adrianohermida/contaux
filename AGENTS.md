@@ -129,3 +129,9 @@ api/
 - `functions/api/[[path]].js` — Pages Function que faz proxy de `/api/*` para o backend (VPS) via env `API_URL`.
 - `.github/workflows/deploy-cloudflare.yml` — GitHub Actions para deploy automático.
 - Ver `docs/DEPLOYMENT.md` → "Opção 0 — Cloudflare Pages" para o passo a passo completo.
+
+## Sincronização das NBCs (CFC) → Base de Conhecimento
+- `api/services/cfcSync.js` rastreia `cfc.org.br/tecnica/normas-brasileiras-de-contabilidade/` (+ categorias), baixa PDFs/DOCX do SRE, extrai o texto (pdf-parse/mammoth) e grava em `knowledge_base` (`external_code` único, `source_url`). Migração `008`.
+- Endpoints: `POST /api/knowledge-base/sync` (`{mode:'full'|'incremental'}`, admin+) e `GET /api/knowledge-base/sync/status`. Botão "Sincronizar NBCs (CFC)" na página.
+- Agendamento: checagem diária de normas novas e reprocessamento completo a cada 365 dias. Desligado no sandbox (`BASE44_PREVIEW_MODE=1`) ou com `KB_SYNC_AUTO=0`.
+- A extração é textual (sem LLM); resumo vem da ementa/descrição do SRE. Arquivos `.doc` binários não têm texto extraído (só o link).
