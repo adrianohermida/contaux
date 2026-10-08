@@ -31,11 +31,16 @@ export default function WorkflowForm({ open, onClose, onSave, editingWorkflow })
         name: editingWorkflow.name,
         trigger: editingWorkflow.trigger,
         conditions: [...(editingWorkflow.conditions || [])],
-        actions: [...(editingWorkflow.actions || [])],
+        actions: (editingWorkflow.actions || []).map((a) => {
+          if (typeof a === 'string' && a.startsWith('Enviar email: ')) {
+            return { type: 'email', value: a.replace('Enviar email: ', '') }
+          }
+          return typeof a === 'string' ? { type: 'custom', value: a } : a
+        }),
         active: editingWorkflow.active,
       })
     } else {
-      setForm({ ...emptyWorkflow, conditions: [''], actions: [''] })
+      setForm({ ...emptyWorkflow, conditions: [''], actions: [{ type: 'custom', value: '' }] })
     }
   }, [editingWorkflow, open])
 
