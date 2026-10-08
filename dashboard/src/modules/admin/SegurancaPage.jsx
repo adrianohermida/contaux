@@ -47,7 +47,10 @@ export default function SegurancaPage() {
       setStats((prev) => ({
         ...prev,
         mfa_enabled: prev.mfa_enabled + (current ? -1 : 1),
-        recent_logins: prev.recent_logins.map((u) =>
+        active_users: (prev.active_users || []).map((u) =>
+          u.id === userId ? { ...u, mfa_enabled: !current } : u
+        ),
+        recent_logins: (prev.recent_logins || []).map((u) =>
           u.id === userId ? { ...u, mfa_enabled: !current } : u
         ),
       }))
@@ -103,10 +106,10 @@ export default function SegurancaPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {(stats?.recent_logins || []).length === 0 ? (
+          {(stats?.active_users || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
           ) : (
-            stats.recent_logins.map((user) => (
+            stats.active_users.map((user) => (
               <div key={user.id} className="flex items-center justify-between rounded-md border border-border p-3">
                 <div>
                   <p className="text-sm font-medium">{user.name}</p>

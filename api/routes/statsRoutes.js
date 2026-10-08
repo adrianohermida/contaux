@@ -53,11 +53,17 @@ router.get('/security', requireAuth, async (req, res) => {
   try {
     const tenantIds = await getAccessibleTenantIds(req.user);
 
-    const [usersRes, mfaRes, loginsRes, auditRes] = await Promise.all([
+    const [usersRes, mfaRes, allUsersRes, loginsRes, auditRes] = await Promise.all([
       query(`SELECT COUNT(*) as total FROM users WHERE tenant_id = ANY($1::int[]) AND active = true`, [tenantIds]),
       query(`SELECT COUNT(*) as total FROM users WHERE tenant_id = ANY($1::int[]) AND active = true AND mfa_enabled = true`, [tenantIds]),
       query(
-        `SELECT id, name, email, role, last_login FROM users
+        `SELECT id, name, email, role, mfa_enabled FROM users
+         WHERE tenant_id = ANY($1::int[]) AND active = true
+         ORDER BY name ASC`,
+        [tenantIds],
+      ),
+      query(
+        `SELECT id, name, email, role, last_login, mfa_enabled FROM users
          WHERE tenant_id = ANY($1::int[]) AND active = true AND last_login IS NOT NULL
          ORDER BY last_login DESC LIMIT 10`,
         [tenantIds],
@@ -72,6 +78,7 @@ router.get('/security', requireAuth, async (req, res) => {
     res.json({
       total_users: parseInt(usersRes.rows[0].total),
       mfa_enabled: parseInt(mfaRes.rows[0].total),
+      active_users: allUsersRes.rows.map((r) => ({ ...r, id: String(r.id) })),
       recent_logins: loginsRes.rows.map((r) => ({ ...r, id: String(r.id) })),
       recent_audit: auditRes.rows.map((r) => ({ ...r, id: String(r.id) })),
     });
