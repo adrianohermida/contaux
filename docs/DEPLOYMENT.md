@@ -78,7 +78,7 @@ wrangler pages secret put API_URL --project-name=contaux
 
 ### Passo 4: GitHub Actions (opcional, CI/CD)
 
-O workflow `.github/workflows/deploy-cloudflare.yml` faz deploy automático em cada push para `main`.
+O workflow `.github/workflows/deploy-cloudflare.yml` faz deploy automático em cada push para `github-pages`.
 Configure os secrets no GitHub:
 - `CLOUDFLARE_API_TOKEN` — token com permissão de Pages
 - `CLOUDFLARE_ACCOUNT_ID` — Account ID

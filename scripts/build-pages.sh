@@ -74,6 +74,9 @@ cat > "$DIST/_redirects" << 'REDIRECTS'
 /portal/*        /dashboard/index.html  200
 REDIRECTS
 
+echo "==> Copiando Pages Functions (proxy da API)"
+cp -r "$REPO_ROOT/functions" "$DIST/functions"
+
 echo "==> Removendo arquivos que não devem ir para produção"
 rm -rf "$DIST/legacy" "$DIST/docs" "$DIST/.git"
 

@@ -12,7 +12,7 @@ name: Deploy Cloudflare Pages
 on:
   push:
     branches:
-      - main
+      - github-pages
   workflow_dispatch:
 
 jobs:
