@@ -107,6 +107,34 @@ api/
 - `docs/RECOVERY_PLAN.md` has the full modular migration plan.
 - `docs/specs/` has per-module specifications.
 
+## CNPJ Alfanumérico (IN RFB nº 2.229/2024)
+- A partir de jul/2026, a Receita Federal emite CNPJs alfanuméricos (14 posições, 0-9 e A-Z).
+- Validação em `dashboard/src/modules/crm/lib/validation.js` — `validateCNPJ` aceita letras, converte via ASCII-48, valida DVs pelo módulo 11.
+- `formatCNPJ` preserva letras na máscara visual (ex: `AB12.CD34.EF56/0001-90`).
+- CNPJs numéricos existentes continuam válidos.
+
+## Security Audit (CTX-01/CTX-02 — implementado pelo branch contaux-audit-plan)
+- **SEC-01**: Chat público busca apenas `visibility='public' AND status='published'` via `askPublic()`.
+- **SEC-02/03**: CRUD genérico restringe escrita por `writeRoles` e `editableFields` (allowlist).
+- **SEC-04**: Download de arquivo privado verifica tenant via `knowledge_base.file_url`.
+- **SEC-05**: Escrita de itens globais (tenant_id NULL) restrita a superadmin/admin.
+- **SEC-06**: Admin não modifica superadmin; mudança de senha incrementa `token_version`.
+- **SEC-07**: API key de escritórios parceiros oculta da listagem.
+- **SEC-10**: Webhook sem fallback de segredo — falha fechado.
+- **SEC-11**: Sanitização HTML (`dashboard/src/lib/sanitize.js`) + escape XSS no chat público.
+- **C-03/P0**: Tools de escrita exigem `approved: true`.
+- **C-04/P0**: localStorage do assistente isolado por usuário+tenant.
+- **C-07/P1**: Recibos estruturados de tools.
+- **C-09/P0**: taskExecutor restringe null-tenant a superadmin.
+- **C-12/P0**: `conversationAccess.js` — verificação canônica de acesso a conversa.
+- **SAFE-01**: Operações falsas contidas (orçamento→fatura, NFe, MFA toggle, relatório).
+- **FAST-01–06**: Importação com auth, CRM snake_case, suporte persistência, portal erro, fidelidade vazio, integrações reais.
+- **PKG-1**: Shell host-agnóstico do assistente (`assistantShell.jsx` + `contauxAdapter.js`).
+
+## Dependency Updates (CTX-03)
+- **multer**: 1.4.5-lts.2 → 2.4.0 (fixa GHSA-535w-7cp7-47q4 — DoS via oversized array index).
+- **nodemailer**: 6.x → 10.1.1 (fixa vulnerabilidades altas de injeção SMTP e bypass de validação).
+
 ## Rules
 - Max 200 lines per component.
 - Portuguese (BR) in all UI text and comments.
