@@ -897,6 +897,7 @@
     <script src="assets/js/site-modals.js"></script>
     <script type="text/javascript">
         //========= testimonial 
+        if (document.querySelector('.testimonial-slider')) {
         tns({
             container: '.testimonial-slider',
             items: 1,
@@ -925,6 +926,7 @@
                 }
             }
         });
+        }
         
         //========= glightbox
         if (document.querySelector('.glightbox')) {

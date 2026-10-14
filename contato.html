@@ -456,6 +456,7 @@
     <script src="assets/js/site-modals.js"></script>
     <script type="text/javascript">
         //========= testimonial 
+        if (document.querySelector('.testimonial-slider')) {
         tns({
             container: '.testimonial-slider',
             items: 1,
@@ -484,8 +485,10 @@
                 }
             }
         });
+        }
         
         //========= glightbox
+        if (document.querySelector('.glightbox')) {
         GLightbox({
             'href': 'https://www.youtube.com/watch?v=r44RKWyfcFw&fbclid=IwAR21beSJORalzmzokxDRcGfkZA1AtRTE__l5N4r09HcGS5Y6vOluyouM9EM',
             'type': 'video',
@@ -493,6 +496,7 @@
             'width': 900,
             'autoplayVideos': true,
         });
+        }
 
         //============== isotope masonry js with imagesloaded
         var isoContainer = document.querySelector('#container');
