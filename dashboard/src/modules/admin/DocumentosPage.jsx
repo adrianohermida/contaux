@@ -10,6 +10,7 @@ import { SkeletonCard } from '@/components/ui/skeleton'
 import { useCollection } from '@/hooks/useCollection'
 import DocumentForm from './DocumentForm'
 import { Search, FolderOpen, FileText, Eye, Plus, Pencil } from 'lucide-react'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 const typeLabels = {
   template: 'Template',
@@ -140,7 +141,7 @@ export default function DocumentosPage() {
             </div>
             <div
               className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: viewing.content || '<p>Sem conteúdo disponível.</p>' }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewing.content) || '<p>Sem conteúdo disponível.</p>' }}
             />
           </>
         )}

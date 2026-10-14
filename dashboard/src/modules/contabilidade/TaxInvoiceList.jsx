@@ -76,8 +76,8 @@ export default function TaxInvoiceList({ invoices, onNew, onEdit, onIssue, onCan
                       <div className="flex justify-end gap-1">
                         {inv.status === 'draft' && (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => onIssue(inv.id)} aria-label="Emitir">
-                              <Send className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" disabled title="Emissão não disponível — requer integração fiscal" onClick={() => onIssue(inv.id)} aria-label="Emitir (indisponível)">
+                              <Send className="h-4 w-4 opacity-40" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => onCancel(inv.id)} aria-label="Cancelar">
                               <XCircle className="h-4 w-4" />

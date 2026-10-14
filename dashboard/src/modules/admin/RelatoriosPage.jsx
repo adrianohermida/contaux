@@ -44,16 +44,9 @@ export default function RelatoriosPage() {
   useEffect(() => { fetchStats() }, [fetchStats])
 
   const handleGenerate = async (report) => {
-    setGenerating(report.id)
-    try {
-      // Atualiza a data da última execução
-      await update(report.id, { last_run: new Date().toISOString().slice(0, 10) })
-      toast(`Relatório "${report.name}" gerado com sucesso`, 'success')
-    } catch {
-      toast('Erro ao gerar relatório', 'error')
-    } finally {
-      setGenerating(null)
-    }
+    // SAFE-01: Geração de relatório não produz arquivo real — apenas atualiza data.
+    // Não anunciar sucesso sem entregar o relatório.
+    toast(`Relatório "${report.name}" não está disponível para download. Exportação em desenvolvimento.`, 'info')
   }
 
   const statCards = [

@@ -21,8 +21,10 @@ export default function TaxInvoicesPage() {
     setFormOpen(false)
   }
 
-  const handleIssue = async (id) => {
-    await update(id, { status: 'issued' })
+  const handleIssue = async () => {
+    // SAFE-01: Emissão de NFe requer integração com autoridade fiscal (FocusNFe).
+    // Não alterar status sem emissão real — evita falso sucesso.
+    alert('Emissão de NFe não disponível. Esta funcionalidade requer integração com a autoridade fiscal (FocusNFe).')
   }
 
   const handleCancel = async (id) => {

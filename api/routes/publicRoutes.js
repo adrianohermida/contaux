@@ -365,7 +365,8 @@ router.post('/chat', async (req, res) => {
       const aiService = require('../services/aiService');
       const result = await aiService.askPublic(message.trim());
       if (result.sources && result.sources.length > 0) {
-        const answer = result.answer.replace(/\n/g, '<br>');
+        // SEC-11: envia texto puro — o widget cliente escapa e converte \n em <br>
+        const answer = result.answer;
         await query(
           `INSERT INTO assistant_messages (conversation_id, role, text, sources, author_name)
            VALUES ($1, 'assistant', $2, $3, 'Assistente')`,
