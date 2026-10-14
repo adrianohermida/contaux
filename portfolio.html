@@ -450,8 +450,11 @@
     <script src="assets/js/site-modals.js"></script>
     <script type="text/javascript">
         //============== isotope masonry js with imagesloaded
+        var isoContainer = document.querySelector('#container');
+        if (isoContainer) {
         imagesLoaded('#container', function () {
             var elem = document.querySelector('.grid');
+            if (!elem) return;
             var iso = new Isotope(elem, {
                 // options
                 itemSelector: '.grid-item',
@@ -472,6 +475,7 @@
                 })
             );
         });
+        }
     </script>
 
 <link rel="stylesheet" href="https://cdn.positus.global/production/resources/robbu/whatsapp-button/whatsapp-button.css">

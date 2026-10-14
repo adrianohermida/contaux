@@ -1004,8 +1004,11 @@
         }
 
         //============== isotope masonry js with imagesloaded
+        var isoContainer = document.querySelector('#container');
+        if (isoContainer) {
         imagesLoaded('#container', function () {
             var elem = document.querySelector('.grid');
+            if (!elem) return;
             var iso = new Isotope(elem, {
                 // options
                 itemSelector: '.grid-item',
@@ -1026,6 +1029,7 @@
                 })
             );
         });
+        }
     </script>
 
 <!-- Widget do WhatsApp oculto temporariamente
