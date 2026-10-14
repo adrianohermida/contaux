@@ -72,7 +72,10 @@ export default function PortalInvoices() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Cliente: {inv.client_name}</span>
                   <span className="font-semibold">
-                    R$ {(inv.items || []).reduce((sum, item) => sum + (item.total || 0), 0).toFixed(2)}
+                    R$ {(inv.items || []).reduce((sum, item) => {
+                      const lineTotal = (item.quantity || 0) * (item.unit_price || 0)
+                      return sum + lineTotal - (item.discount || 0)
+                    }, 0).toFixed(2)}
                   </span>
                 </div>
               </CardContent>

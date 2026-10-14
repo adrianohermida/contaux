@@ -18,7 +18,8 @@ function InfoRow({ icon: Icon, label, value }) {
 }
 
 function ContactsTab({ contacts, clientId }) {
-  const clientContacts = contacts.filter((c) => c.clientId === clientId)
+  // FAST-02: usa snake_case (client_id) vindo da API
+  const clientContacts = contacts.filter((c) => String(c.client_id) === String(clientId))
   if (!clientContacts.length) return <p className="text-sm text-muted-foreground py-4">Nenhum contato vinculado.</p>
   return (
     <div className="space-y-2">
@@ -26,10 +27,10 @@ function ContactsTab({ contacts, clientId }) {
         <div key={c.id} className="flex items-center justify-between rounded-md border border-border p-3">
           <div>
             <p className="text-sm font-medium">{c.name}</p>
-            <p className="text-xs text-muted-foreground">{c.position} · {c.email}</p>
+            <p className="text-xs text-muted-foreground">{c.position || '—'} · {c.email || '—'}</p>
           </div>
           <div className="flex gap-1">
-            {c.tags.map((t) => <Badge key={t} variant="outline" className="text-xs">{t}</Badge>)}
+            {(c.tags || []).map((t) => <Badge key={t} variant="outline" className="text-xs">{t}</Badge>)}
           </div>
         </div>
       ))}
@@ -38,15 +39,16 @@ function ContactsTab({ contacts, clientId }) {
 }
 
 function NotesTab({ notes, contactId }) {
-  const contactNotes = notes.filter((n) => n.contactId === contactId)
+  // FAST-02: usa snake_case (contact_id, created_at) vindo da API
+  const contactNotes = notes.filter((n) => String(n.contact_id) === String(contactId))
   if (!contactNotes.length) return <p className="text-sm text-muted-foreground py-4">Nenhuma nota registrada.</p>
   return (
     <div className="space-y-2">
       {contactNotes.map((n) => (
         <div key={n.id} className="rounded-md border border-border p-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium">{n.author}</span>
-            <span className="text-xs text-muted-foreground">{new Date(n.created).toLocaleDateString('pt-BR')}</span>
+            <span className="text-xs font-medium">{n.author || '—'}</span>
+            <span className="text-xs text-muted-foreground">{n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : '—'}</span>
           </div>
           <p className="text-sm">{n.content}</p>
         </div>
@@ -56,7 +58,8 @@ function NotesTab({ notes, contactId }) {
 }
 
 function ActivitiesTab({ activities, contactId }) {
-  const contactActivities = activities.filter((a) => a.contactId === contactId)
+  // FAST-02: usa snake_case (contact_id, created_at) vindo da API
+  const contactActivities = activities.filter((a) => String(a.contact_id) === String(contactId))
   if (!contactActivities.length) return <p className="text-sm text-muted-foreground py-4">Nenhuma atividade registrada.</p>
   return (
     <div className="space-y-2">
@@ -67,7 +70,7 @@ function ActivitiesTab({ activities, contactId }) {
           </div>
           <div>
             <p className="text-sm font-medium">{a.description}</p>
-            <p className="text-xs text-muted-foreground capitalize">{a.type} · {new Date(a.created).toLocaleDateString('pt-BR')}</p>
+            <p className="text-xs text-muted-foreground capitalize">{a.type || '—'} · {a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '—'}</p>
           </div>
         </div>
       ))}
@@ -77,7 +80,11 @@ function ActivitiesTab({ activities, contactId }) {
 
 export default function ClientDetail({ client, contacts, notes, activities, onBack, onEdit }) {
   if (!client) return null
-  const firstContact = contacts.find((c) => c.clientId === client.id)
+  // FAST-02: usa snake_case (client_id) e protege campos nulos
+  const firstContact = contacts.find((c) => String(c.client_id) === String(client.id))
+  const tags = client.tags || []
+  const address = client.address || {}
+  const fiscal = client.fiscal || {}
 
   return (
     <div className="space-y-4">
@@ -97,9 +104,9 @@ export default function ClientDetail({ client, contacts, notes, activities, onBa
             </div>
             <Badge variant={statusVariants[client.status]}>{statusLabels[client.status]}</Badge>
           </div>
-          {client.tags.length > 0 && (
+          {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {client.tags.map((t) => <Badge key={t} variant="outline">{t}</Badge>)}
+              {tags.map((t) => <Badge key={t} variant="outline">{t}</Badge>)}
             </div>
           )}
         </CardHeader>
@@ -125,17 +132,17 @@ export default function ClientDetail({ client, contacts, notes, activities, onBa
                   </div>
                   <div>
                     <p className="mb-2 text-sm font-medium">Endereço</p>
-                    <InfoRow icon={MapPin} label="Endereço" value={`${client.address.street}, ${client.address.number}`} />
-                    <InfoRow icon={MapPin} label="Cidade" value={`${client.address.city} - ${client.address.state}`} />
-                    <InfoRow icon={MapPin} label="CEP" value={client.address.zip} />
+                    <InfoRow icon={MapPin} label="Endereço" value={`${address.street || '—'}, ${address.number || '—'}`} />
+                    <InfoRow icon={MapPin} label="Cidade" value={`${address.city || '—'} - ${address.state || '—'}`} />
+                    <InfoRow icon={MapPin} label="CEP" value={address.zip} />
                   </div>
                   {client.type === 'PJ' && (
                     <div className="sm:col-span-2">
                       <p className="mb-2 text-sm font-medium">Dados Fiscais</p>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <InfoRow icon={FileText} label="Insc. Estadual" value={client.fiscal.inscricao_estadual} />
-                        <InfoRow icon={FileText} label="Insc. Municipal" value={client.fiscal.inscricao_municipal} />
-                        <InfoRow icon={FileText} label="Regime" value={client.fiscal.regime_tributario} />
+                        <InfoRow icon={FileText} label="Insc. Estadual" value={fiscal.inscricao_estadual} />
+                        <InfoRow icon={FileText} label="Insc. Municipal" value={fiscal.inscricao_municipal} />
+                        <InfoRow icon={FileText} label="Regime" value={fiscal.regime_tributario} />
                       </div>
                     </div>
                   )}

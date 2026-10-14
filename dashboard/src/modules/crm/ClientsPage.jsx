@@ -41,14 +41,23 @@ export default function ClientsPage() {
     const clientActivities = activities.filter((a) => contactIds.has(String(a.contact_id)))
 
     return (
-      <ClientDetail
-        client={viewing}
-        contacts={clientContacts}
-        notes={clientNotes}
-        activities={clientActivities}
-        onBack={() => setViewingId(null)}
-        onEdit={() => handleEdit(viewing)}
-      />
+      <>
+        <ClientDetail
+          client={viewing}
+          contacts={clientContacts}
+          notes={clientNotes}
+          activities={clientActivities}
+          onBack={() => setViewingId(null)}
+          onEdit={() => handleEdit(viewing)}
+        />
+        {/* FAST-02: formulário montado também no detalhe para permitir edição */}
+        <ClientForm
+          open={formOpen}
+          onClose={() => setFormOpen(false)}
+          onSave={handleSave}
+          editingClient={editing}
+        />
+      </>
     )
   }
 

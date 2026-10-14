@@ -26,6 +26,7 @@ export default function TicketsPage() {
     setFormOpen(false)
   }
 
+  // FAST-03: retorna a promise para o detalhe aguardar persistência
   const handleAddMessage = async (ticketId, message) => {
     const ticket = tickets.find((t) => String(t.id) === String(ticketId))
     if (ticket) {
@@ -41,13 +42,22 @@ export default function TicketsPage() {
 
   if (viewing) {
     return (
-      <TicketDetail
-        ticket={viewing}
-        onBack={() => setViewingId(null)}
-        onEdit={() => handleEdit(viewing)}
-        onAddMessage={(msg) => handleAddMessage(viewing.id, msg)}
-        onStatusChange={(status) => handleStatusChange(viewing.id, status)}
-      />
+      <>
+        <TicketDetail
+          ticket={viewing}
+          onBack={() => setViewingId(null)}
+          onEdit={() => handleEdit(viewing)}
+          onAddMessage={(msg) => handleAddMessage(viewing.id, msg)}
+          onStatusChange={(status) => handleStatusChange(viewing.id, status)}
+        />
+        {/* FAST-03: formulário montado também no detalhe para permitir edição */}
+        <TicketForm
+          open={formOpen}
+          onClose={() => setFormOpen(false)}
+          onSave={handleSave}
+          editingTicket={editing}
+        />
+      </>
     )
   }
 

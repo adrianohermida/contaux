@@ -480,11 +480,105 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Arquivos:** `api/routes/inboxRoutes.js`
 
-### SEC-05 e SEC-11 — Pendentes
+### SEC-05 — Retirar escrita implícita em tenant nulo
 
-- **SEC-05** (retirar escrita implícita em tenant nulo): parcialmente mitigado pelo `requireWriteRole` e `editableFields`. Mutação global por papel específico ainda precisa de refinamento.
-- **SEC-11** (sanitizar conteúdo exibido): pendente — requer revisão de templates HTML no portal e detalhes.
+**Status:** Concluída.
+
+**Problema:** itens globais (tenant_id NULL) em tabelas com `includeNullTenant` (ex: knowledge_base) podiam ser editados por qualquer papel com permissão de escrita.
+
+**Solução:** `buildTenantWhere` agora aceita `forWrite=true` — quando ativo, usuários não-admin (accountant, viewer, client) só acessam itens do seu próprio tenant, não globais. Apenas superadmin e admin editam itens globais. Aplicado em PATCH e DELETE do CRUD.
+
+**Arquivos:** `api/routes/crud.js` (buildTenantWhere com forWrite, PATCH linha 185, DELETE linha 210).
+
+### SEC-11 — Sanitizar conteúdo exibido
+
+**Status:** Concluída.
+
+**Problema:** conteúdo HTML exibido no portal e no chat público podia injetar scripts (XSS).
+
+**Solução:**
+- `dashboard/src/lib/sanitize.js` — sanitização DOM-based (remove scripts, event handlers, URIs perigosos).
+- `DocumentosPage.jsx` usa `sanitizeHtml` ao renderizar HTML.
+- Chat público (`assets/js/public-chat-widget.js`) escapa HTML do usuário.
+- `publicRoutes.js` serve respostas em texto plano, não HTML injetado.
+
+**Arquivos:** `dashboard/src/lib/sanitize.js`, `dashboard/src/modules/admin/DocumentosPage.jsx`, `assets/js/public-chat-widget.js`, `api/routes/publicRoutes.js`.
 
 ### SAFE-01 — Não emitir confirmação fictícia
 
-Identificado mas não alterado nesta onda: conversão de orçamento, emissão NFe, relatórios, MFA e encerramento de sessão anunciam sucesso sem produzir o efeito. A contenção (desabilitar botões enganosos) e a implementação real são ondas subsequentes (CTX-02+).
+**Status:** Concluída (contenção).
+
+**Problema:** botões de emissão NFe, conversão de orçamento, relatórios, MFA e encerramento de sessão anunciavam sucesso sem produzir efeito real.
+
+**Solução (contenção):** botões enganosos desabilitados com feedback informativo:
+- NFe: botão "Emitir" desabilitado em `TaxInvoiceList.jsx` e `TaxInvoicesPage.jsx` com alerta.
+- Conversão de orçamento: botão desabilitado em `QuotesPage.jsx` e `QuoteList.jsx` com explicação.
+- MFA: toggle desabilitado em `SegurancaPage.jsx`.
+- Encerramento de sessão: botão desabilitado em `SegurancaPage.jsx`.
+- Relatórios: `RelatoriosPage.jsx` mostra toast informativo em vez de sucesso falso.
+
+**Arquivos:** `dashboard/src/modules/contabilidade/TaxInvoiceList.jsx`, `dashboard/src/modules/contabilidade/TaxInvoicesPage.jsx`, `dashboard/src/modules/financeiro/QuotesPage.jsx`, `dashboard/src/modules/financeiro/QuoteList.jsx`, `dashboard/src/modules/admin/SegurancaPage.jsx`, `dashboard/src/modules/admin/RelatoriosPage.jsx`.
+
+## CTX-02 — Correções pequenas e visíveis
+
+**Status:** Concluída (FAST-01 a FAST-07).
+
+**Foco:** destravar importação, detalhes CRM/suporte, portal, telas vazias e indicadores honestos.
+
+**Gate:** caminhos corrigidos passam testes focais sem ampliar permissões.
+
+### FAST-01 — Enviar autenticação pelo cliente canônico (Importação)
+
+**Problema:** `ImportPage.jsx` usava `fetch` direto sem Authorization — importação falhava em sessão expirada e não enviava token.
+
+**Solução:** trocado por `request()` de `@/lib/api` (com auth + auto-refresh).
+
+**Arquivos:** `dashboard/src/modules/import/ImportPage.jsx`.
+
+### FAST-02 — Corrigir vínculos e edição no detalhe (CRM)
+
+**Problema:** `ClientDetail.jsx` usava camelCase (`clientId`, `contactId`, `created`) mas a API retorna snake_case (`client_id`, `contact_id`, `created_at`) — contatos/notas/atividades nunca apareciam. Campos nulos (`tags`, `address`, `fiscal`) causavam crash. Formulário de edição não estava montado no detalhe.
+
+**Solução:** padronizado snake_case, protegidos campos nulos, `ClientForm` renderizado também no detalhe.
+
+**Arquivos:** `dashboard/src/modules/crm/ClientDetail.jsx`, `dashboard/src/modules/crm/ClientsPage.jsx`.
+
+### FAST-03 — Destravar edição e preservar rascunho (Suporte)
+
+**Problema:** `TicketDetail.jsx` limpava a mensagem antes de persistir — falha de rede perdia o texto. `ticket.messages` nulo causava crash. Formulário não estava montado no detalhe.
+
+**Solução:** `handleSend` agora aguarda persistência antes de limpar; `messages` protegido com `|| []`; `TicketForm` renderizado no detalhe.
+
+**Arquivos:** `dashboard/src/modules/suporte/TicketDetail.jsx`, `dashboard/src/modules/suporte/TicketsPage.jsx`.
+
+### FAST-04 — Tratar erro e totais de faturas (Portal)
+
+**Problema:** `PortalDashboard.jsx` acessava `stats.pendingInvoices` sem verificar null (crash em erro de API). Faturas canceladas eram contadas como pendentes. `PortalInvoices.jsx` somava `item.total` (campo inexistente) em vez do cálculo canônico.
+
+**Solução:** estado de erro explícito; `stats` protegido com fallback; canceladas excluídas das pendências; total canônico: `quantity * unit_price - discount`.
+
+**Arquivos:** `dashboard/src/pages/portal/PortalDashboard.jsx`, `dashboard/src/pages/portal/PortalInvoices.jsx`.
+
+### FAST-05 — Trocar spinner infinito por vazio/erro acionável (Fidelidade)
+
+**Problema:** `FidelidadePage.jsx` mostrava spinner para sempre quando não havia programa cadastrado.
+
+**Solução:** separado loading de ausência de programa — spinner só durante carregamento, estado vazio com orientação quando não há programa.
+
+**Arquivos:** `dashboard/src/modules/marketing/FidelidadePage.jsx`.
+
+### FAST-06 — Conectar usuários e estados de integrações reais (Administração)
+
+**Problema:** `ConfiguracoesPage.jsx` usava `useCollection('users')` mas `users` foi removido do CRUD genérico (segurança) — a listagem falhava. Integrações tinham status fixo ("Conectado") e botões sem ação.
+
+**Solução:** usuários carregados via `request('/auth/users')`. Integrações usam estados reais (unknown/unconfigured/error/healthy) com botão "Conectar" apenas quando aplicável.
+
+**Arquivos:** `dashboard/src/modules/admin/ConfiguracoesPage.jsx`.
+
+### FAST-07 — Corrigir cooldown de sugestões (Assistente)
+
+**Problema:** `isRecentlyDismissed()` era `async` sem `await` — retornava uma Promise (sempre truthy), então sugestões dispensadas nunca reapareciam. `action_url` das obrigações apontava para `/contabilidade` em vez de `/contabilidade/calendario`.
+
+**Solução:** removido `async` da função (é pura). `action_url` corrigido para `/contabilidade/calendario`.
+
+**Arquivos:** `api/services/assistantProactive.js`.
