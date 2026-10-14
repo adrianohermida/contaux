@@ -1,6 +1,6 @@
 # robots.txt — Contaux Contadoria
 # Permite indexação de todas as páginas públicas
-# Bloqueia rotas internas do dashboard, API e assets de sistema
+# Bloqueia rotas internas do dashboard, API e páginas utilitárias
 
 User-agent: *
 Allow: /
@@ -17,6 +17,7 @@ Disallow: /login
 Disallow: /api/
 Disallow: /reset-password.html
 Disallow: /mail-success.html
+Disallow: /blog-single-sidebar.html
 
 # AI crawlers — permitidos para descoberta via llms.txt
 User-agent: GPTBot

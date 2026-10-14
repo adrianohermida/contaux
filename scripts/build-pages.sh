@@ -45,6 +45,13 @@ if [ -f "$REPO_ROOT/CNAME" ]; then
   cp "$REPO_ROOT/CNAME" "$DIST/"
 fi
 
+# Copia arquivos de SEO e PWA da raiz
+for seo_file in sitemap.xml robots.txt llms.txt manifest.json; do
+  if [ -f "$REPO_ROOT/$seo_file" ]; then
+    cp "$REPO_ROOT/$seo_file" "$DIST/"
+  fi
+done
+
 echo "==> Criando _redirects (rotas SPA + proxy API)"
 cat > "$DIST/_redirects" << 'REDIRECTS'
 # Dashboard SPA — todas as rotas internas servem o index.html do dashboard

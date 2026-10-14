@@ -1,25 +1,41 @@
 # Contaux Contadoria
 
-> Soluções contábeis e empresariais para advogados e escritórios de advocacia. Cálculos judiciais, pareceres técnicos, emissão de guias e planos de pagamento.
+> Contabilidade online e contadoria de apoio a processos para advogados autônomos e escritórios de advocacia. Cálculos judiciais, pareceres técnicos, guias de recolhimento e planos de pagamento.
 
-Contaux Contadoria é uma plataforma de gestão contábil especializada no setor jurídico, atendendo advogados e escritórios de advocacia em todo o Brasil. Oferece cálculos judiciais, pareceres contábeis, emissão de guias, planos de pagamento e gestão financeira integrada.
+Contaux Contadoria é uma plataforma de gestão contábil especializada no setor jurídico. Atende advogados autônomos e escritórios de advocacia em duas linhas: contabilidade do escritório (rotina contábil, abertura de sociedade, transição de contador) e contadoria para processos (cálculos, pareceres, guias, planos de pagamento e assistência técnica).
 
 ## Páginas principais
 
-- [Início](https://contaux.com.br/): Página principal com visão geral dos serviços
-- [Serviços](https://contaux.com.br/services.html): Lista de serviços contábeis especializados
-- [Planos](https://contaux.com.br/pricing.html): Planos e preços de contadoria personalizada
-- [Sobre Nós](https://contaux.com.br/about-us.html): História e equipe da Contaux Contadoria
+- [Início](https://contaux.com.br/): Página principal com visão geral das duas linhas de serviço
+- [Como funciona](https://contaux.com.br/como-funciona.html): Público atendido, linhas de serviço, contratação e etapas
+- [Serviços](https://contaux.com.br/services.html): Catálogo de serviços contábeis especializados
 - [Contato](https://contaux.com.br/contato.html): Canais de atendimento — chat, e-mail, telefone e WhatsApp
+
+## Contadoria para processos
+
+- [Cálculos judiciais](https://contaux.com.br/servico-calculos-judiciais.html): Atualização monetária, juros, custas e honorários para processos
+- [Pareceres técnicos](https://contaux.com.br/servico-pareceres-tecnicos.html): Análise técnica contábil sobre questões processuais
+- [Guias de recolhimento](https://contaux.com.br/servico-guias-recolhimento.html): Emissão e conferência de guias judiciais e tributárias
+- [Plano de pagamento (PF)](https://contaux.com.br/servico-plano-pagamento-pf.html): Estruturação de planos de pagamento para pessoas físicas
+- [Recuperação judicial (PJ)](https://contaux.com.br/servico-recuperacao-judicial.html): Apoio contábil à recuperação judicial de empresas
+- [Assistência técnica](https://contaux.com.br/servico-assistencia-tecnica.html): Apoio técnico-contábil em demandas processuais
+
+## Contabilidade do escritório
+
+- [Contabilidade online](https://contaux.com.br/servico-contabilidade-online.html): Acompanhamento contábil recorrente para sociedades de advocacia
+- [Abertura de sociedade](https://contaux.com.br/servico-abertura-sociedade.html): Constituição de sociedade de advocacia
+- [Rotina do escritório](https://contaux.com.br/servico-rotina-escritorio.html): Organização da rotina contábil mensal
+- [Troca de contador](https://contaux.com.br/servico-troca-contador.html): Transição de contador sem perda de informações
 
 ## Recursos
 
-- [Portfólio](https://contaux.com.br/portfolio.html): Casos de sucesso em contabilidade jurídica
-- [Blog](https://contaux.com.br/blog-grid-sidebar.html): Artigos e novidades sobre contabilidade no setor jurídico
-- [Níveis de SLA](https://contaux.com.br/niveis-sla.html): Prazos de resposta, disponibilidade e garantias de serviço
-- [Seguro de Responsabilidade](https://contaux.com.br/seguro-responsabilidade.html): Cobertura e proteção para clientes
+- [Blog](https://contaux.com.br/blog-grid-sidebar.html): Artigos sobre contabilidade no setor jurídico
+- [Central de ajuda](https://contaux.com.br/central-ajuda.html): Dúvidas frequentes sobre serviços, faturamento, prazos e suporte
+- [Parceiros](https://contaux.com.br/parceiros.html): Programa de parceiros para advogados — cadastro de interesse
+- [Integração HMADV](https://contaux.com.br/integracao-hmadv.html): Status e disponibilidade da integração com Hermida Maia Advocacia
 
 ## Legal
 
 - [Política de Privacidade](https://contaux.com.br/politica-de-privacidade.html): Tratamento de dados pessoais
 - [Termos de Uso](https://contaux.com.br/termos-de-uso.html): Regras e condições de uso da plataforma
+- [Níveis de SLA](https://contaux.com.br/niveis-sla.html): Prazos de resposta e disponibilidade de atendimento
