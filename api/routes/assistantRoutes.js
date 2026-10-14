@@ -13,6 +13,7 @@ const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middlew
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
 const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
 const { validateFile } = require('../services/mimeValidator');
+const { checkConversationAccess } = require('../services/conversationAccess');
 const {
   generateSuggestions, listPendingSuggestions, dismissSuggestion, actOnSuggestion,
   isProactiveEnabled, getBudgetStatus,
@@ -35,22 +36,6 @@ const attUpload = multer({
 });
 
 router.use(requireAuth);
-
-// ===== Helper: verifica acesso à conversa (participante + tenant) =====
-// Retorna a conversa se o usuário tem acesso, null caso contrário.
-async function checkConversationAccess(convId, user) {
-  const tenantIds = await getAccessibleTenantIds(user);
-  const result = await query(
-    `SELECT id, tenant_id, user_id, assigned_to, status, title, context, origin,
-            conversation_kind, handoff_reason, visitor_name, project_id, dot_id, created_at, updated_at
-     FROM assistant_conversations
-     WHERE id = $1 AND tenant_id = ANY($2::int[])
-       AND (user_id = $3 OR assigned_to = $3
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $3))`,
-    [convId, tenantIds, user.id],
-  );
-  return result.rows.length > 0 ? result.rows[0] : null;
-}
 
 // ===== Ferramentas operacionais (CQ-05) =====
 

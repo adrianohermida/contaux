@@ -625,3 +625,75 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 - Cleanup: dados de teste removidos ✓
 
 **Gate:** tool de escrita sem aprovação negada no servidor ✓; localStorage isolado por usuário+tenant ✓; tarefa sem tenant inacessível a não-superadmin ✓.
+
+## CTX-04 — P0 remanescente e P1 já corrigidos
+
+**Status:** Concluída (C-12, C-14, C-15, C-13, C-10).
+
+**Foco:** último P0 da auditoria externa (C-12: autorização canônica da conversa no endpoint `/knowledge-base/ask`) e documentação dos P1 já corrigidos em ondas anteriores.
+
+**Gate:** conversa estrangeira não é lida/escrita pelo endpoint de IA; Dot derivado do vínculo governado; erros não vazam existência; P1 já corrigidos confirmados.
+
+### C-12/P0 — Autorização canônica da conversa no endpoint de IA
+
+**Problema:** `api/server.js` no endpoint `/api/knowledge-base/ask` verificava se o usuário era dono/responsável/participante da conversa, mas **sem verificar tenant** — a query usava apenas `user_id`, `assigned_to` e `assistant_participants`, sem `tenant_id = ANY($tenantIds)`. Diferente da função canônica `checkConversationAccess` em `assistantRoutes.js` (que verifica tenant), este caminho aceitava `conversation_id` de qualquer tenant se o usuário fosse participante. Além disso, o `dot_id` era lido do body da requisição em vez de derivado do vínculo governado (conversation.dot_id).
+
+**Solução:**
+- Extraída `checkConversationAccess` para módulo compartilhado `api/services/conversationAccess.js` — usada agora por `assistantRoutes.js` e `server.js`.
+- O endpoint `/knowledge-base/ask` usa `checkConversationAccess` (participante + tenant) antes de ler histórico, chamar IA ou escrever mensagens.
+- `dot_id` agora derivado de `conv.dot_id` (vínculo governado, validado no momento da criação da conversa), não do body.
+- Erros não revelam existência de conversa estrangeira (404 genérico).
+
+**Arquivos alterados:**
+- `api/services/conversationAccess.js` (novo) — `checkConversationAccess` extraída e reutilizável
+- `api/routes/assistantRoutes.js` — importa de `conversationAccess.js` em vez de definir localmente
+- `api/server.js` — importa e usa `checkConversationAccess`; deriva `dot_id` de `conv.dot_id`
+
+**Testes executados (curl):**
+- Admin pergunta com conversa própria → resposta + 2 mensagens salvas ✓
+- Hermida Maia tenta acessar conversa da Contaux → 404 "Conversa não encontrada" ✓
+- Hermida Maia envia `dot_id` forjado no body → ignorado, 404 (dot derivado da conversa) ✓
+- Cleanup: conversa de teste deletada ✓
+
+### C-14/P1 — Janela de histórico correta (corrigido em onda anterior)
+
+**Problema original:** histórico comentado como "últimas 20" usava `ORDER BY created_at ASC LIMIT 20` — selecionava as primeiras 20, não as últimas.
+
+**Estado atual:** corrigido. A query usa subquery com `ORDER BY created_at DESC LIMIT 20` e reordena com `ORDER BY created_at ASC` no wrapper — seleciona as últimas 20 mensagens e as apresenta em ordem cronológica.
+
+**Arquivos:** `api/server.js` (endpoint `/knowledge-base/ask`).
+
+### C-15/P1 — Aceite de handoff em transação atômica (corrigido em onda anterior)
+
+**Problema original:** o aceite de handoff tinha UPDATE condicional, mas a inclusão do participante e o evento não estavam na mesma transação. No erro, busca de status por ID sem tenant podia distinguir existência/estado de conversa estrangeira.
+
+**Estado atual:** corrigido. O endpoint `/conversations/:id/accept` usa `BEGIN/COMMIT/ROLLBACK` com UPDATE atômico, inserção de participante e evento na mesma transação. A verificação de tenant filtra por `tenant_id = ANY($tenantIds)` — não vaza existência de conversa estrangeira.
+
+**Arquivos:** `api/routes/assistantRoutes.js` (endpoint `/conversations/:id/accept`).
+
+### C-13/P1 — Compositor visível em nova conversa no mobile (corrigido em onda anterior)
+
+**Problema original:** `FullscreenWorkspace` só exibia chat mobile quando `activeConvId` existia. Nova conversa limpava o ID e definia `mobileView=conversation`; o compositor permanecia oculto com ID nulo.
+
+**Estado atual:** corrigido. O compositor (input) em `AssistantPanel.jsx` é sempre visível — não condicional a `activeConvId`. A função `sendMessage` cria a conversa no backend na primeira mensagem se não existir. `clearMessages` define `mobileView='conversation'` e o compositor permanece acessível.
+
+**Arquivos:** `dashboard/src/components/assistant/FullscreenWorkspace.jsx`, `dashboard/src/components/assistant/AssistantPanel.jsx`, `dashboard/src/components/assistant/AssistantProvider.jsx`.
+
+### C-10/P1 — Fonte pública com contrato específico (corrigido em onda anterior)
+
+**Problema original:** `aiService` vazio/sem tenant caía para busca não filtrada; fonte pública precisava contrato específico, não fallback.
+
+**Estado atual:** corrigido (SEC-01). `askPublic()` usa `searchPublicKnowledgeBase()` com `visibility = 'public' AND status = 'published'` — contrato específico, não fallback da busca privada. O chat público nunca passa `tenantIds: null` para a busca privada.
+
+**Arquivos:** `api/services/aiService.js` (`askPublic`, `searchPublicKnowledgeBase`), `api/routes/publicRoutes.js`.
+
+### P1 remanescentes (não bloqueantes)
+
+Os seguintes P1 da auditoria não foram abordados nesta onda (não são P0 e não bloqueiam a federação):
+
+- **C-06/P1**: `AssistantWidget` monta dois painéis desktop/mobile CSS-hidden; extrair uma árvore de apresentação e ciclo de efeitos.
+- **C-07/P1**: prompts de módulo não bastam; intenção → ferramenta → serviço → permissão → confirmação → resultado/recibo.
+- **C-08/P1**: lista/histórico precisam paginação real e participação autorizada (parcialmente implementado — listagem já é paginada com offset/limit).
+- **C-11/P1**: tokens estimados não são consumo real; preservar serviço de créditos e reconciliação.
+
+**Gate:** conversa estrangeira não é lida/escrita pelo endpoint de IA ✓; Dot derivado do vínculo governado ✓; erros não vazam existência ✓; P1 já corrigidos confirmados ✓.

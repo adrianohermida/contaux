@@ -181,6 +181,7 @@ app.get('/api/knowledge-base/files/private/:filename', requireAuth, async (req, 
 // ===== Base de Conhecimento — Assistente de IA =====
 const aiService = require('./services/aiService');
 const { recordUsage, getBudgetStatus } = require('./services/assistantProactive');
+const { checkConversationAccess } = require('./services/conversationAccess');
 const { query } = require('./db');
 app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
   const { question, conversation_id } = req.body;
@@ -199,25 +200,26 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
 
     const tenantIds = await getAccessibleTenantIds(req.user);
 
-    // Verifica autorização: usuário deve ser dono, responsável ou participante da conversa
-    // C-12: sem isso, qualquer usuário poderia ler histórico e gravar mensagens em conversa alheia
+    // C-12/P0: autorização canônica antes de ler histórico, chamar IA ou escrever.
+    // Usa checkConversationAccess (participante + tenant) — não aceita conversation_id forjado.
+    // Erros não revelam existência de conversa estrangeira (404 genérico).
+    let convDotId = null;
     if (conversation_id) {
-      const convCheck = await query(
-        `SELECT id, status FROM assistant_conversations
-         WHERE id = $1 AND (user_id = $2 OR assigned_to = $2
-          OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $2))`,
-        [conversation_id, req.user.id],
-      );
-      if (convCheck.rows.length === 0) {
+      const conv = await checkConversationAccess(conversation_id, req.user);
+      if (!conv) {
         return res.status(404).json({ error: 'Conversa não encontrada' });
       }
       // IA não processa conversas em atendimento humano
-      if (convCheck.rows[0].status === 'with_human' || convCheck.rows[0].status === 'waiting_human') {
+      if (conv.status === 'with_human' || conv.status === 'waiting_human') {
         return res.status(409).json({ error: 'Conversa em atendimento humano' });
       }
+      // C-12: deriva Dot do vínculo governado (conversation.dot_id), não do body.
+      // O dot_id da conversa foi validado no momento da criação (tenant + is_active).
+      convDotId = conv.dot_id || null;
     }
 
     // Busca histórico da conversa atual (últimas 20 mensagens) para contexto da IA
+    // C-14: janela recente correta — DESC LIMIT 20 depois reordena ASC
     let conversationHistory = [];
     if (conversation_id) {
       const histResult = await query(
@@ -233,12 +235,13 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
       conversationHistory = histResult.rows;
     }
 
-    // Busca system_prompt do dot (assistente configurável) se fornecido
+    // C-12: busca system_prompt do Dot derivado da conversa (vínculo governado).
+    // Não confia no dot_id do body — usa o dot_id da conversa autorizada.
     let systemPrompt = null;
-    if (req.body.dot_id) {
+    if (convDotId) {
       const dotResult = await query(
         `SELECT system_prompt FROM assistant_dots WHERE id = $1 AND tenant_id = ANY($2::int[]) AND is_active = true`,
-        [req.body.dot_id, tenantIds],
+        [convDotId, tenantIds],
       );
       if (dotResult.rows.length > 0) systemPrompt = dotResult.rows[0].system_prompt;
     }
