@@ -118,24 +118,17 @@
     <link rel="stylesheet" href="assets/css/modals.css" />
 
     <!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+<script>if(location.hostname.indexOf('base44-preview')===-1){(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-NBS2N5K7');</script>
+    })(window,document,'script','dataLayer','GTM-NBS2N5K7');}</script>
     <!-- End Google Tag Manager -->
 
 
 <!-- Global site tag (gtag.js) - Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-00DWDD32MT"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-00DWDD32MT');
-</script>
-<script id="mcjs">!function(c,h,i,m,p){m=c.createElement(h),p=c.getElementsByTagName(h)[0],m.async=1,m.src=i,p.parentNode.insertBefore(m,p)}(document,"script","https://chimpstatic.com/mcjs-connected/js/users/039319f6b992150e5d295b31d/b1fbae1652d5a27fe2f410dd9.js");</script>
+<script>if(location.hostname.indexOf('base44-preview')===-1){(function(){var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=G-00DWDD32MT';document.head.appendChild(s);window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-00DWDD32MT');})();}</script>
+<script id="mcjs">if(location.hostname.indexOf('base44-preview')===-1){!function(c,h,i,m,p){m=c.createElement(h),p=c.getElementsByTagName(h)[0],m.async=1,m.src=i,p.parentNode.insertBefore(m,p)}(document,"script","https://chimpstatic.com/mcjs-connected/js/users/039319f6b992150e5d295b31d/b1fbae1652d5a27fe2f410dd9.js");}</script>
 
 </head>
 
@@ -738,7 +731,7 @@
                                 <p>"Trabalhar com a Contaux foi uma das melhores decisões para o nosso escritório. Eles são ágeis, organizados e sempre disponíveis. É ótimo saber que temos parceiros tão competentes para nos ajudar na parte contábil dos processos.</p>
                                 <div class="bottom">
                                     <div class="clien-image">
-                                        <img src= alt="#">
+                                        <img src="assets/images/testimonial/testi2.webp" alt="Dr. Ricardo Almeida">
                                     </div>
                                     <h3 class="name">Dr. Ricardo Almeida<span>Almeida & Associados | Porto Alegre (RS)</span></h3>
                                 </div>
@@ -759,7 +752,7 @@
                                 <p>"Com a Contaux, tenho mais tranquilidade em relação ao financeiro do meu escritório. Eles me ajudaram a organizar minhas finanças e a ter controle total sobre meu negócio. Estou muito satisfeito com o atendimento e suporte oferecidos." </p>
                                 <div class="bottom">
                                     <div class="clien-image">
-                                        <img src= alt="#">
+                                        <img src="assets/images/testimonial/testi2.webp" alt="Dr. João Silva">
                                     </div>
                                     <h3 class="name">Dr. João Silva<span>Advogado | Passo Fundo (PR)</span></h3>
                                 </div>
@@ -1000,13 +993,15 @@
         });
         
         //========= glightbox
-        GLightbox({
-            'href': 'https://www.youtube.com/watch?v=r44RKWyfcFw&fbclid=IwAR21beSJORalzmzokxDRcGfkZA1AtRTE__l5N4r09HcGS5Y6vOluyouM9EM',
-            'type': 'video',
-            'source': 'youtube', //vimeo, youtube or local
-            'width': 900,
-            'autoplayVideos': true,
-        });
+        if (document.querySelector('.glightbox')) {
+            GLightbox({
+                'href': 'https://www.youtube.com/watch?v=r44RKWyfcFw&fbclid=IwAR21beSJORalzmzokxDRcGfkZA1AtRTE__l5N4r09HcGS5Y6vOluyouM9EM',
+                'type': 'video',
+                'source': 'youtube', //vimeo, youtube or local
+                'width': 900,
+                'autoplayVideos': true,
+            });
+        }
 
         //============== isotope masonry js with imagesloaded
         imagesLoaded('#container', function () {
