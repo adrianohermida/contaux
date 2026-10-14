@@ -120,6 +120,17 @@
   var handoffArea = panel.querySelector('#contaux-chat-handoff');
   var statusEl = panel.querySelector('#contaux-chat-status');
 
+  // SEC-11: Escapa HTML para prevenir XSS no chat público
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // ===== Estado inicial =====
   var QUICK_REPLIES = [
     'Quero saber sobre serviços',
@@ -133,9 +144,12 @@
     var cls = role === 'user' ? 'user' : role === 'system' ? 'system' : role === 'human' ? 'human' : 'bot';
     div.className = 'contaux-chat-msg ' + cls;
     if (authorName && role === 'human') {
-      div.innerHTML = '<strong style="font-size:11px;display:block;margin-bottom:2px">' + authorName + '</strong>' + text;
+      div.innerHTML = '<strong style="font-size:11px;display:block;margin-bottom:2px">' + escapeHtml(authorName) + '</strong>' + escapeHtml(text).replace(/\n/g, '<br>');
+    } else if (role === 'user') {
+      div.textContent = text;
     } else {
-      div.innerHTML = text;
+      // Bot/assistant: escapa HTML, preserva quebras de linha
+      div.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
     }
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
@@ -228,7 +242,7 @@
               } else if (m.role === 'user' && m.author_name && m.author_name !== 'Visitante') {
                 addMessage(m.text, 'human', m.author_name);
               } else if (m.role === 'assistant') {
-                addMessage(m.text.replace(/\n/g, '<br>'), 'bot');
+                addMessage(m.text, 'bot');
               }
             });
             lastPoll = Date.now();

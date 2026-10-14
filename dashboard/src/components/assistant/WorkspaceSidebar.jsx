@@ -4,7 +4,7 @@ import {
   ChevronRight, MessageSquare, Clock, UserCheck, Trash2,
 } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
-import { useAuth } from '@/contexts/AuthContext'
+import { useShell } from './assistantShell.jsx'
 import { Button } from '@/components/ui/button'
 import ProjectFilter from './ProjectFilter'
 
@@ -19,7 +19,9 @@ export default function WorkspaceSidebar({ onSelectConversation, onNewConversati
     queue, loadQueue, acceptHandoff, convStatus,
     activeProjectFilter, setActiveProjectFilter,
   } = useAssistant()
-  const { user } = useAuth()
+  // PKG-1: auth vem do adaptador do host
+  const { useUser } = useShell()
+  const { user } = useUser()
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState({ projects: true, ai: false, support: false, assistants: true })
 

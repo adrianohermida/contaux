@@ -20,7 +20,7 @@ function formatLogin(s) {
 export default function SegurancaPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [toggling, setToggling] = useState(null)
+  // SAFE-01: MFA toggle desativado — funcionalidade não implementada
   const { toast } = useToast()
 
   const fetchStats = useCallback(async () => {
@@ -37,29 +37,10 @@ export default function SegurancaPage() {
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
-  const handleToggleMfa = async (userId, current) => {
-    setToggling(userId)
-    try {
-      await request(`/auth/users/${userId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ mfa_enabled: !current }),
-      })
-      setStats((prev) => ({
-        ...prev,
-        mfa_enabled: prev.mfa_enabled + (current ? -1 : 1),
-        active_users: (prev.active_users || []).map((u) =>
-          u.id === userId ? { ...u, mfa_enabled: !current } : u
-        ),
-        recent_logins: (prev.recent_logins || []).map((u) =>
-          u.id === userId ? { ...u, mfa_enabled: !current } : u
-        ),
-      }))
-      toast(`MFA ${!current ? 'ativado' : 'desativado'} com sucesso`, 'success')
-    } catch (err) {
-      toast(err.message, 'error')
-    } finally {
-      setToggling(null)
-    }
+  const handleToggleMfa = async () => {
+    // SAFE-01: MFA não está implementado — toggle apenas altera um flag no banco
+    // sem configurar TOTP/verificação real. Não anunciar sucesso.
+    toast('Autenticação de dois fatores (MFA) ainda não está disponível. Em desenvolvimento.', 'info')
   }
 
   if (loading) return <div className="flex justify-center py-12"><Spinner /></div>
@@ -121,8 +102,8 @@ export default function SegurancaPage() {
                   </Badge>
                   <Switch
                     checked={!!user.mfa_enabled}
-                    disabled={toggling === user.id}
-                    onChange={() => handleToggleMfa(user.id, user.mfa_enabled)}
+                    disabled
+                    onChange={() => handleToggleMfa()}
                   />
                 </div>
               </div>
@@ -158,7 +139,8 @@ export default function SegurancaPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => toast('Sessão encerrada (token expira em até 7d)', 'info')}
+                    disabled
+                    title="Encerramento de sessão remota não implementado"
                   >
                     Encerrar
                   </Button>

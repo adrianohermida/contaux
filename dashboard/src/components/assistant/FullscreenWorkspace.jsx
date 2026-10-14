@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
+import { useShell } from './assistantShell.jsx'
 import AssistantPanel from './AssistantPanel'
 import ConversationSidebar from './ConversationSidebar'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button'
  */
 export default function FullscreenWorkspace({ onClose }) {
   const { mobileView, setMobileView } = useAssistant()
+  const { brandName } = useShell()
 
   const showList = mobileView !== 'conversation'
   const showChat = mobileView === 'conversation'
@@ -19,7 +21,7 @@ export default function FullscreenWorkspace({ onClose }) {
     <div
       className="fixed inset-0 z-50 flex bg-card"
       role="dialog"
-      aria-label="Assistente Contaux — workspace"
+      aria-label={`Assistente ${brandName} — workspace`}
     >
       {/* Coluna esquerda — lista de conversas */}
       <aside

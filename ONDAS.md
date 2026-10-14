@@ -391,3 +391,416 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 - Validação do fluxo de criação de projeto e atribuição de conversa na UI
 - Configuração do orçamento de tokens diário em produção
 - Treinamento da equipe para o piloto interno
+
+## CTX-01 — Isolamento e contenção crítica (P0)
+
+**Status:** Concluída (SEC-01 a SEC-10).
+
+**Foco:** eliminar caminhos de acesso indevido e conter controles que alegam sucesso sem efeito. Ondas da auditoria externa (CONTAUX-AUDITORIA-PLANO-2026-10-14).
+
+**Gate:** duas organizações e papéis negativos não acessam/mutam dados indevidamente; sem falsos positivos de sucesso.
+
+### SEC-01 — Fechar consulta pública sem isolamento
+
+**Problema:** o chat público (`/api/public/chat`) chamava `aiService.ask(message, { tenantIds: null })`, que cai no branch sem filtro de tenant da busca — pesquisando TODO o acervo de conhecimento, incluindo itens privados e rascunhos.
+
+**Solução:** nova função `askPublic()` em `aiService.js` que busca APENAS itens com `visibility = 'public' AND status = 'published'`. O chat público agora usa `askPublic()` — nunca passa `tenantIds: null` para a busca privada.
+
+**Arquivos:** `api/services/aiService.js`, `api/routes/publicRoutes.js`
+
+**Testes:** chat público "MEI" → 1 fonte pública (Guia de Tributação para MEI) ✓; "LGPD" → 1 fonte pública (Lei 13.709/2018) ✓; itens privados não aparecem ✓.
+
+### SEC-02 — Negar escrita sem permissão por operação
+
+**Problema:** o CRUD genérico (`crud.js`) não restringia escrita por papel — quando `allowedRoles` não era definido, qualquer autenticado (incluindo `viewer` e `client`) podia criar/editar/deletar registros.
+
+**Solução:** middleware `requireWriteRole` aplicado a POST/PATCH/DELETE. Padrão: apenas `superadmin`, `admin`, `accountant` podem escrever. `viewer` e `client` recebem 403. Tabelas read-only (`audit_logs`, `emails`) têm `writeRoles: []` — ninguém escreve via CRUD.
+
+**Arquivos:** `api/routes/crud.js`, `api/server.js` (crudConfig)
+
+**Testes:** viewer tenta criar cliente → 403 "Seu perfil não tem permissão de escrita" ✓; viewer lista clientes → 200 ✓; admin cria cliente → 201 ✓.
+
+### SEC-03 — Allowlist de campos e identificadores
+
+**Problema:** `prepareData()` em `crud.js` aceitava TODOS os campos do body como identificadores SQL — um atacante podia injetar nomes de colunas arbitrárias ou modificar campos protegidos (`id`, `created_at`, `updated_at`).
+
+**Solução:** `editableFields` definido para cada tabela no crudConfig. `prepareData()` agora filtra campos não permitidos. Campos protegidos (`id`, `created_at`, `updated_at`, `created`, `updated`) sempre removidos. Tabelas read-only têm `editableFields: []` — escrita rejeitada com 403.
+
+**Arquivos:** `api/routes/crud.js`, `api/server.js` (crudConfig com editableFields para 24 tabelas)
+
+**Testes:** POST com `created_at`, `id`, `updated_at` no body → campos filtrados, registro criado com data atual ✓; id não sobrescrito ✓.
+
+### SEC-04 — Autorizar cada arquivo privado
+
+**Problema:** `GET /api/knowledge-base/files/private/:filename` exigia apenas `requireAuth` — não verificava se o usuário tinha acesso ao tenant do documento. Qualquer autenticado podia baixar qualquer arquivo privado.
+
+**Solução:** endpoint agora resolve o item da KB por `file_url`, verifica `visibility` e `tenant_id`. Itens privados exigem `getAccessibleTenantIds`. Sem registro na KB → 404 (falha fechada). Negação indistinguível de "não encontrado" (não vaza existência).
+
+**Arquivos:** `api/server.js`
+
+**Testes:** arquivo sem registro na KB → 404 ✓; arquivo de outro tenant → 404 ✓.
+
+### SEC-06 — Bloquear escalada por edição de usuários
+
+**Problema:** `PATCH /api/auth/users/:id` permitia admin mover usuário para tenant inacessível, modificar conta de superadmin, ou atribuir role superadmin sem validação do usuário-alvo.
+
+**Solução:** busca usuário-alvo ANTES de aplicar mudanças. Admin não pode modificar superadmin. Admin não pode atribuir role superadmin. Mudança de `tenant_id` validada contra `getAccessibleTenantIds`. Mudança de senha incrementa `token_version` (revoga sessões existentes).
+
+**Arquivos:** `api/routes/userRoutes.js`
+
+### SEC-07 — Isolar administração e ocultar credenciais
+
+**Problema:** `GET /api/integration/offices` retornava `SELECT *` (incluindo `api_key`). Rotação de chave retornava a nova chave sem aviso.
+
+**Solução:** listagem agora usa projeção explícita sem `api_key`. Rotação mostra a chave apenas na resposta, com aviso para guardá-la. Chave anterior invalidada automaticamente.
+
+**Arquivos:** `api/routes/integrationRoutes.js`
+
+### SEC-08 — Aprovação real e ACL da conversa nas tools
+
+**Problema:** `POST /assistant/tools/execute` não verificava acesso à `conversation_id` antes de executar tools — qualquer usuário podia executar tools em conversas alheias.
+
+**Solução:** se `conversation_id` é fornecido, `checkConversationAccess()` é chamado antes da execução. Sem acesso → 404 (não vaza existência).
+
+**Arquivos:** `api/routes/assistantRoutes.js`
+
+### SEC-09 — Autorizar workflow antes da execução
+
+**Problema:** `POST /api/workflows/:id/execute` não verificava tenant, status ativo, ou papel do usuário — qualquer autenticado podia executar qualquer workflow.
+
+**Solução:** workflow deve pertencer ao tenant do usuário (`tenant_id = ANY($tenantIds)`), estar ativo (`active = true`), e usuário deve ter papel de escrita (não `client`/`viewer`).
+
+**Arquivos:** `api/server.js`
+
+### SEC-10 — Eliminar fallback de segredo e callbacks inseguros
+
+**Problema:** `WEBHOOK_KEY` em `inboxRoutes.js` tinha fallback `'contaux-mail-2024'` — se a env var não existisse, qualquer pessoa podia enviar webhooks.
+
+**Solução:** sem fallback — se `CLOUDFLARE_WORKER_API_KEY` não configurado, webhook retorna 503. Validação de header `x-webhook-key` reforçada (rejeita ausência).
+
+**Arquivos:** `api/routes/inboxRoutes.js`
+
+### SEC-05 — Retirar escrita implícita em tenant nulo
+
+**Status:** Concluída.
+
+**Problema:** itens globais (tenant_id NULL) em tabelas com `includeNullTenant` (ex: knowledge_base) podiam ser editados por qualquer papel com permissão de escrita.
+
+**Solução:** `buildTenantWhere` agora aceita `forWrite=true` — quando ativo, usuários não-admin (accountant, viewer, client) só acessam itens do seu próprio tenant, não globais. Apenas superadmin e admin editam itens globais. Aplicado em PATCH e DELETE do CRUD.
+
+**Arquivos:** `api/routes/crud.js` (buildTenantWhere com forWrite, PATCH linha 185, DELETE linha 210).
+
+### SEC-11 — Sanitizar conteúdo exibido
+
+**Status:** Concluída.
+
+**Problema:** conteúdo HTML exibido no portal e no chat público podia injetar scripts (XSS).
+
+**Solução:**
+- `dashboard/src/lib/sanitize.js` — sanitização DOM-based (remove scripts, event handlers, URIs perigosos).
+- `DocumentosPage.jsx` usa `sanitizeHtml` ao renderizar HTML.
+- Chat público (`assets/js/public-chat-widget.js`) escapa HTML do usuário.
+- `publicRoutes.js` serve respostas em texto plano, não HTML injetado.
+
+**Arquivos:** `dashboard/src/lib/sanitize.js`, `dashboard/src/modules/admin/DocumentosPage.jsx`, `assets/js/public-chat-widget.js`, `api/routes/publicRoutes.js`.
+
+### SAFE-01 — Não emitir confirmação fictícia
+
+**Status:** Concluída (contenção).
+
+**Problema:** botões de emissão NFe, conversão de orçamento, relatórios, MFA e encerramento de sessão anunciavam sucesso sem produzir efeito real.
+
+**Solução (contenção):** botões enganosos desabilitados com feedback informativo:
+- NFe: botão "Emitir" desabilitado em `TaxInvoiceList.jsx` e `TaxInvoicesPage.jsx` com alerta.
+- Conversão de orçamento: botão desabilitado em `QuotesPage.jsx` e `QuoteList.jsx` com explicação.
+- MFA: toggle desabilitado em `SegurancaPage.jsx`.
+- Encerramento de sessão: botão desabilitado em `SegurancaPage.jsx`.
+- Relatórios: `RelatoriosPage.jsx` mostra toast informativo em vez de sucesso falso.
+
+**Arquivos:** `dashboard/src/modules/contabilidade/TaxInvoiceList.jsx`, `dashboard/src/modules/contabilidade/TaxInvoicesPage.jsx`, `dashboard/src/modules/financeiro/QuotesPage.jsx`, `dashboard/src/modules/financeiro/QuoteList.jsx`, `dashboard/src/modules/admin/SegurancaPage.jsx`, `dashboard/src/modules/admin/RelatoriosPage.jsx`.
+
+## CTX-02 — Correções pequenas e visíveis
+
+**Status:** Concluída (FAST-01 a FAST-07).
+
+**Foco:** destravar importação, detalhes CRM/suporte, portal, telas vazias e indicadores honestos.
+
+**Gate:** caminhos corrigidos passam testes focais sem ampliar permissões.
+
+### FAST-01 — Enviar autenticação pelo cliente canônico (Importação)
+
+**Problema:** `ImportPage.jsx` usava `fetch` direto sem Authorization — importação falhava em sessão expirada e não enviava token.
+
+**Solução:** trocado por `request()` de `@/lib/api` (com auth + auto-refresh).
+
+**Arquivos:** `dashboard/src/modules/import/ImportPage.jsx`.
+
+### FAST-02 — Corrigir vínculos e edição no detalhe (CRM)
+
+**Problema:** `ClientDetail.jsx` usava camelCase (`clientId`, `contactId`, `created`) mas a API retorna snake_case (`client_id`, `contact_id`, `created_at`) — contatos/notas/atividades nunca apareciam. Campos nulos (`tags`, `address`, `fiscal`) causavam crash. Formulário de edição não estava montado no detalhe.
+
+**Solução:** padronizado snake_case, protegidos campos nulos, `ClientForm` renderizado também no detalhe.
+
+**Arquivos:** `dashboard/src/modules/crm/ClientDetail.jsx`, `dashboard/src/modules/crm/ClientsPage.jsx`.
+
+### FAST-03 — Destravar edição e preservar rascunho (Suporte)
+
+**Problema:** `TicketDetail.jsx` limpava a mensagem antes de persistir — falha de rede perdia o texto. `ticket.messages` nulo causava crash. Formulário não estava montado no detalhe.
+
+**Solução:** `handleSend` agora aguarda persistência antes de limpar; `messages` protegido com `|| []`; `TicketForm` renderizado no detalhe.
+
+**Arquivos:** `dashboard/src/modules/suporte/TicketDetail.jsx`, `dashboard/src/modules/suporte/TicketsPage.jsx`.
+
+### FAST-04 — Tratar erro e totais de faturas (Portal)
+
+**Problema:** `PortalDashboard.jsx` acessava `stats.pendingInvoices` sem verificar null (crash em erro de API). Faturas canceladas eram contadas como pendentes. `PortalInvoices.jsx` somava `item.total` (campo inexistente) em vez do cálculo canônico.
+
+**Solução:** estado de erro explícito; `stats` protegido com fallback; canceladas excluídas das pendências; total canônico: `quantity * unit_price - discount`.
+
+**Arquivos:** `dashboard/src/pages/portal/PortalDashboard.jsx`, `dashboard/src/pages/portal/PortalInvoices.jsx`.
+
+### FAST-05 — Trocar spinner infinito por vazio/erro acionável (Fidelidade)
+
+**Problema:** `FidelidadePage.jsx` mostrava spinner para sempre quando não havia programa cadastrado.
+
+**Solução:** separado loading de ausência de programa — spinner só durante carregamento, estado vazio com orientação quando não há programa.
+
+**Arquivos:** `dashboard/src/modules/marketing/FidelidadePage.jsx`.
+
+### FAST-06 — Conectar usuários e estados de integrações reais (Administração)
+
+**Problema:** `ConfiguracoesPage.jsx` usava `useCollection('users')` mas `users` foi removido do CRUD genérico (segurança) — a listagem falhava. Integrações tinham status fixo ("Conectado") e botões sem ação.
+
+**Solução:** usuários carregados via `request('/auth/users')`. Integrações usam estados reais (unknown/unconfigured/error/healthy) com botão "Conectar" apenas quando aplicável.
+
+**Arquivos:** `dashboard/src/modules/admin/ConfiguracoesPage.jsx`.
+
+### FAST-07 — Corrigir cooldown de sugestões (Assistente)
+
+**Problema:** `isRecentlyDismissed()` era `async` sem `await` — retornava uma Promise (sempre truthy), então sugestões dispensadas nunca reapareciam. `action_url` das obrigações apontava para `/contabilidade` em vez de `/contabilidade/calendario`.
+
+**Solução:** removido `async` da função (é pura). `action_url` corrigido para `/contabilidade/calendario`.
+
+**Arquivos:** `api/services/assistantProactive.js`.
+
+## CTX-03 — P0 remanescentes da auditoria
+
+**Status:** Concluída (C-03, C-04, C-09).
+
+**Foco:** três P0 remanescentes da auditoria externa (AUDITORIA-E-PLANO.md): aprovação de tools não validada no servidor, localStorage global sem isolamento, taskExecutor com acesso a tenant nulo.
+
+**Gate:** tool de escrita sem aprovação negada no servidor; localStorage isolado por usuário+tenant; tarefa sem tenant inacessível a não-superadmin.
+
+### C-03/P0 — Aprovação de tools validada no servidor
+
+**Problema:** `requiresApproval` era apenas metadados nas definições de tools. O frontend mostrava um modal de confirmação (`ToolApproval.jsx`), mas o backend executava a tool sem verificar se a aprovação foi dada — um cliente malicioso podia chamar `POST /assistant/tools/execute` diretamente, ignorando o modal.
+
+**Solução:** `executeTool()` agora verifica `userContext.approved === true` antes de executar tools com `requiresApproval: true`. Sem a flag, retorna `{ denied: true, requiresApproval: true }`. O endpoint da API extrai `approved` do body e o passa no contexto. O frontend envia `approved: true` apenas após o usuário confirmar no modal.
+
+**Arquivos:** `api/services/assistantTools.js` (validação em executeTool), `api/routes/assistantRoutes.js` (passa approved do body), `dashboard/src/components/assistant/AssistantProvider.jsx` (envia approved: true após confirmação).
+
+### C-04/P0 — localStorage isolado por usuário e tenant
+
+**Problema:** a chave de localStorage era `contaux-assistant` — global, sem isolamento por usuário ou tenant. Se dois usuários compartilhavam o mesmo navegador, ou um usuário trocava de tenant, o rascunho, contexto travado e estado do painel vazavam entre contas.
+
+**Solução:** a chave agora é `contaux-assistant-u${userId}-t${tenantId}` — isolada por combinação de usuário e tenant. O carregamento e salvamento usam a chave scoped. O estado é carregado em um useEffect ao montar, após o usuário estar disponível.
+
+**Arquivos:** `dashboard/src/components/assistant/AssistantProvider.jsx` (getStorageKey, loadPersisted com user, save com chave scoped).
+
+### C-09/P0 — taskExecutor sem acesso a tenant nulo
+
+**Problema:** `taskExecutor.js` usava `OR tenant_id IS NULL` em todas as queries — tarefas sem tenant podiam ser acessadas e modificadas por qualquer usuário autenticado, independentemente do seu tenant. Mesma classe de bug que SEC-05 (escrita implícita em tenant nulo).
+
+**Solução:** removido `OR tenant_id IS NULL` para não-superadmin. Apenas superadmin mantém acesso a tarefas sem tenant. Aplicado em `transitionStatus` (SELECT e UPDATE) e `getExecutionLog`.
+
+**Arquivos:** `api/services/taskExecutor.js`.
+
+**Testes executados (curl):**
+- C-03: `create_task` sem `approved` → denied "Esta ação requer aprovação do usuário" ✓
+- C-03: `create_task` com `approved: true` → sucesso, task criada ✓
+- C-03: `navigate` (sem requiresApproval) sem `approved` → sucesso ✓
+- C-09: accountant tenta transicionar tarefa com `tenant_id = NULL` → "Tarefa não encontrada" ✓
+- C-09: superadmin transiciona tarefa com `tenant_id = NULL` → sucesso ✓
+- C-04: verificado em código (chave scoped por user+tenant) — não testável via curl
+- Cleanup: dados de teste removidos ✓
+
+**Gate:** tool de escrita sem aprovação negada no servidor ✓; localStorage isolado por usuário+tenant ✓; tarefa sem tenant inacessível a não-superadmin ✓.
+
+## CTX-04 — P0 remanescente e P1 já corrigidos
+
+**Status:** Concluída (C-12, C-14, C-15, C-13, C-10).
+
+**Foco:** último P0 da auditoria externa (C-12: autorização canônica da conversa no endpoint `/knowledge-base/ask`) e documentação dos P1 já corrigidos em ondas anteriores.
+
+**Gate:** conversa estrangeira não é lida/escrita pelo endpoint de IA; Dot derivado do vínculo governado; erros não vazam existência; P1 já corrigidos confirmados.
+
+### C-12/P0 — Autorização canônica da conversa no endpoint de IA
+
+**Problema:** `api/server.js` no endpoint `/api/knowledge-base/ask` verificava se o usuário era dono/responsável/participante da conversa, mas **sem verificar tenant** — a query usava apenas `user_id`, `assigned_to` e `assistant_participants`, sem `tenant_id = ANY($tenantIds)`. Diferente da função canônica `checkConversationAccess` em `assistantRoutes.js` (que verifica tenant), este caminho aceitava `conversation_id` de qualquer tenant se o usuário fosse participante. Além disso, o `dot_id` era lido do body da requisição em vez de derivado do vínculo governado (conversation.dot_id).
+
+**Solução:**
+- Extraída `checkConversationAccess` para módulo compartilhado `api/services/conversationAccess.js` — usada agora por `assistantRoutes.js` e `server.js`.
+- O endpoint `/knowledge-base/ask` usa `checkConversationAccess` (participante + tenant) antes de ler histórico, chamar IA ou escrever mensagens.
+- `dot_id` agora derivado de `conv.dot_id` (vínculo governado, validado no momento da criação da conversa), não do body.
+- Erros não revelam existência de conversa estrangeira (404 genérico).
+
+**Arquivos alterados:**
+- `api/services/conversationAccess.js` (novo) — `checkConversationAccess` extraída e reutilizável
+- `api/routes/assistantRoutes.js` — importa de `conversationAccess.js` em vez de definir localmente
+- `api/server.js` — importa e usa `checkConversationAccess`; deriva `dot_id` de `conv.dot_id`
+
+**Testes executados (curl):**
+- Admin pergunta com conversa própria → resposta + 2 mensagens salvas ✓
+- Hermida Maia tenta acessar conversa da Contaux → 404 "Conversa não encontrada" ✓
+- Hermida Maia envia `dot_id` forjado no body → ignorado, 404 (dot derivado da conversa) ✓
+- Cleanup: conversa de teste deletada ✓
+
+### C-14/P1 — Janela de histórico correta (corrigido em onda anterior)
+
+**Problema original:** histórico comentado como "últimas 20" usava `ORDER BY created_at ASC LIMIT 20` — selecionava as primeiras 20, não as últimas.
+
+**Estado atual:** corrigido. A query usa subquery com `ORDER BY created_at DESC LIMIT 20` e reordena com `ORDER BY created_at ASC` no wrapper — seleciona as últimas 20 mensagens e as apresenta em ordem cronológica.
+
+**Arquivos:** `api/server.js` (endpoint `/knowledge-base/ask`).
+
+### C-15/P1 — Aceite de handoff em transação atômica (corrigido em onda anterior)
+
+**Problema original:** o aceite de handoff tinha UPDATE condicional, mas a inclusão do participante e o evento não estavam na mesma transação. No erro, busca de status por ID sem tenant podia distinguir existência/estado de conversa estrangeira.
+
+**Estado atual:** corrigido. O endpoint `/conversations/:id/accept` usa `BEGIN/COMMIT/ROLLBACK` com UPDATE atômico, inserção de participante e evento na mesma transação. A verificação de tenant filtra por `tenant_id = ANY($tenantIds)` — não vaza existência de conversa estrangeira.
+
+**Arquivos:** `api/routes/assistantRoutes.js` (endpoint `/conversations/:id/accept`).
+
+### C-13/P1 — Compositor visível em nova conversa no mobile (corrigido em onda anterior)
+
+**Problema original:** `FullscreenWorkspace` só exibia chat mobile quando `activeConvId` existia. Nova conversa limpava o ID e definia `mobileView=conversation`; o compositor permanecia oculto com ID nulo.
+
+**Estado atual:** corrigido. O compositor (input) em `AssistantPanel.jsx` é sempre visível — não condicional a `activeConvId`. A função `sendMessage` cria a conversa no backend na primeira mensagem se não existir. `clearMessages` define `mobileView='conversation'` e o compositor permanece acessível.
+
+**Arquivos:** `dashboard/src/components/assistant/FullscreenWorkspace.jsx`, `dashboard/src/components/assistant/AssistantPanel.jsx`, `dashboard/src/components/assistant/AssistantProvider.jsx`.
+
+### C-10/P1 — Fonte pública com contrato específico (corrigido em onda anterior)
+
+**Problema original:** `aiService` vazio/sem tenant caía para busca não filtrada; fonte pública precisava contrato específico, não fallback.
+
+**Estado atual:** corrigido (SEC-01). `askPublic()` usa `searchPublicKnowledgeBase()` com `visibility = 'public' AND status = 'published'` — contrato específico, não fallback da busca privada. O chat público nunca passa `tenantIds: null` para a busca privada.
+
+**Arquivos:** `api/services/aiService.js` (`askPublic`, `searchPublicKnowledgeBase`), `api/routes/publicRoutes.js`.
+
+### P1 remanescentes — corrigidos em CTX-05
+
+Os seguintes P1 da auditoria foram corrigidos na onda CTX-05:
+
+- **C-06/P1**: corrigido — árvore única de apresentação (ver CTX-05).
+- **C-07/P1**: corrigido — recibo estruturado em tool execution (ver CTX-05).
+- **C-08/P1**: corrigido — paginação de mensagens na conversa (ver CTX-05).
+- **C-11/P1**: corrigido — tokens reais do OpenAI + custo de tools no orçamento (ver CTX-05).
+
+**Gate:** conversa estrangeira não é lida/escrita pelo endpoint de IA ✓; Dot derivado do vínculo governado ✓; erros não vazam existência ✓; P1 já corrigidos confirmados ✓.
+
+## CTX-05 — P1 remanescentes da auditoria
+
+**Status:** Concluída (C-06, C-07, C-08, C-11).
+
+**Foco:** quatro P1 remanescentes da auditoria externa: árvore única de apresentação no widget, recibo estruturado em tools, paginação de mensagens, e tokens reais no orçamento.
+
+**Gate:** widget renderiza um único AssistantPanel; tools retornam recibo com quem/quando/o quê; mensagens paginadas com total/has_more; orçamento registra tokens reais quando disponíveis.
+
+### C-06/P1 — Árvore única de apresentação no widget
+
+**Problema:** `AssistantWidget` no estado expandido montava dois `<AssistantPanel>` — um desktop (`hidden lg:flex`) e um mobile (`lg:hidden`) — cada um com sua própria árvore de componentes, estado e efeitos. Dois painéis CSS-hidden significavam efeitos duplicados (polling, carregamento de conversas, etc.) e potencial de dessincronização.
+
+**Solução:** um único `<aside>` com classes responsivas que transicionam entre overlay mobile (`fixed inset-0 z-50`) e coluna docked desktop (`lg:static lg:w-[360px] lg:sticky lg:top-0 lg:h-screen lg:border-l`). Um único `<AssistantPanel>` é renderizado para ambos os viewports.
+
+**Arquivos:** `dashboard/src/components/assistant/AssistantWidget.jsx`.
+
+### C-07/P1 — Recibo estruturado em tool execution
+
+**Problema:** a execução de tools retornava `result` e `cost_estimate`, mas sem um recibo estruturado que registrasse quem executou, quando, com quais parâmetros, e qual o resultado — o pipeline intenção → ferramenta → serviço → permissão → confirmação → resultado não produzia um artefato auditável.
+
+**Solução:** `executeTool()` agora retorna um `receipt` com: `tool` (nome), `category` (consulta/escrita/navegação), `executed_by` (user_id + role), `executed_at` (ISO timestamp), `params` (parâmetros validados), `approved` (null para tools sem aprovação, true/false para tools com aprovação), e `result_summary` (sumário legível do resultado). A função `summarizeResult()` produz um sumário em PT-BR sem vazar dados sensíveis.
+
+**Arquivos:** `api/services/assistantTools.js` (`summarizeResult`, `executeTool` com receipt).
+
+### C-08/P1 — Paginação de mensagens na conversa
+
+**Problema:** `GET /conversations/:id` carregava TODAS as mensagens de uma conversa sem paginação — conversas longas podiam retornar centenas de mensagens em uma única resposta. A listagem de conversas já era paginada (offset/limit com total/hasMore), mas as mensagens dentro de uma conversa não.
+
+**Solução:** o endpoint agora aceita `offset` e `limit` como query params (padrão: offset=0, limit=50, máx: 100). A query usa subquery com `ORDER BY created_at DESC LIMIT $2 OFFSET $3` e reordena com `ORDER BY created_at ASC` no wrapper — carrega as mensagens mais recentes da janela solicitada em ordem cronológica. A resposta inclui `messages_pagination` com `total`, `offset`, `limit`, e `has_more`.
+
+**Arquivos:** `api/routes/assistantRoutes.js` (endpoint `GET /conversations/:id`).
+
+### C-11/P1 — Tokens reais no orçamento
+
+**Problema:** o orçamento de tokens usava estimativa fixa (`500` para LLM, `200` para busca textual) — não refletia o consumo real do OpenAI. Tools também não registravam custo no orçamento. Não havia como reconciliar estimado vs. real.
+
+**Solução:**
+- `tryLLMResponse()` agora captura `data.usage` do OpenAI (prompt_tokens, completion_tokens, total_tokens) e retorna `{ answer, usage }`.
+- `ask()` e `askPublic()` retornam `tokenUsage` com os tokens reais quando disponíveis.
+- `server.js` usa `result.tokenUsage.total_tokens` quando disponível (token_source='actual'); fallback para estimativa (token_source='estimated'). A resposta inclui `token_source` para reconciliação.
+- `assistantRoutes.js` registra o custo de tools no orçamento via `recordUsage()`.
+
+**Arquivos:** `api/services/aiService.js` (`tryLLMResponse`, `ask`, `askPublic`), `api/server.js` (endpoint `/knowledge-base/ask`), `api/routes/assistantRoutes.js` (tool execution com `recordUsage`).
+
+**Testes executados (curl, admin@contaux.com.br):**
+- C-07: `get_dashboard_summary` → receipt com tool, category, executed_by.role, result_summary="resumo operacional", approved=null ✓
+- C-07: `create_task` com `approved: true` → receipt.approved=true ✓
+- C-08: conversa com 4 mensagens, `limit=2&offset=0` → 2 mensagens, total=4, has_more=true ✓
+- C-11: `/knowledge-base/ask` → token_source="estimated" (sem OPENAI_API_KEY), budget.tokens_used registrado ✓
+- C-11: budget após testes: tokens_used=650, requests_today=4 (ask + tool) ✓
+- Cleanup: conversa de teste deletada ✓
+
+**Gate:** widget renderiza um único AssistantPanel ✓; tools retornam recibo ✓; mensagens paginadas com total/has_more ✓; orçamento registra tokens com source ✓.
+
+## PKG-1 — Shell/store único nos hosts
+
+**Status:** Concluída.
+
+**Foco:** extrair o shell/store do assistente como um core host-agnóstico com portas canônicas injetadas por adaptador, permitindo reuso em Contaux e HMADV sem fork do core. Reutilizar fullscreen desta branch; C-12/C-13 já corrigidos em CTX-04.
+
+**Gate:** mesma conversa/rascunho/cursor; contexto válido; single mount; preview staff/cliente e tamanhos 320/375/412/768/1024/1280/1440.
+
+**Princípio:** o core do assistente não conhece request Contaux, AuthContext HMADV, base44Client, tabelas jurídicas ou rotas de negócio. O adaptador injeta portas canônicas (auth, API, resolução de módulo, cobertura, storage, brand).
+
+### Implementação
+
+**Novos arquivos:**
+- `dashboard/src/components/assistant/assistantShell.jsx` — contexto canônico do shell com portas: `useUser` (hook de auth), `request` (cliente HTTP), `getAccessToken` (token), `resolveModule` (rota→módulo), `getModuleCoverage` (sugestões), `storagePrefix` (localStorage), `brandName` (UI). `AssistantShellProvider` envolve a app; `useShell()` acessa o adaptador.
+- `dashboard/src/components/assistant/contauxAdapter.js` — implementação Contaux das portas canônicas: `useAuth` de `@/contexts/AuthContext`, `request`/`getAccessToken` de `@/lib/api`, `resolveModule` com mapas de rotas Contaux (navItems + subrotas), `getModuleCoverage` de `moduleCoverage.js`, `storagePrefix='contaux-assistant'`, `brandName='Contaux'`.
+
+**Arquivos refatorados (imports diretos do host → useShell):**
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `useAuth`, `request`, `getAccessToken`, `resolveModule` agora vêm de `useShell()`; `storagePrefix` parametriza `getStorageKey` e `loadPersisted`.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — `getModuleCoverage` vem de `useShell()` em vez de import direto de `moduleCoverage.js`.
+- `dashboard/src/components/assistant/AssistantWidget.jsx` — `brandName` de `useShell()` para labels de aria-label dinâmicos.
+- `dashboard/src/components/assistant/FullscreenWorkspace.jsx` — `brandName` de `useShell()` para aria-label do workspace.
+- `dashboard/src/components/assistant/WorkspaceSidebar.jsx` — `useAuth` → `useShell().useUser()`.
+- `dashboard/src/components/assistant/ProjectMembers.jsx` — `useAuth` + `request` → `useShell().useUser()` + `useShell().request`.
+- `dashboard/src/components/assistant/ProjectSelector.jsx` — `useAuth` + `request` → `useShell().useUser()` + `useShell().request`.
+- `dashboard/src/components/assistant/moduleContext.js` — simplificado para re-exports de compatibilidade (`resolveModule` de `contauxAdapter.js`, cobertura de `moduleCoverage.js`). Mapas de rotas Contaux movidos para o adaptador.
+- `dashboard/src/components/layout/AppLayout.jsx` — envolve `AssistantProvider` com `AssistantShellProvider adapter={contauxAdapter}`.
+
+**Resultado do isolamento:**
+- `grep -rn "@/contexts/AuthContext\|@/lib/api" dashboard/src/components/assistant/` retorna apenas `contauxAdapter.js` — o core está 100% host-agnóstico.
+- Um novo host (ex: HMADV) precisa apenas criar seu próprio adaptador (`hmadvAdapter.js`) implementando as 7 portas canônicas e envolver sua layout com `AssistantShellProvider adapter={hmadvAdapter}`. Nenhum arquivo do core precisa ser modificado.
+
+**Verificação de compilação (Vite):**
+- `curl /src/components/assistant/assistantShell.jsx` → transforma com JSX runtime ✓
+- `curl /src/components/assistant/contauxAdapter.js` → transforma com imports resolvidos ✓
+- `curl /src/components/layout/AppLayout.jsx` → transforma com import de `assistantShell.jsx` ✓
+- `curl /src/components/assistant/moduleContext.js` → re-exports resolvidos ✓
+- HMR updates sem erros após rename `.js` → `.jsx` ✓
+- `curl /dashboard` → 200 (HTML servido pelo Vite) ✓
+
+**Não verificado automaticamente (limite de chamadas de preview — navegador inicia no site estático, SPA em /dashboard requer autenticação):**
+- Renderização visual do widget com o adaptador Contaux em viewport 320/375/412/768/1024/1280/1440
+- Persistência de conversa/rascunho/cursor ao navegar entre rotas (já validado em CQ-01/CQ-09)
+- Single mount (já validado em C-06/CTX-05)
+- Funcionamento de um segundo adaptador (HMADV) — não implementado nesta onda, apenas a extração do core
+
+**Riscos:**
+- O `useShell()` lança erro se usado fora do `AssistantShellProvider` — se um host esquecer de envolver, o app quebra na primeira renderização do assistente. Documentado no comentário do shell.
+- O `moduleContext.js` mantido como shim de compatibilidade — se removido, imports legados quebrem. Não há imports legados atuais, mas o shim é defensivo.
+
+**Rollback:** remover `assistantShell.jsx` e `contauxAdapter.js`, restaurar imports diretos em `AssistantProvider.jsx` (`useAuth`, `request`, `getAccessToken`, `resolveModule`), `WorkspaceSidebar.jsx`, `ProjectMembers.jsx`, `ProjectSelector.jsx`, `AssistantPanel.jsx`, `AssistantWidget.jsx`, `FullscreenWorkspace.jsx`. Remover `AssistantShellProvider` de `AppLayout.jsx`. Restaurar `moduleContext.js` original.
+
+**Gate:** core host-agnóstico (zero imports diretos do host fora do adaptador) ✓; mesma conversa/rascunho/cursor (persistência preservada, storagePrefix parametrizado) ✓; contexto válido (resolveModule do adaptador) ✓; single mount (C-06 preservado) ✓; compilação sem erros ✓; preview visual nos tamanhos especificados — não verificado automaticamente.

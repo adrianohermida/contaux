@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles, X, ArrowLeft } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
+import { useShell } from './assistantShell.jsx'
 import AssistantPanel from './AssistantPanel'
 import FullscreenWorkspace from './FullscreenWorkspace'
 
@@ -12,6 +13,7 @@ import FullscreenWorkspace from './FullscreenWorkspace'
  */
 export default function AssistantWidget() {
   const { panelMode, expand, collapse, enterFullscreen, unreadCount, status } = useAssistant()
+  const { brandName } = useShell()
   const hasUnread = unreadCount > 0
   const isActive = status === 'preparing'
   const [mobileView, setMobileView] = useState('list') // 'list' | 'chat'
@@ -33,22 +35,21 @@ export default function AssistantWidget() {
   }
 
   if (panelMode === 'expanded') {
+    // C-06/P1: árvore única — um AssistantPanel, responsivo via CSS.
+    // Desktop: coluna docked 360px no layout. Mobile: overlay fullscreen com backdrop.
     return (
       <>
+        {/* Backdrop mobile — hidden no desktop */}
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={collapse}
+          aria-hidden="true"
+        />
         <aside
-          className="hidden lg:flex w-[360px] shrink-0 sticky top-0 h-screen flex-col border-l border-border bg-card"
-          role="complementary"
-          aria-label="Assistente Contaux"
-        >
-          <AssistantPanel onClose={collapse} onFullscreen={enterFullscreen} />
-        </aside>
-
-        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={collapse} aria-hidden="true" />
-        <aside
-          className="fixed inset-0 z-50 flex flex-col bg-card shadow-xl lg:hidden"
+          className="fixed inset-0 z-50 flex flex-col bg-card shadow-xl lg:static lg:z-auto lg:flex lg:w-[360px] lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:flex-col lg:border-l lg:border-border lg:shadow-none"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
-          role="dialog"
-          aria-label="Assistente Contaux"
+          role="complementary"
+          aria-label={`Assistente ${brandName}`}
         >
           <AssistantPanel onClose={collapse} onFullscreen={enterFullscreen} />
         </aside>
@@ -62,7 +63,7 @@ export default function AssistantWidget() {
       <button
         onClick={expand}
         className="hidden lg:flex w-12 shrink-0 sticky top-0 h-screen flex-col items-center gap-2 border-l border-border bg-card pt-4 transition-colors hover:bg-accent"
-        aria-label="Expandir Assistente Contaux"
+        aria-label={`Expandir Assistente ${brandName}`}
       >
         <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Sparkles className="h-4 w-4" />
@@ -84,7 +85,7 @@ export default function AssistantWidget() {
         onClick={expand}
         className="fixed bottom-4 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
         style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))', right: 'max(1rem, env(safe-area-inset-right))' }}
-        aria-label="Abrir Assistente Contaux"
+        aria-label={`Abrir Assistente ${brandName}`}
       >
         <Sparkles className="h-5 w-5" />
         {isActive && (

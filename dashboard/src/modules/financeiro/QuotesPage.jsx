@@ -30,9 +30,9 @@ export default function QuotesPage() {
   }
 
   const handleConvert = async (quote) => {
-    await update(quote.id, { status: 'accepted' })
-    const invoiceNum = `NF-2024-${String(Date.now()).slice(-3)}`
-    alert(`Orçamento ${quote.number} convertido em fatura ${invoiceNum}.`)
+    // SAFE-01: Conversão de orçamento em fatura não está implementada.
+    // Não anunciar sucesso sem criar a fatura real.
+    alert('Conversão de orçamento em fatura não está disponível no momento.')
   }
 
   return (

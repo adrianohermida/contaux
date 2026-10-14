@@ -5,16 +5,25 @@ import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Input, Textarea } from '@/components/ui/input'
 import { ticketPriorityLabels, ticketPriorityVariants, ticketStatusLabels, ticketStatusVariants, slaHours } from './lib/mockData'
-import { ArrowLeft, Pencil, Send, Clock } from 'lucide-react'
+import { ArrowLeft, Pencil, Send, Clock, Loader2 } from 'lucide-react'
 
 export default function TicketDetail({ ticket, onBack, onEdit, onAddMessage, onStatusChange }) {
   const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
 
-  const handleSend = (e) => {
+  // FAST-03: aguarda persistência antes de limpar o rascunho
+  const handleSend = async (e) => {
     e.preventDefault()
-    if (!message.trim()) return
-    onAddMessage({ sender: 'agent', content: message, date: new Date().toISOString() })
-    setMessage('')
+    if (!message.trim() || sending) return
+    setSending(true)
+    try {
+      await onAddMessage({ sender: 'agent', content: message, date: new Date().toISOString() })
+      setMessage('')
+    } catch {
+      // Erro de rede: mantém a mensagem digitada
+    } finally {
+      setSending(false)
+    }
   }
 
   const slaDeadline = new Date(ticket.created_date + 'T00:00:00')
@@ -61,10 +70,10 @@ export default function TicketDetail({ ticket, onBack, onEdit, onAddMessage, onS
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Conversa ({ticket.messages.length})</CardTitle>
+          <CardTitle className="text-sm">Conversa ({(ticket.messages || []).length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {ticket.messages.map((msg, idx) => (
+          {(ticket.messages || []).map((msg, idx) => (
             <div key={idx} className={`flex ${msg.sender === 'agent' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                 msg.sender === 'agent'
@@ -78,15 +87,17 @@ export default function TicketDetail({ ticket, onBack, onEdit, onAddMessage, onS
               </div>
             </div>
           ))}
-          {ticket.messages.length === 0 && (
+          {(ticket.messages || []).length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-4">Nenhuma mensagem ainda.</p>
           )}
         </CardContent>
       </Card>
 
       <form onSubmit={handleSend} className="flex gap-2">
-        <Input placeholder="Digite sua resposta..." value={message} onChange={(e) => setMessage(e.target.value)} />
-        <Button type="submit"><Send className="h-4 w-4" /> Enviar</Button>
+        <Input placeholder="Digite sua resposta..." value={message} onChange={(e) => setMessage(e.target.value)} disabled={sending} />
+        <Button type="submit" disabled={sending || !message.trim()}>
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar
+        </Button>
       </form>
     </div>
   )

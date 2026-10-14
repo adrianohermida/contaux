@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { UploadCloud, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { request } from '@/lib/api'
 import { IMPORT_TABS } from './importTemplates'
 
 export default function ImportPage() {
@@ -16,13 +17,12 @@ export default function ImportPage() {
     setLoading(true)
     try {
       const data = JSON.parse(jsonText)
-      const res = await fetch(tab.endpoint, {
+      // FAST-01: usa cliente canônico com auth/refresh em vez de fetch direto
+      const path = tab.endpoint.replace(/^\/api/, '')
+      const result = await request(path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Erro na importação')
       setStatus({ type: 'success', message: `${result.imported} registro(s) importado(s) com sucesso!` })
       setJsonText('')
     } catch (err) {

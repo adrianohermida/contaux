@@ -15,6 +15,7 @@ export default function PortalDashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -24,7 +25,8 @@ export default function PortalDashboard() {
           ticketsApi.list(),
           documentsApi.list(),
         ])
-        const pendingInvoices = invoices.filter((i) => i.status !== 'paid' && i.status !== 'draft')
+        // FAST-04: exclui canceladas das pendências
+        const pendingInvoices = invoices.filter((i) => i.status !== 'paid' && i.status !== 'draft' && i.status !== 'cancelled')
         const openTickets = tickets.filter((t) => t.status === 'open')
         setStats({
           totalInvoices: invoices.length,
@@ -34,6 +36,7 @@ export default function PortalDashboard() {
         })
       } catch (err) {
         console.error('Erro ao carregar dados:', err.message)
+        setError(err.message)
       } finally {
         setLoading(false)
       }
@@ -49,11 +52,33 @@ export default function PortalDashboard() {
     )
   }
 
+  // FAST-04: estado de erro explícito em vez de acessar stats nulo
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Olá, {user?.name?.split(' ')[0]}!</h1>
+          <p className="text-sm text-muted-foreground mt-1">{user?.tenant_name || 'Sua empresa'}</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <EmptyState
+              icon={LifeBuoy}
+              title="Não foi possível carregar"
+              description="Verifique sua conexão e tente novamente."
+            />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const s = stats || { pendingInvoices: 0, totalDocuments: 0, openTickets: 0, totalInvoices: 0 }
   const cards = [
-    { icon: Receipt, label: 'Faturas Pendentes', value: stats.pendingInvoices, color: 'text-amber-600' },
-    { icon: FileText, label: 'Documentos', value: stats.totalDocuments, color: 'text-blue-600' },
-    { icon: LifeBuoy, label: 'Tickets Abertos', value: stats.openTickets, color: 'text-purple-600' },
-    { icon: Clock, label: 'Total de Faturas', value: stats.totalInvoices, color: 'text-green-600' },
+    { icon: Receipt, label: 'Faturas Pendentes', value: s.pendingInvoices, color: 'text-amber-600' },
+    { icon: FileText, label: 'Documentos', value: s.totalDocuments, color: 'text-blue-600' },
+    { icon: LifeBuoy, label: 'Tickets Abertos', value: s.openTickets, color: 'text-purple-600' },
+    { icon: Clock, label: 'Total de Faturas', value: s.totalInvoices, color: 'text-green-600' },
   ]
 
   return (
@@ -86,9 +111,9 @@ export default function PortalDashboard() {
           <CardTitle>Avisos</CardTitle>
         </CardHeader>
         <CardContent>
-          {stats.pendingInvoices > 0 ? (
+          {s.pendingInvoices > 0 ? (
             <p className="text-sm text-muted-foreground">
-              Você tem <strong className="text-foreground">{stats.pendingInvoices} fatura(s) pendente(s)</strong>.
+              Você tem <strong className="text-foreground">{s.pendingInvoices} fatura(s) pendente(s)</strong>.
               Acesse "Minhas Faturas" para visualizar.
             </p>
           ) : (

@@ -95,8 +95,8 @@ export default function QuoteList({ quotes, onNew, onEdit, onConvert }) {
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           {q.status === 'accepted' && (
-                            <Button variant="ghost" size="sm" onClick={() => onConvert(q)}>
-                              <ArrowRight className="h-3 w-3" /> Faturar
+                            <Button variant="ghost" size="sm" disabled title="Conversão não disponível" onClick={() => onConvert(q)}>
+                              <ArrowRight className="h-3 w-3 opacity-40" /> Faturar
                             </Button>
                           )}
                           <Button variant="ghost" size="icon" onClick={() => onEdit(q)} aria-label="Editar orçamento">
@@ -131,7 +131,7 @@ export default function QuoteList({ quotes, onNew, onEdit, onConvert }) {
                     </div>
                     <div className="flex gap-1">
                       {q.status === 'accepted' && (
-                        <Button variant="ghost" size="sm" onClick={() => onConvert(q)}>Faturar</Button>
+                        <Button variant="ghost" size="sm" disabled title="Conversão não disponível" onClick={() => onConvert(q)}>Faturar</Button>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => onEdit(q)}>Editar</Button>
                     </div>

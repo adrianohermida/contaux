@@ -10,10 +10,31 @@ export default function FidelidadePage() {
 
   const program = programs[0]
 
-  if (loadingProg || !program) {
+  // FAST-05: separa loading de ausência de programa
+  if (loadingProg) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!program) {
+    return (
+      <div className="space-y-6">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">Programa de Fidelidade</h1>
+          <p className="text-sm text-muted-foreground">Pontos, tiers e recompensas dos clientes</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <Award className="h-10 w-10 text-muted-foreground" />
+              <p className="text-sm font-medium">Nenhum programa de fidelidade cadastrado</p>
+              <p className="text-xs text-muted-foreground">Crie um programa em Configurações para começar a pontuar clientes.</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }

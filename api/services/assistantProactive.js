@@ -36,7 +36,7 @@ const SUGGESTION_TYPES = {
     type: 'due_obligations',
     title: (count) => `${count} obrigação${count > 1 ? 'ões' : ''} vencendo`,
     body: 'Obrigações com vencimento nos próximos 7 dias. Prepare as entregas com antecedência.',
-    action_url: '/contabilidade',
+    action_url: '/contabilidade/calendario',
     action_label: 'Ver obrigações',
   },
 };
@@ -155,7 +155,7 @@ async function findExistingPending(userId, tenantId, dedupKey) {
   return result.rows.length > 0 ? result.rows[0] : null;
 }
 
-async function isRecentlyDismissed(existing) {
+function isRecentlyDismissed(existing) {
   if (!existing || !existing.dismissed_at) return false;
   const dismissed = new Date(existing.dismissed_at);
   const hoursAgo = (Date.now() - dismissed.getTime()) / (1000 * 60 * 60);

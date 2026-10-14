@@ -713,6 +713,26 @@ const EXECUTORS = {
   update_task_status: executeUpdateTaskStatus,
 };
 
+// C-07/P1: sumariza o resultado da tool para o recibo — sem vazar dados sensíveis.
+function summarizeResult(toolName, result) {
+  if (!result || typeof result !== 'object') return 'executado';
+  if (result.count !== undefined) return `${result.count} registro(s)`;
+  if (result.found === false) return 'nenhum resultado';
+  if (result.task_id) return `tarefa ${result.task_id} criada`;
+  if (result.url) return `navegação para ${result.url}`;
+  // Sumariza por array — evita confundir campos numéricos (ex: dashboard summary)
+  if (Array.isArray(result.clients)) return `${result.clients.length} cliente(s)`;
+  if (Array.isArray(result.invoices)) return `${result.invoices.length} fatura(s)`;
+  if (Array.isArray(result.tickets)) return `${result.tickets.length} ticket(s)`;
+  if (Array.isArray(result.tasks)) return `${result.tasks.length} tarefa(s)`;
+  if (Array.isArray(result.obligations)) return `${result.obligations.length} obrigação(ões)`;
+  if (Array.isArray(result.processes)) return `${result.processes.length} processo(s)`;
+  if (Array.isArray(result.payments)) return `${result.payments.length} pagamento(s)`;
+  if (Array.isArray(result.quotes)) return `${result.quotes.length} orçamento(s)`;
+  if (result.clients !== undefined && result.invoices !== undefined) return 'resumo operacional';
+  return 'executado';
+}
+
 // ===== API pública do módulo =====
 
 /** Lista tools disponíveis para o role do usuário */
@@ -745,17 +765,42 @@ async function executeTool(toolName, params, userContext) {
     return { success: false, error: validation.error };
   }
 
+  // C-03/P0: Tools de escrita exigem aprovação explícita do usuário.
+  // O frontend mostra um modal de confirmação; o backend valida que
+  // `approved: true` foi enviado na requisição — sem isso, a tool
+  // não executa (defesa contra chamada direta à API sem aprovação).
+  if (validation.definition.requiresApproval && !userContext.approved) {
+    return {
+      success: false,
+      denied: true,
+      reason: 'Esta ação requer aprovação do usuário',
+      requiresApproval: true,
+    };
+  }
+
   // 3. Executa
   try {
     const executor = EXECUTORS[toolName];
     const result = await executor(validation.params, userContext);
     const cost = TOOL_COSTS[toolName] || { tokens: 100 };
 
+    // C-07/P1: recibo estruturado — quem, quando, o quê, parâmetros, resultado.
+    const receipt = {
+      tool: toolName,
+      category: validation.definition.category,
+      executed_by: { user_id: userContext.userId, role: userContext.role },
+      executed_at: new Date().toISOString(),
+      params: validation.params,
+      approved: validation.definition.requiresApproval ? !!userContext.approved : null,
+      result_summary: summarizeResult(toolName, result),
+    };
+
     return {
       success: true,
       tool: toolName,
       result,
       cost_estimate: cost,
+      receipt,
     };
   } catch (err) {
     console.error(`[assistantTools] Erro ao executar ${toolName}:`, err.message);

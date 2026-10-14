@@ -4,6 +4,8 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import { AssistantProvider } from '@/components/assistant/AssistantProvider'
 import AssistantWidget from '@/components/assistant/AssistantWidget'
+import { AssistantShellProvider } from '@/components/assistant/assistantShell.jsx'
+import { contauxAdapter } from '@/components/assistant/contauxAdapter'
 
 export default function AppLayout() {
   const navigate = useNavigate()
@@ -53,6 +55,7 @@ export default function AppLayout() {
   }
 
   return (
+    <AssistantShellProvider adapter={contauxAdapter}>
     <AssistantProvider>
       <div className="min-h-screen bg-background">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -76,5 +79,6 @@ export default function AppLayout() {
         </div>
       </div>
     </AssistantProvider>
+    </AssistantShellProvider>
   )
 }

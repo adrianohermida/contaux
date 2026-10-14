@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Sparkles, X, Trash2, Maximize2, Minimize2, Send, FileText, Scale, BookOpen, HelpCircle, Pin, PinOff, History, Plus, MessageSquare, CheckSquare, Headphones, UserCheck, XCircle, Clock, Wrench } from 'lucide-react'
 import { useAssistant } from './AssistantProvider'
-import { getModuleCoverage } from './moduleCoverage'
+import { useShell } from './assistantShell.jsx'
 import TaskProposalForm from './TaskProposalForm'
 import HandoffQueue from './HandoffQueue'
 import ToolApproval from './ToolApproval'
@@ -30,6 +30,8 @@ export default function AssistantPanel({ onClose, onFullscreen, fullscreen = fal
     addToolMessage,
     uploadAttachment, handleVoiceTranscript,
   } = useAssistant()
+  // PKG-1: cobertura de módulo vem do adaptador do host
+  const { getModuleCoverage } = useShell()
   const preparing = status === 'preparing'
   const isFixed = contextMode === 'fixed'
   const [showTaskForm, setShowTaskForm] = useState(false)

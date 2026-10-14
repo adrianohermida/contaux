@@ -13,9 +13,10 @@ const { requireAuth, requireRole, getAccessibleTenantIds } = require('../middlew
 const { listToolsForRole, executeTool } = require('../services/assistantTools');
 const { listMemories, saveMemory, deleteMemory } = require('../services/assistantMemory');
 const { validateFile } = require('../services/mimeValidator');
+const { checkConversationAccess } = require('../services/conversationAccess');
 const {
   generateSuggestions, listPendingSuggestions, dismissSuggestion, actOnSuggestion,
-  isProactiveEnabled, getBudgetStatus,
+  isProactiveEnabled, getBudgetStatus, recordUsage,
 } = require('../services/assistantProactive');
 
 // ===== Diretório de uploads do assistente =====
@@ -36,22 +37,6 @@ const attUpload = multer({
 
 router.use(requireAuth);
 
-// ===== Helper: verifica acesso à conversa (participante + tenant) =====
-// Retorna a conversa se o usuário tem acesso, null caso contrário.
-async function checkConversationAccess(convId, user) {
-  const tenantIds = await getAccessibleTenantIds(user);
-  const result = await query(
-    `SELECT id, tenant_id, user_id, assigned_to, status, title, context, origin,
-            conversation_kind, handoff_reason, visitor_name, project_id, dot_id, created_at, updated_at
-     FROM assistant_conversations
-     WHERE id = $1 AND tenant_id = ANY($2::int[])
-       AND (user_id = $3 OR assigned_to = $3
-        OR EXISTS (SELECT 1 FROM assistant_participants p WHERE p.conversation_id = $1 AND p.user_id = $3))`,
-    [convId, tenantIds, user.id],
-  );
-  return result.rows.length > 0 ? result.rows[0] : null;
-}
-
 // ===== Ferramentas operacionais (CQ-05) =====
 
 // Listar tools disponíveis para o role do usuário
@@ -62,8 +47,14 @@ router.get('/tools', (req, res) => {
 // Executar uma tool (com ACL e validação)
 router.post('/tools/execute', async (req, res) => {
   try {
-    const { tool, params, conversation_id } = req.body;
+    const { tool, params, conversation_id, approved } = req.body;
     if (!tool) return res.status(400).json({ error: 'tool é obrigatório' });
+
+    // SEC-08: Se conversation_id fornecido, verifica acesso à conversa antes de executar
+    if (conversation_id) {
+      const conv = await checkConversationAccess(conversation_id, req.user);
+      if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
 
     // Monta contexto do usuário para a tool
     const tenantIds = await getAccessibleTenantIds(req.user);
@@ -73,6 +64,7 @@ router.post('/tools/execute', async (req, res) => {
       tenantIds,
       role: req.user.role,
       conversationId: conversation_id || null,
+      approved: approved === true, // C-03: aprovação explícita do usuário
     };
 
     const result = await executeTool(tool, params || {}, userContext);
@@ -92,6 +84,14 @@ router.post('/tools/execute', async (req, res) => {
       } catch (e) {
         // Não bloqueia a resposta se falhar ao salvar
       }
+    }
+
+    // C-11/P1: registra custo da tool no orçamento do usuário
+    const toolCost = result.cost_estimate?.tokens || 100;
+    try {
+      await recordUsage(req.user.id, req.user.tenant_id, toolCost, 0);
+    } catch (e) {
+      // Não bloqueia a resposta se falhar ao registrar orçamento
     }
 
     res.json(result);
@@ -419,13 +419,29 @@ router.get('/conversations/:id', async (req, res) => {
     const conv = await checkConversationAccess(req.params.id, req.user);
     if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
+    // C-08/P1: paginação de mensagens — carrega as mais recentes primeiro,
+    // depois reordena para apresentação cronológica.
+    const msgOffset = Math.max(0, parseInt(req.query.offset || '0', 10));
+    const msgLimit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+
     const msgResult = await query(
       `SELECT id, role, text, sources, author_id, author_name, event_type, created_at
-       FROM assistant_messages
-       WHERE conversation_id = $1
+       FROM (
+         SELECT id, role, text, sources, author_id, author_name, event_type, created_at
+         FROM assistant_messages
+         WHERE conversation_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $3
+       ) recent
        ORDER BY created_at ASC`,
+      [conv.id, msgLimit, msgOffset],
+    );
+
+    const msgCountResult = await query(
+      `SELECT count(*) AS total FROM assistant_messages WHERE conversation_id = $1`,
       [conv.id],
     );
+    const msgTotal = parseInt(msgCountResult.rows[0].total, 10);
 
     const partResult = await query(
       `SELECT p.user_id, p.role, p.display_name
@@ -445,6 +461,12 @@ router.get('/conversations/:id', async (req, res) => {
         id: String(m.id),
         sources: typeof m.sources === 'string' ? JSON.parse(m.sources) : m.sources,
       })),
+      messages_pagination: {
+        total: msgTotal,
+        offset: msgOffset,
+        limit: msgLimit,
+        has_more: msgOffset + msgResult.rows.length < msgTotal,
+      },
       participants: partResult.rows.map((p) => ({ ...p, user_id: p.user_id ? String(p.user_id) : null })),
     });
   } catch (err) {

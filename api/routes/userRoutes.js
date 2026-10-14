@@ -94,8 +94,35 @@ router.post('/users', requireAuth, requireRole('superadmin', 'admin'), async (re
 router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), async (req, res) => {
   const { name, email, role, password, active, tenant_id, mfa_enabled, pin } = req.body;
 
+  // SEC-06: Busca o usuário-alvo ANTES de aplicar mudanças — verifica privilégio e tenant
+  const tenantIds = await getAccessibleTenantIds(req.user);
+  const targetCheck = await query(
+    `SELECT id, role, tenant_id FROM users WHERE id = $1 AND tenant_id = ANY($2::int[])`,
+    [req.params.id, tenantIds],
+  );
+  if (targetCheck.rows.length === 0) {
+    return res.status(404).json({ error: 'Usuário não encontrado' });
+  }
+  const targetUser = targetCheck.rows[0];
+
+  // SEC-06: admin não pode modificar superadmin
+  if (req.user.role === 'admin' && targetUser.role === 'superadmin') {
+    return res.status(403).json({ error: 'Administradores não podem modificar contas de superadmin' });
+  }
+  // SEC-06: admin não pode atribuir role superadmin
   if (req.user.role === 'admin' && role === 'superadmin') {
     return res.status(403).json({ error: 'Apenas superadmin pode atribuir role superadmin' });
+  }
+  // SEC-06: Se mudando tenant_id, valida que o destino é acessível
+  if (tenant_id !== undefined) {
+    if (!tenantIds.includes(parseInt(tenant_id))) {
+      return res.status(403).json({ error: 'Não pode mover usuário para tenant não autorizado' });
+    }
+  }
+  // SEC-06: Se alterando role, admin não pode promover a superadmin (já checado acima)
+  // e não pode rebaixar um superadmin
+  if (role && req.user.role === 'admin' && targetUser.role === 'superadmin') {
+    return res.status(403).json({ error: 'Não pode alterar role de superadmin' });
   }
 
   const sets = [];
@@ -111,6 +138,8 @@ router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), asyn
   if (password) {
     const hash = await bcrypt.hash(password, 10);
     sets.push(`password_hash = $${idx++}`); vals.push(hash);
+    // SEC-06: mudança de senha revoga sessões existentes
+    sets.push(`token_version = COALESCE(token_version, 0) + 1`);
   }
   if (pin !== undefined) {
     const pinHash = pin ? await bcrypt.hash(String(pin), 10) : null;
@@ -119,7 +148,6 @@ router.patch('/users/:id', requireAuth, requireRole('superadmin', 'admin'), asyn
 
   if (sets.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
 
-  const tenantIds = await getAccessibleTenantIds(req.user);
   vals.push(req.params.id);
   vals.push(tenantIds);
   try {

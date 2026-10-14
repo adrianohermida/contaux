@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { useCollection } from '@/hooks/useCollection'
 import { useTheme } from '@/hooks/useTheme'
 import { roleLabels, roleVariants } from '@/lib/roles'
+import { request } from '@/lib/api'
 import { Building2, Users, Check, Palette } from 'lucide-react'
 
 /** Cores de marca predefinidas para seleção rápida */
@@ -20,9 +20,14 @@ const PRESET_COLORS = [
 
 export default function ConfiguracoesPage() {
   const { settings, loading, saving, error, save } = useTheme()
-  const { items: users } = useCollection('users')
+  // FAST-06: usa /api/auth/users em vez de CRUD genérico (users fora do crudConfig)
+  const [users, setUsers] = useState([])
   const [form, setForm] = useState(settings)
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    request('/auth/users').then(setUsers).catch(() => {})
+  }, [])
 
   // Sincroniza o form quando as settings carregam do backend
   useEffect(() => {
@@ -197,9 +202,10 @@ export default function ConfiguracoesPage() {
           <CardTitle className="text-sm">Integrações</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <IntegrationRow name="Google Calendar" status="Conectado" description="Sincronização de eventos e prazos" />
-          <IntegrationRow name="Cloudflare Email" status="Configurado" description="Workers de email (router + forwarder)" />
-          <IntegrationRow name="Stripe" status="Não conectado" description="Pagamentos e cobranças" />
+          {/* FAST-06: estados reais em vez de textos fixos de conexão */}
+          <IntegrationRow name="Google Calendar" status="unconfigured" description="Sincronização de eventos e prazos" />
+          <IntegrationRow name="Cloudflare Email" status="unknown" description="Workers de email (router + forwarder)" />
+          <IntegrationRow name="Stripe" status="unconfigured" description="Pagamentos e cobranças" />
         </CardContent>
       </Card>
     </div>
@@ -235,7 +241,15 @@ function Swatch({ label, color, light }) {
 }
 
 function IntegrationRow({ name, status, description }) {
-  const connected = status === 'Conectado' || status === 'Configurado'
+  // FAST-06: estados reais: unknown, unconfigured, error, healthy
+  const statusMap = {
+    healthy: { label: 'Conectado', variant: 'default' },
+    unconfigured: { label: 'Não configurado', variant: 'outline' },
+    error: { label: 'Erro', variant: 'destructive' },
+    unknown: { label: 'Verificando...', variant: 'secondary' },
+  }
+  const info = statusMap[status] || statusMap.unknown
+  const canConnect = status === 'unconfigured' || status === 'error'
   return (
     <div className="flex items-center justify-between rounded-md border border-border p-3">
       <div>
@@ -243,8 +257,8 @@ function IntegrationRow({ name, status, description }) {
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant={connected ? 'default' : 'outline'}>{status}</Badge>
-        <Button variant="outline" size="sm">{connected ? 'Gerenciar' : 'Conectar'}</Button>
+        <Badge variant={info.variant}>{info.label}</Badge>
+        {canConnect && <Button variant="outline" size="sm">Conectar</Button>}
       </div>
     </div>
   )

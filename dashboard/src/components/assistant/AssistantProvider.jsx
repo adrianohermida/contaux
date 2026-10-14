@@ -1,8 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
-import { request, getAccessToken } from '@/lib/api'
-import { resolveModule } from './moduleContext'
+import { useShell } from './assistantShell.jsx'
 
 /**
  * Provider do Assistente Contaux (AC-GLOBAL-01 + AC-GLOBAL-02).
@@ -10,15 +8,24 @@ import { resolveModule } from './moduleContext'
  * Três estados: recolhido (minimizado), expandido (painel lateral), fullscreen.
  */
 const AssistantContext = createContext(null)
-const STORAGE_KEY = 'contaux-assistant'
+
+// C-04/P0: chave de localStorage isolada por usuário e tenant.
+// Evita vazamento de rascunho/contexto entre contas diferentes no mesmo navegador.
+// PKG-1: prefixo vem do adaptador do host, não hardcoded.
+function getStorageKey(user, storagePrefix) {
+  if (!user) return null
+  return `${storagePrefix}-u${user.id}-t${user.tenant_id}`
+}
 
 function genId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function loadPersisted() {
+function loadPersisted(user, storagePrefix) {
+  const key = getStorageKey(user, storagePrefix)
+  if (!key) return null
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     return JSON.parse(raw)
   } catch {
@@ -27,8 +34,24 @@ function loadPersisted() {
 }
 
 export function AssistantProvider({ children }) {
-  const persisted = useRef(loadPersisted())
-  const [panelMode, setPanelMode] = useState(persisted.current?.panelMode || 'collapsed')
+  // PKG-1: portas canônicas injetadas pelo adaptador do host
+  const { useUser, request, getAccessToken, resolveModule, storagePrefix } = useShell()
+  const { user } = useUser()
+  const persisted = useRef(null)
+
+  // C-04: carrega estado persistido isolado por usuário/tenant
+  useEffect(() => {
+    if (user) {
+      persisted.current = loadPersisted(user, storagePrefix)
+      if (persisted.current?.panelMode) setPanelMode(persisted.current.panelMode)
+      if (persisted.current?.draft) setDraft(persisted.current.draft)
+      if (persisted.current?.contextMode) setContextMode(persisted.current.contextMode)
+      if (persisted.current?.lockedContext) setLockedContext(persisted.current.lockedContext)
+      if (persisted.current?.activeConvId) setActiveConvId(persisted.current.activeConvId)
+    }
+  }, [user?.id, user?.tenant_id])
+
+  const [panelMode, setPanelMode] = useState('collapsed')
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState(persisted.current?.draft || '')
   const [status, setStatus] = useState('idle') // idle | preparing
@@ -59,17 +82,19 @@ export function AssistantProvider({ children }) {
   const [activeDotId, setActiveDotId] = useState(null)
 
   const location = useLocation()
-  const { user } = useAuth()
 
-  // Persiste estado UI em localStorage (não persiste mensagens — vão pro backend)
+  // C-04: Persiste estado UI em localStorage isolado por usuário/tenant
   useEffect(() => {
+    if (!user) return
+    const key = getStorageKey(user, storagePrefix)
+    if (!key) return
     const data = { panelMode, draft, contextMode, lockedContext, activeConvId }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      localStorage.setItem(key, JSON.stringify(data))
     } catch {
       // localStorage cheio ou indisponível — ignora
     }
-  }, [panelMode, draft, contextMode, lockedContext, activeConvId])
+  }, [panelMode, draft, contextMode, lockedContext, activeConvId, user])
 
   // Carrega lista de conversas do backend ao montar
   const loadConversations = useCallback(async () => {
@@ -434,7 +459,7 @@ export function AssistantProvider({ children }) {
       try {
         const result = await request('/assistant/tools/execute', {
           method: 'POST',
-          body: JSON.stringify({ tool: toolName, params, conversation_id: convId }),
+          body: JSON.stringify({ tool: toolName, params, conversation_id: convId, approved: true }),
         })
         return result
       } catch (err) {
