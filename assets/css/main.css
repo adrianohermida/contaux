@@ -5753,3 +5753,97 @@ Clients Css
   display: block;
   margin-bottom: 30px;
 }
+
+/*======================================
+    Cookie Consent CSS
+========================================*/
+#cookie-consent-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  background: #081828;
+  color: #fff;
+  padding: 20px 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+#cookie-consent-banner .cookie-consent-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 15px;
+  flex-wrap: wrap;
+}
+
+#cookie-consent-banner .cookie-consent-text {
+  flex: 1;
+  min-width: 280px;
+}
+
+#cookie-consent-banner .cookie-consent-text p {
+  font-size: 13px;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+#cookie-consent-banner .cookie-consent-text a {
+  color: #6ea0ff;
+  text-decoration: underline;
+}
+
+#cookie-consent-banner .cookie-consent-buttons {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#cookie-consent-banner .cookie-btn {
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+#cookie-consent-banner .cookie-btn-accept {
+  background: #3763EB;
+  color: #fff;
+  border-color: #3763EB;
+}
+
+#cookie-consent-banner .cookie-btn-accept:hover {
+  background: #fff;
+  color: #3763EB;
+}
+
+#cookie-consent-banner .cookie-btn-refuse {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+#cookie-consent-banner .cookie-btn-refuse:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+
+@media (max-width: 767px) {
+  #cookie-consent-banner .cookie-consent-inner {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  #cookie-consent-banner .cookie-consent-buttons {
+    width: 100%;
+    justify-content: center;
+  }
+}
