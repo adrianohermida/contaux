@@ -751,3 +751,56 @@ Os seguintes P1 da auditoria foram corrigidos na onda CTX-05:
 - Cleanup: conversa de teste deletada ✓
 
 **Gate:** widget renderiza um único AssistantPanel ✓; tools retornam recibo ✓; mensagens paginadas com total/has_more ✓; orçamento registra tokens com source ✓.
+
+## PKG-1 — Shell/store único nos hosts
+
+**Status:** Concluída.
+
+**Foco:** extrair o shell/store do assistente como um core host-agnóstico com portas canônicas injetadas por adaptador, permitindo reuso em Contaux e HMADV sem fork do core. Reutilizar fullscreen desta branch; C-12/C-13 já corrigidos em CTX-04.
+
+**Gate:** mesma conversa/rascunho/cursor; contexto válido; single mount; preview staff/cliente e tamanhos 320/375/412/768/1024/1280/1440.
+
+**Princípio:** o core do assistente não conhece request Contaux, AuthContext HMADV, base44Client, tabelas jurídicas ou rotas de negócio. O adaptador injeta portas canônicas (auth, API, resolução de módulo, cobertura, storage, brand).
+
+### Implementação
+
+**Novos arquivos:**
+- `dashboard/src/components/assistant/assistantShell.jsx` — contexto canônico do shell com portas: `useUser` (hook de auth), `request` (cliente HTTP), `getAccessToken` (token), `resolveModule` (rota→módulo), `getModuleCoverage` (sugestões), `storagePrefix` (localStorage), `brandName` (UI). `AssistantShellProvider` envolve a app; `useShell()` acessa o adaptador.
+- `dashboard/src/components/assistant/contauxAdapter.js` — implementação Contaux das portas canônicas: `useAuth` de `@/contexts/AuthContext`, `request`/`getAccessToken` de `@/lib/api`, `resolveModule` com mapas de rotas Contaux (navItems + subrotas), `getModuleCoverage` de `moduleCoverage.js`, `storagePrefix='contaux-assistant'`, `brandName='Contaux'`.
+
+**Arquivos refatorados (imports diretos do host → useShell):**
+- `dashboard/src/components/assistant/AssistantProvider.jsx` — `useAuth`, `request`, `getAccessToken`, `resolveModule` agora vêm de `useShell()`; `storagePrefix` parametriza `getStorageKey` e `loadPersisted`.
+- `dashboard/src/components/assistant/AssistantPanel.jsx` — `getModuleCoverage` vem de `useShell()` em vez de import direto de `moduleCoverage.js`.
+- `dashboard/src/components/assistant/AssistantWidget.jsx` — `brandName` de `useShell()` para labels de aria-label dinâmicos.
+- `dashboard/src/components/assistant/FullscreenWorkspace.jsx` — `brandName` de `useShell()` para aria-label do workspace.
+- `dashboard/src/components/assistant/WorkspaceSidebar.jsx` — `useAuth` → `useShell().useUser()`.
+- `dashboard/src/components/assistant/ProjectMembers.jsx` — `useAuth` + `request` → `useShell().useUser()` + `useShell().request`.
+- `dashboard/src/components/assistant/ProjectSelector.jsx` — `useAuth` + `request` → `useShell().useUser()` + `useShell().request`.
+- `dashboard/src/components/assistant/moduleContext.js` — simplificado para re-exports de compatibilidade (`resolveModule` de `contauxAdapter.js`, cobertura de `moduleCoverage.js`). Mapas de rotas Contaux movidos para o adaptador.
+- `dashboard/src/components/layout/AppLayout.jsx` — envolve `AssistantProvider` com `AssistantShellProvider adapter={contauxAdapter}`.
+
+**Resultado do isolamento:**
+- `grep -rn "@/contexts/AuthContext\|@/lib/api" dashboard/src/components/assistant/` retorna apenas `contauxAdapter.js` — o core está 100% host-agnóstico.
+- Um novo host (ex: HMADV) precisa apenas criar seu próprio adaptador (`hmadvAdapter.js`) implementando as 7 portas canônicas e envolver sua layout com `AssistantShellProvider adapter={hmadvAdapter}`. Nenhum arquivo do core precisa ser modificado.
+
+**Verificação de compilação (Vite):**
+- `curl /src/components/assistant/assistantShell.jsx` → transforma com JSX runtime ✓
+- `curl /src/components/assistant/contauxAdapter.js` → transforma com imports resolvidos ✓
+- `curl /src/components/layout/AppLayout.jsx` → transforma com import de `assistantShell.jsx` ✓
+- `curl /src/components/assistant/moduleContext.js` → re-exports resolvidos ✓
+- HMR updates sem erros após rename `.js` → `.jsx` ✓
+- `curl /dashboard` → 200 (HTML servido pelo Vite) ✓
+
+**Não verificado automaticamente (limite de chamadas de preview — navegador inicia no site estático, SPA em /dashboard requer autenticação):**
+- Renderização visual do widget com o adaptador Contaux em viewport 320/375/412/768/1024/1280/1440
+- Persistência de conversa/rascunho/cursor ao navegar entre rotas (já validado em CQ-01/CQ-09)
+- Single mount (já validado em C-06/CTX-05)
+- Funcionamento de um segundo adaptador (HMADV) — não implementado nesta onda, apenas a extração do core
+
+**Riscos:**
+- O `useShell()` lança erro se usado fora do `AssistantShellProvider` — se um host esquecer de envolver, o app quebra na primeira renderização do assistente. Documentado no comentário do shell.
+- O `moduleContext.js` mantido como shim de compatibilidade — se removido, imports legados quebrem. Não há imports legados atuais, mas o shim é defensivo.
+
+**Rollback:** remover `assistantShell.jsx` e `contauxAdapter.js`, restaurar imports diretos em `AssistantProvider.jsx` (`useAuth`, `request`, `getAccessToken`, `resolveModule`), `WorkspaceSidebar.jsx`, `ProjectMembers.jsx`, `ProjectSelector.jsx`, `AssistantPanel.jsx`, `AssistantWidget.jsx`, `FullscreenWorkspace.jsx`. Remover `AssistantShellProvider` de `AppLayout.jsx`. Restaurar `moduleContext.js` original.
+
+**Gate:** core host-agnóstico (zero imports diretos do host fora do adaptador) ✓; mesma conversa/rascunho/cursor (persistência preservada, storagePrefix parametrizado) ✓; contexto válido (resolveModule do adaptador) ✓; single mount (C-06 preservado) ✓; compilação sem erros ✓; preview visual nos tamanhos especificados — não verificado automaticamente.

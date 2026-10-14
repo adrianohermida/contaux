@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Users, UserPlus, X, Crown } from 'lucide-react'
-import { request } from '@/lib/api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useShell } from './assistantShell.jsx'
 
 /**
  * Gestão de membros de um projeto (CQ-08).
@@ -9,7 +8,9 @@ import { useAuth } from '@/contexts/AuthContext'
  * Compacto para caber na sidebar do workspace.
  */
 export default function ProjectMembers({ projectId, projectName }) {
-  const { user } = useAuth()
+  // PKG-1: auth e API vêm do adaptador do host
+  const { useUser, request } = useShell()
+  const { user } = useUser()
   const [members, setMembers] = useState([])
   const [tenantUsers, setTenantUsers] = useState([])
   const [showAdd, setShowAdd] = useState(false)

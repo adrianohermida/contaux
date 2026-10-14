@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAssistant } from './AssistantProvider'
-import { useAuth } from '@/contexts/AuthContext'
-import { request } from '@/lib/api'
+import { useShell } from './assistantShell.jsx'
 
 /**
  * Seletor de projetos privados e dots configuráveis (CQ-08).
@@ -10,7 +9,9 @@ import { request } from '@/lib/api'
  */
 export function ProjectSelector() {
   const { activeConvId, conversations, loadConversations } = useAssistant()
-  const { user } = useAuth()
+  // PKG-1: auth e API vêm do adaptador do host
+  const { useUser, request } = useShell()
+  const { user } = useUser()
   const [projects, setProjects] = useState([])
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
