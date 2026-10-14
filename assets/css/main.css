@@ -1185,6 +1185,17 @@ ol {
           transform: translate3d(0, -5px, 0);
 }
 
+.button .btn.btn-alt {
+  background-color: transparent;
+  color: #3763EB;
+  border: 2px solid #3763EB;
+}
+
+.button .btn.btn-alt:hover {
+  background-color: #3763EB;
+  color: #fff;
+}
+
 .align-left {
   text-align: left;
 }
