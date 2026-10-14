@@ -50,12 +50,14 @@ async function appendLog(taskId, entry) {
  * @returns {Promise<object>} Tarefa atualizada
  */
 async function transitionStatus(taskId, newStatus, user, notes = '') {
-  // Busca a tarefa verificando isolamento por tenant
+  // C-09/P0: Busca a tarefa verificando isolamento por tenant — sem null-tenant.
+  // Apenas superadmin pode acessar tarefas sem tenant (tenant_id IS NULL).
   const tenantIds = await getAccessibleTenantIds(user);
+  const nullOk = user.role === 'superadmin' ? 'OR tenant_id IS NULL' : '';
   const result = await query(
     `SELECT id, title, status, tenant_id, execution_log, started_at, completed_at
      FROM tasks
-     WHERE id = $1 AND (tenant_id = ANY($2::int[]) OR tenant_id IS NULL)`,
+     WHERE id = $1 AND (tenant_id = ANY($2::int[]) ${nullOk})`,
     [taskId, tenantIds],
   );
 
@@ -104,9 +106,10 @@ async function transitionStatus(taskId, newStatus, user, notes = '') {
 
   values.push(taskId, tenantIds);
 
+  const nullOkUpdate = user.role === 'superadmin' ? 'OR tenant_id IS NULL' : '';
   const updateResult = await query(
     `UPDATE tasks SET ${updates.join(', ')}
-     WHERE id = $${idx++} AND (tenant_id = ANY($${idx++}::int[]) OR tenant_id IS NULL)
+     WHERE id = $${idx++} AND (tenant_id = ANY($${idx++}::int[]) ${nullOkUpdate})
      RETURNING id, title, description, status, priority, due_date, assigned_to,
                category, source, conversation_id, created_by, execution_log,
                started_at, completed_at, created, updated`,
@@ -122,10 +125,11 @@ async function transitionStatus(taskId, newStatus, user, notes = '') {
  */
 async function getExecutionLog(taskId, user) {
   const tenantIds = await getAccessibleTenantIds(user);
+  const nullOk = user.role === 'superadmin' ? 'OR tenant_id IS NULL' : '';
   const result = await query(
     `SELECT id, title, status, execution_log, started_at, completed_at
      FROM tasks
-     WHERE id = $1 AND (tenant_id = ANY($2::int[]) OR tenant_id IS NULL)`,
+     WHERE id = $1 AND (tenant_id = ANY($2::int[]) ${nullOk})`,
     [taskId, tenantIds],
   );
 

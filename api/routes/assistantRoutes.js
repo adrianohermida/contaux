@@ -62,7 +62,7 @@ router.get('/tools', (req, res) => {
 // Executar uma tool (com ACL e validação)
 router.post('/tools/execute', async (req, res) => {
   try {
-    const { tool, params, conversation_id } = req.body;
+    const { tool, params, conversation_id, approved } = req.body;
     if (!tool) return res.status(400).json({ error: 'tool é obrigatório' });
 
     // SEC-08: Se conversation_id fornecido, verifica acesso à conversa antes de executar
@@ -79,6 +79,7 @@ router.post('/tools/execute', async (req, res) => {
       tenantIds,
       role: req.user.role,
       conversationId: conversation_id || null,
+      approved: approved === true, // C-03: aprovação explícita do usuário
     };
 
     const result = await executeTool(tool, params || {}, userContext);

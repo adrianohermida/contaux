@@ -582,3 +582,46 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 **Solução:** removido `async` da função (é pura). `action_url` corrigido para `/contabilidade/calendario`.
 
 **Arquivos:** `api/services/assistantProactive.js`.
+
+## CTX-03 — P0 remanescentes da auditoria
+
+**Status:** Concluída (C-03, C-04, C-09).
+
+**Foco:** três P0 remanescentes da auditoria externa (AUDITORIA-E-PLANO.md): aprovação de tools não validada no servidor, localStorage global sem isolamento, taskExecutor com acesso a tenant nulo.
+
+**Gate:** tool de escrita sem aprovação negada no servidor; localStorage isolado por usuário+tenant; tarefa sem tenant inacessível a não-superadmin.
+
+### C-03/P0 — Aprovação de tools validada no servidor
+
+**Problema:** `requiresApproval` era apenas metadados nas definições de tools. O frontend mostrava um modal de confirmação (`ToolApproval.jsx`), mas o backend executava a tool sem verificar se a aprovação foi dada — um cliente malicioso podia chamar `POST /assistant/tools/execute` diretamente, ignorando o modal.
+
+**Solução:** `executeTool()` agora verifica `userContext.approved === true` antes de executar tools com `requiresApproval: true`. Sem a flag, retorna `{ denied: true, requiresApproval: true }`. O endpoint da API extrai `approved` do body e o passa no contexto. O frontend envia `approved: true` apenas após o usuário confirmar no modal.
+
+**Arquivos:** `api/services/assistantTools.js` (validação em executeTool), `api/routes/assistantRoutes.js` (passa approved do body), `dashboard/src/components/assistant/AssistantProvider.jsx` (envia approved: true após confirmação).
+
+### C-04/P0 — localStorage isolado por usuário e tenant
+
+**Problema:** a chave de localStorage era `contaux-assistant` — global, sem isolamento por usuário ou tenant. Se dois usuários compartilhavam o mesmo navegador, ou um usuário trocava de tenant, o rascunho, contexto travado e estado do painel vazavam entre contas.
+
+**Solução:** a chave agora é `contaux-assistant-u${userId}-t${tenantId}` — isolada por combinação de usuário e tenant. O carregamento e salvamento usam a chave scoped. O estado é carregado em um useEffect ao montar, após o usuário estar disponível.
+
+**Arquivos:** `dashboard/src/components/assistant/AssistantProvider.jsx` (getStorageKey, loadPersisted com user, save com chave scoped).
+
+### C-09/P0 — taskExecutor sem acesso a tenant nulo
+
+**Problema:** `taskExecutor.js` usava `OR tenant_id IS NULL` em todas as queries — tarefas sem tenant podiam ser acessadas e modificadas por qualquer usuário autenticado, independentemente do seu tenant. Mesma classe de bug que SEC-05 (escrita implícita em tenant nulo).
+
+**Solução:** removido `OR tenant_id IS NULL` para não-superadmin. Apenas superadmin mantém acesso a tarefas sem tenant. Aplicado em `transitionStatus` (SELECT e UPDATE) e `getExecutionLog`.
+
+**Arquivos:** `api/services/taskExecutor.js`.
+
+**Testes executados (curl):**
+- C-03: `create_task` sem `approved` → denied "Esta ação requer aprovação do usuário" ✓
+- C-03: `create_task` com `approved: true` → sucesso, task criada ✓
+- C-03: `navigate` (sem requiresApproval) sem `approved` → sucesso ✓
+- C-09: accountant tenta transicionar tarefa com `tenant_id = NULL` → "Tarefa não encontrada" ✓
+- C-09: superadmin transiciona tarefa com `tenant_id = NULL` → sucesso ✓
+- C-04: verificado em código (chave scoped por user+tenant) — não testável via curl
+- Cleanup: dados de teste removidos ✓
+
+**Gate:** tool de escrita sem aprovação negada no servidor ✓; localStorage isolado por usuário+tenant ✓; tarefa sem tenant inacessível a não-superadmin ✓.

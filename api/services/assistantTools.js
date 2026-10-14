@@ -745,6 +745,19 @@ async function executeTool(toolName, params, userContext) {
     return { success: false, error: validation.error };
   }
 
+  // C-03/P0: Tools de escrita exigem aprovação explícita do usuário.
+  // O frontend mostra um modal de confirmação; o backend valida que
+  // `approved: true` foi enviado na requisição — sem isso, a tool
+  // não executa (defesa contra chamada direta à API sem aprovação).
+  if (validation.definition.requiresApproval && !userContext.approved) {
+    return {
+      success: false,
+      denied: true,
+      reason: 'Esta ação requer aprovação do usuário',
+      requiresApproval: true,
+    };
+  }
+
   // 3. Executa
   try {
     const executor = EXECUTORS[toolName];
