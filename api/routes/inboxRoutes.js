@@ -7,7 +7,8 @@ const { query } = require('../db');
 const { sendMail, FROM_EMAIL } = require('../services/mailService');
 const { requireAuth, getAccessibleTenantIds } = require('../middleware/auth');
 
-const WEBHOOK_KEY = process.env.CLOUDFLARE_WORKER_API_KEY || 'contaux-mail-2024';
+// SEC-10: Sem fallback de segredo — se a env var não existe, webhook é recusado
+const WEBHOOK_KEY = process.env.CLOUDFLARE_WORKER_API_KEY || null;
 
 // Todas as rotas exigem autenticação, exceto o webhook (usa X-Webhook-Key)
 router.use((req, res, next) => {
@@ -18,8 +19,13 @@ router.use((req, res, next) => {
 
 // ===== Webhook — recebe emails do email-router Worker =====
 router.post('/webhook', async (req, res) => {
+  // SEC-10: Falha fechado se secret não configurado
+  if (!WEBHOOK_KEY) {
+    console.error('[inbox] Webhook recusado: CLOUDFLARE_WORKER_API_KEY não configurado');
+    return res.status(503).json({ error: 'Webhook não configurado' });
+  }
   const apiKey = req.headers['x-webhook-key'];
-  if (apiKey !== WEBHOOK_KEY) {
+  if (!apiKey || apiKey !== WEBHOOK_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

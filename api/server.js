@@ -82,9 +82,26 @@ app.use('/api/tasks-orchestration', taskRoutes);
 const { requireAuth, getAccessibleTenantIds } = require('./middleware/auth');
 
 // Executa um workflow específico (gatilho manual)
+// SEC-09: verifica tenant, active e papel antes de executar
 app.post('/api/workflows/:id/execute', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    // SEC-09: client e viewer não podem executar workflows
+    if (req.user.role === 'client' || req.user.role === 'viewer') {
+      return res.status(403).json({ error: 'Seu perfil não pode executar workflows' });
+    }
+    // SEC-09: workflow deve pertencer ao tenant do usuário e estar ativo
+    const tenantIds = await getAccessibleTenantIds(req.user);
+    const wfCheck = await query(
+      'SELECT id, active FROM workflows WHERE id = $1 AND tenant_id = ANY($2::int[])',
+      [parseInt(id, 10), tenantIds],
+    );
+    if (wfCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Workflow não encontrado' });
+    }
+    if (!wfCheck.rows[0].active) {
+      return res.status(403).json({ error: 'Workflow inativo' });
+    }
     const context = { ...req.body, triggered_by: req.user?.email || 'manual', tenant_id: req.user?.tenant_id };
     const result = await workflowEngine.executeWorkflowById(parseInt(id, 10), context);
     res.json(result);
@@ -94,8 +111,12 @@ app.post('/api/workflows/:id/execute', requireAuth, async (req, res) => {
 });
 
 // Dispara workflows por nome de evento
+// SEC-09: client e viewer não podem disparar eventos
 app.post('/api/workflows/trigger', requireAuth, async (req, res) => {
   try {
+    if (req.user.role === 'client' || req.user.role === 'viewer') {
+      return res.status(403).json({ error: 'Seu perfil não pode disparar workflows' });
+    }
     const { event, ...context } = req.body;
     if (!event) return res.status(400).json({ error: 'event é obrigatório' });
     const result = await workflowEngine.triggerEvent(event, { ...context, triggered_by: req.user?.email || 'system', tenant_id: req.user?.tenant_id });
@@ -121,10 +142,40 @@ app.get('/api/knowledge-base/files/public/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-app.get('/api/knowledge-base/files/private/:filename', requireAuth, (req, res) => {
-  const filePath = path.join(kbPrivateDir, req.params.filename);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
-  res.sendFile(filePath);
+// SEC-04: Download de arquivo privado — resolve documento por file_url, verifica tenant
+app.get('/api/knowledge-base/files/private/:filename', requireAuth, async (req, res) => {
+  try {
+    const fileUrl = `/api/knowledge-base/files/private/${req.params.filename}`;
+    // Resolve o item da base de conhecimento pelo file_url
+    const kbResult = await query(
+      `SELECT id, tenant_id, visibility FROM knowledge_base WHERE file_url = $1 LIMIT 1`,
+      [fileUrl],
+    );
+
+    if (kbResult.rows.length === 0) {
+      // Sem registro na KB — falha fechada: não serve arquivo sem autorização
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+
+    const kbItem = kbResult.rows[0];
+
+    // Se o item é público, qualquer autenticado pode acessar
+    if (kbItem.visibility !== 'public') {
+      // Item privado — verifica acesso ao tenant
+      const tenantIds = await getAccessibleTenantIds(req.user);
+      if (kbItem.tenant_id !== null && !tenantIds.includes(kbItem.tenant_id)) {
+        // Negação indistinguível de "não encontrado" — não vaza existência
+        return res.status(404).json({ error: 'Arquivo não encontrado' });
+      }
+    }
+
+    const filePath = path.join(kbPrivateDir, req.params.filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Erro ao servir arquivo privado:', err.message);
+    res.status(500).json({ error: 'Erro ao servir arquivo' });
+  }
 });
 
 // ===== Base de Conhecimento — Assistente de IA =====
@@ -249,30 +300,30 @@ app.get('/api/knowledge-base/sync/status', requireAuth, async (req, res) => res.
 
 // ===== Rotas CRUD (PostgreSQL) =====
 const crudConfig = {
-  clients:         { jsonbFields: ['tags', 'address', 'fiscal'], searchFields: ['name', 'document', 'email'] },
-  contacts:        { jsonbFields: ['tags'], searchFields: ['name', 'email'] },
-  contact_notes:   { searchFields: ['content', 'author'] },
-  contact_activities: { searchFields: ['description'] },
-  invoices:        { jsonbFields: ['items'], searchFields: ['number', 'client_name'], pinProtectedDelete: true },
-  quotes:          { jsonbFields: ['items'], searchFields: ['number', 'client_name'] },
-  payments:        { searchFields: ['client_name', 'invoice_number'], pinProtectedDelete: true },
-  accounts:        { searchFields: ['code', 'name'] },
-  journal_entries: { jsonbFields: ['lines'], searchFields: ['description', 'reference'], pinProtectedDelete: true },
-  tax_invoices:    { jsonbFields: ['items', 'taxes'], searchFields: ['number', 'client_name'], pinProtectedDelete: true },
-  obligations:     { searchFields: ['title', 'description'] },
-  tickets:         { jsonbFields: ['messages'], searchFields: ['subject', 'client_name'] },
-  processes:       { searchFields: ['client_name', 'process_number', 'subject'] },
-  campaigns:       { jsonbFields: ['metrics'], searchFields: ['name', 'audience'] },
-  blog_posts:      { searchFields: ['title', 'slug', 'category'] },
-  loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'] },
-  customer_points:  { searchFields: ['client_name'] },
-  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'] },
-  workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'] },
-  documents:        { searchFields: ['name', 'category'] },
-  reports:          { searchFields: ['name', 'type'] },
-  emails:           { searchFields: ['subject', 'from'] },
-  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], includeNullTenant: true },
-  tasks:             { searchFields: ['title', 'assigned_to'] },
+  clients:         { jsonbFields: ['tags', 'address', 'fiscal'], searchFields: ['name', 'document', 'email'], editableFields: ['name', 'type', 'document', 'email', 'phone', 'status', 'tags', 'address', 'fiscal'] },
+  contacts:        { jsonbFields: ['tags'], searchFields: ['name', 'email'], editableFields: ['name', 'email', 'phone', 'position', 'client_id', 'tags'] },
+  contact_notes:   { searchFields: ['content', 'author'], editableFields: ['contact_id', 'author', 'content'] },
+  contact_activities: { searchFields: ['description'], editableFields: ['contact_id', 'type', 'description'] },
+  invoices:        { jsonbFields: ['items'], searchFields: ['number', 'client_name'], pinProtectedDelete: true, editableFields: ['number', 'client_name', 'issue_date', 'due_date', 'items', 'discount', 'status', 'notes'] },
+  quotes:          { jsonbFields: ['items'], searchFields: ['number', 'client_name'], editableFields: ['number', 'client_name', 'issue_date', 'valid_until', 'items', 'discount', 'status'] },
+  payments:        { searchFields: ['client_name', 'invoice_number'], pinProtectedDelete: true, editableFields: ['invoice_number', 'client_name', 'amount', 'payment_date', 'method', 'status', 'reference'] },
+  accounts:        { searchFields: ['code', 'name'], editableFields: ['code', 'name', 'type', 'parent_id', 'level', 'active'] },
+  journal_entries: { jsonbFields: ['lines'], searchFields: ['description', 'reference'], pinProtectedDelete: true, editableFields: ['date', 'description', 'reference', 'status', 'lines'] },
+  tax_invoices:    { jsonbFields: ['items', 'taxes'], searchFields: ['number', 'client_name'], pinProtectedDelete: true, editableFields: ['number', 'model', 'series', 'issue_date', 'client_name', 'items', 'taxes', 'total', 'status'] },
+  obligations:     { searchFields: ['title', 'description'], editableFields: ['title', 'description', 'due_date', 'type', 'frequency', 'status'] },
+  tickets:         { jsonbFields: ['messages'], searchFields: ['subject', 'client_name'], editableFields: ['client_name', 'subject', 'description', 'priority', 'status', 'category', 'assigned_to', 'messages'] },
+  processes:       { searchFields: ['client_name', 'process_number', 'subject'], editableFields: ['client_name', 'process_number', 'court', 'subject', 'status', 'start_date', 'lawyer', 'value', 'notes'] },
+  campaigns:       { jsonbFields: ['metrics'], searchFields: ['name', 'audience'], editableFields: ['name', 'channel', 'audience', 'status', 'start_date', 'end_date', 'metrics'] },
+  blog_posts:      { searchFields: ['title', 'slug', 'category'], editableFields: ['title', 'slug', 'excerpt', 'category', 'author', 'status', 'published_date', 'views'] },
+  loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'], editableFields: ['name', 'description', 'points_per_real', 'active', 'tier_thresholds', 'rewards'] },
+  customer_points:  { searchFields: ['client_name'], editableFields: ['client_name', 'points_balance', 'tier', 'program_id'] },
+  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'], editableFields: [], writeRoles: [] },
+  workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'], editableFields: ['name', 'trigger', 'conditions', 'actions', 'active'] },
+  documents:        { searchFields: ['name', 'category'], editableFields: ['name', 'type', 'category'] },
+  reports:          { searchFields: ['name', 'type'], editableFields: ['name', 'type', 'format', 'schedule', 'last_run'] },
+  emails:           { searchFields: ['subject', 'from'], editableFields: [], writeRoles: [] },
+  knowledge_base:   { jsonbFields: ['tags'], searchFields: ['title', 'summary', 'content', 'author'], includeNullTenant: true, editableFields: ['title', 'type', 'content', 'summary', 'tags', 'file_url', 'file_name', 'visibility', 'author', 'source', 'status'] },
+  tasks:             { searchFields: ['title', 'assigned_to'], editableFields: ['title', 'description', 'status', 'priority', 'due_date', 'assigned_to', 'category'] },
 };
 
 for (const [table, opts] of Object.entries(crudConfig)) {

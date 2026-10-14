@@ -65,6 +65,12 @@ router.post('/tools/execute', async (req, res) => {
     const { tool, params, conversation_id } = req.body;
     if (!tool) return res.status(400).json({ error: 'tool é obrigatório' });
 
+    // SEC-08: Se conversation_id fornecido, verifica acesso à conversa antes de executar
+    if (conversation_id) {
+      const conv = await checkConversationAccess(conversation_id, req.user);
+      if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
     // Monta contexto do usuário para a tool
     const tenantIds = await getAccessibleTenantIds(req.user);
     const userContext = {

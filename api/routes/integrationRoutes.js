@@ -16,9 +16,13 @@ const adminAuth = [requireAuth, requireRole('superadmin', 'admin')];
 
 // --- Escritórios ---
 
+// SEC-07: Lista escritórios — não retorna api_key (credenciais ocultas)
 router.get('/offices', adminAuth, async (req, res) => {
   try {
-    const result = await query('SELECT * FROM partner_offices ORDER BY id DESC');
+    const result = await query(
+      `SELECT id, external_id, name, webhook_url, contact_email, contact_phone, active, created_at, updated_at
+       FROM partner_offices ORDER BY id DESC`,
+    );
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao listar escritórios' });
@@ -60,6 +64,7 @@ router.delete('/offices/:id', adminAuth, async (req, res) => {
   }
 });
 
+// SEC-07: Rotação de chave — mostra nova chave apenas na rotação, invalida a anterior
 router.post('/offices/:id/regenerate-key', adminAuth, async (req, res) => {
   const apiKey = 'tx_partner_' + require('crypto').randomBytes(16).toString('hex');
   try {
@@ -68,7 +73,8 @@ router.post('/offices/:id/regenerate-key', adminAuth, async (req, res) => {
       [apiKey, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Escritório não encontrado' });
-    res.json({ api_key: result.rows[0].api_key });
+    // Chave mostrada apenas aqui — não persiste em logs nem listagens
+    res.json({ api_key: result.rows[0].api_key, warning: 'Guarde esta chave agora — ela não será exibida novamente.' });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao regenerar API key' });
   }

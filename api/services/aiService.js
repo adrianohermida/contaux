@@ -156,6 +156,61 @@ function buildSearchAnswer(sources) {
 }
 
 /**
+ * Busca APENAS itens públicos e publicados na base de conhecimento.
+ * Usada pelo chat público do site — sem isolamento de tenant, mas restrita
+ * a visibility='public' AND status='published'. Itens privados nunca aparecem.
+ * SEC-01: consulta pública não pode recuperar item privado, rascunho ou de tenant.
+ */
+async function searchPublicKnowledgeBase(question, limit = 5) {
+  const ilikeResult = await query(
+    `SELECT id, title, summary, content, type, source, tags,
+            ts_headline('portuguese', content, plainto_tsquery('portuguese', $1),
+              'MaxFragments=2, MinWords=5, MaxWords=25, HighlightAll=false') AS excerpt
+     FROM knowledge_base
+     WHERE (title ILIKE $1 OR summary ILIKE $1 OR content ILIKE $1)
+     AND status = 'published'
+     AND visibility = 'public'
+     ORDER BY
+       CASE WHEN title ILIKE $1 THEN 0 ELSE 1 END,
+       ts_rank(to_tsvector('portuguese', content), plainto_tsquery('portuguese', $1)) DESC,
+       id DESC
+     LIMIT $2`,
+    [`%${question}%`, limit],
+  );
+  return ilikeResult.rows;
+}
+
+/**
+ * Responde uma pergunta pública (chat do site) usando APENAS itens públicos.
+ * SEC-01: nunca passa tenantIds=null para a busca privada.
+ */
+async function askPublic(question) {
+  const sources = await searchPublicKnowledgeBase(question);
+
+  const contextText = sources.length > 0
+    ? sources.map((s, i) =>
+        `[${i + 1}] ${s.title}\n${s.summary || ''}\n${(s.content || '').substring(0, 2000)}`
+      ).join('\n\n---\n\n')
+    : '';
+
+  const llmAnswer = await tryLLMResponse(question, contextText, [], SYSTEM_PROMPT);
+
+  if (llmAnswer) {
+    return {
+      configured: true,
+      answer: llmAnswer,
+      sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+    };
+  }
+
+  return {
+    configured: false,
+    answer: buildSearchAnswer(sources),
+    sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+  };
+}
+
+/**
  * Responde uma pergunta do usuário com base na Base de Conhecimento.
  * Tenta usar LLM via backend function; se indisponível, usa busca inteligente.
  * @param {string} question - Pergunta do usuário
@@ -194,4 +249,4 @@ async function ask(question, userContext = null) {
   };
 }
 
-module.exports = { ask, isConfigured: isLLMConfigured };
+module.exports = { ask, askPublic, isConfigured: isLLMConfigured };

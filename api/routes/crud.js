@@ -19,14 +19,33 @@ function createCrudRouter(table, opts = {}) {
   const includeNullTenant = opts.includeNullTenant === true;
   // Campos sensíveis a excluir das respostas (ex: password_hash)
   const excludeFields = new Set(opts.excludeFields || []);
-  // Roles permitidos (opcional — se não definido, qualquer autenticado)
+  // Roles permitidos para TODAS as operações (opcional — se não definido, qualquer autenticado pode ler)
   const allowedRoles = opts.allowedRoles || null;
+  // SEC-02: Roles permitidos para escrita (POST/PATCH/DELETE).
+  // Padrão: superadmin, admin, accountant. viewer e client não escrevem.
+  // Se writeRoles for [] (array vazio), escrita via CRUD é totalmente proibida.
+  const writeRoles = opts.writeRoles !== undefined
+    ? opts.writeRoles
+    : (allowedRoles ? null : ['superadmin', 'admin', 'accountant']);
+  // SEC-03: Allowlist de campos editáveis. Se definido, apenas estes campos são aceitos.
+  // Se [] (array vazio), escrita via CRUD é proibida (tabela read-only).
+  const editableFields = opts.editableFields !== undefined ? new Set(opts.editableFields) : null;
 
   // Todas as rotas CRUD exigem autenticação
   router.use(requireAuth);
   if (allowedRoles) {
     const { requireRole } = require('../middleware/auth');
     router.use(requireRole(...allowedRoles));
+  }
+
+  // SEC-02: Middleware que restringe escrita (POST/PATCH/DELETE) aos writeRoles.
+  // Se allowedRoles já restringe tudo, writeRoles é null (não aplica — allowedRoles já cobre).
+  function requireWriteRole(req, res, next) {
+    if (writeRoles === null) return next(); // allowedRoles já controla tudo
+    if (!writeRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Seu perfil não tem permissão de escrita' });
+    }
+    next();
   }
 
   // Palavras reservadas do PostgreSQL que precisam de aspas
@@ -38,11 +57,16 @@ function createCrudRouter(table, opts = {}) {
   }
 
   /** Constrói cláusula WHERE de tenant isolation (offset = parâmetros anteriores) */
-  async function buildTenantWhere(req, offset = 0) {
+  // SEC-05: forWrite=true restringe edição de itens globais (tenant_id NULL) a superadmin/admin
+  async function buildTenantWhere(req, offset = 0, forWrite = false) {
     if (noTenant) return { clause: '', params: [] };
     const tenantIds = await getAccessibleTenantIds(req.user);
     const idx = offset + 1;
     if (includeNullTenant) {
+      // Leitura: inclui globais. Escrita: só superadmin/admin editam globais
+      if (forWrite && !['superadmin', 'admin'].includes(req.user.role)) {
+        return { clause: `tenant_id = ANY($${idx}::int[])`, params: [tenantIds] };
+      }
       return { clause: `(tenant_id = ANY($${idx}::int[]) OR tenant_id IS NULL)`, params: [tenantIds] };
     }
     return { clause: `tenant_id = ANY($${idx}::int[])`, params: [tenantIds] };
@@ -106,9 +130,13 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
-  // Criar
-  router.post('/', async (req, res) => {
+  // Criar — SEC-02: exige writeRole
+  router.post('/', requireWriteRole, async (req, res) => {
     try {
+      // SEC-03: Se editableFields é vazio, tabela é read-only via CRUD
+      if (editableFields !== null && editableFields.size === 0) {
+        return res.status(403).json({ error: 'Esta tabela é somente leitura' });
+      }
       const data = prepareData(req.body);
       // Valida/isola tenant_id — nunca confiar no body sem validação
       if (!noTenant) {
@@ -139,10 +167,14 @@ function createCrudRouter(table, opts = {}) {
     }
   });
 
-  // Atualizar
-  router.patch('/:id', async (req, res) => {
+  // Atualizar — SEC-02: exige writeRole
+  router.patch('/:id', requireWriteRole, async (req, res) => {
     try {
       if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+      // SEC-03: Se editableFields é vazio, tabela é read-only via CRUD
+      if (editableFields !== null && editableFields.size === 0) {
+        return res.status(403).json({ error: 'Esta tabela é somente leitura' });
+      }
       const data = prepareData(req.body);
       delete data.id;
       // Não permitir alterar tenant_id via CRUD
@@ -150,7 +182,7 @@ function createCrudRouter(table, opts = {}) {
       const fields = Object.keys(data);
       if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
 
-      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, fields.length + 1);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, fields.length + 1, true);
       const sets = fields.map((f, i) => `${col(f)} = $${i + 1}`).join(', ');
       const values = Object.values(data);
 
@@ -175,7 +207,7 @@ function createCrudRouter(table, opts = {}) {
   const deleteHandler = async (req, res) => {
     try {
       if (!isValidId(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
-      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1);
+      const { clause: tenantClause, params: tenantParams } = await buildTenantWhere(req, 1, true);
       let sql, params;
       if (tenantClause) {
         sql = `DELETE FROM ${table} WHERE id = $1 AND ${tenantClause} RETURNING id`;
@@ -195,9 +227,9 @@ function createCrudRouter(table, opts = {}) {
 
   if (opts.pinProtectedDelete) {
     const { requirePin } = require('../middleware/pin');
-    router.delete('/:id', requirePin, deleteHandler);
+    router.delete('/:id', requireWriteRole, requirePin, deleteHandler);
   } else {
-    router.delete('/:id', deleteHandler);
+    router.delete('/:id', requireWriteRole, deleteHandler);
   }
 
   /** Converte campos JSONB de volta para objetos, exclui campos sensíveis e formata id */
@@ -216,15 +248,28 @@ function createCrudRouter(table, opts = {}) {
     return parsed;
   }
 
-  /** Prepara dados para insert/update (JSONB → string) */
+  /** Prepara dados para insert/update (JSONB → string, allowlist de campos) */
   function prepareData(body) {
     const data = { ...body };
+    // SEC-03: Filtra campos não permitidos — apenas editableFields são aceitos
+    if (editableFields !== null) {
+      for (const key of Object.keys(data)) {
+        if (!editableFields.has(key)) {
+          delete data[key];
+        }
+      }
+    }
+    // Sempre remove campos protegidos — nunca editáveis via CRUD
+    delete data.id;
+    delete data.created_at;
+    delete data.updated_at;
+    delete data.created;
+    delete data.updated;
     for (const f of jsonbFields) {
       if (data[f] !== undefined && typeof data[f] !== 'string') {
         data[f] = JSON.stringify(data[f]);
       }
     }
-    delete data.id;
     return data;
   }
 

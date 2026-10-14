@@ -391,3 +391,100 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 - Validação do fluxo de criação de projeto e atribuição de conversa na UI
 - Configuração do orçamento de tokens diário em produção
 - Treinamento da equipe para o piloto interno
+
+## CTX-01 — Isolamento e contenção crítica (P0)
+
+**Status:** Concluída (SEC-01 a SEC-10).
+
+**Foco:** eliminar caminhos de acesso indevido e conter controles que alegam sucesso sem efeito. Ondas da auditoria externa (CONTAUX-AUDITORIA-PLANO-2026-10-14).
+
+**Gate:** duas organizações e papéis negativos não acessam/mutam dados indevidamente; sem falsos positivos de sucesso.
+
+### SEC-01 — Fechar consulta pública sem isolamento
+
+**Problema:** o chat público (`/api/public/chat`) chamava `aiService.ask(message, { tenantIds: null })`, que cai no branch sem filtro de tenant da busca — pesquisando TODO o acervo de conhecimento, incluindo itens privados e rascunhos.
+
+**Solução:** nova função `askPublic()` em `aiService.js` que busca APENAS itens com `visibility = 'public' AND status = 'published'`. O chat público agora usa `askPublic()` — nunca passa `tenantIds: null` para a busca privada.
+
+**Arquivos:** `api/services/aiService.js`, `api/routes/publicRoutes.js`
+
+**Testes:** chat público "MEI" → 1 fonte pública (Guia de Tributação para MEI) ✓; "LGPD" → 1 fonte pública (Lei 13.709/2018) ✓; itens privados não aparecem ✓.
+
+### SEC-02 — Negar escrita sem permissão por operação
+
+**Problema:** o CRUD genérico (`crud.js`) não restringia escrita por papel — quando `allowedRoles` não era definido, qualquer autenticado (incluindo `viewer` e `client`) podia criar/editar/deletar registros.
+
+**Solução:** middleware `requireWriteRole` aplicado a POST/PATCH/DELETE. Padrão: apenas `superadmin`, `admin`, `accountant` podem escrever. `viewer` e `client` recebem 403. Tabelas read-only (`audit_logs`, `emails`) têm `writeRoles: []` — ninguém escreve via CRUD.
+
+**Arquivos:** `api/routes/crud.js`, `api/server.js` (crudConfig)
+
+**Testes:** viewer tenta criar cliente → 403 "Seu perfil não tem permissão de escrita" ✓; viewer lista clientes → 200 ✓; admin cria cliente → 201 ✓.
+
+### SEC-03 — Allowlist de campos e identificadores
+
+**Problema:** `prepareData()` em `crud.js` aceitava TODOS os campos do body como identificadores SQL — um atacante podia injetar nomes de colunas arbitrárias ou modificar campos protegidos (`id`, `created_at`, `updated_at`).
+
+**Solução:** `editableFields` definido para cada tabela no crudConfig. `prepareData()` agora filtra campos não permitidos. Campos protegidos (`id`, `created_at`, `updated_at`, `created`, `updated`) sempre removidos. Tabelas read-only têm `editableFields: []` — escrita rejeitada com 403.
+
+**Arquivos:** `api/routes/crud.js`, `api/server.js` (crudConfig com editableFields para 24 tabelas)
+
+**Testes:** POST com `created_at`, `id`, `updated_at` no body → campos filtrados, registro criado com data atual ✓; id não sobrescrito ✓.
+
+### SEC-04 — Autorizar cada arquivo privado
+
+**Problema:** `GET /api/knowledge-base/files/private/:filename` exigia apenas `requireAuth` — não verificava se o usuário tinha acesso ao tenant do documento. Qualquer autenticado podia baixar qualquer arquivo privado.
+
+**Solução:** endpoint agora resolve o item da KB por `file_url`, verifica `visibility` e `tenant_id`. Itens privados exigem `getAccessibleTenantIds`. Sem registro na KB → 404 (falha fechada). Negação indistinguível de "não encontrado" (não vaza existência).
+
+**Arquivos:** `api/server.js`
+
+**Testes:** arquivo sem registro na KB → 404 ✓; arquivo de outro tenant → 404 ✓.
+
+### SEC-06 — Bloquear escalada por edição de usuários
+
+**Problema:** `PATCH /api/auth/users/:id` permitia admin mover usuário para tenant inacessível, modificar conta de superadmin, ou atribuir role superadmin sem validação do usuário-alvo.
+
+**Solução:** busca usuário-alvo ANTES de aplicar mudanças. Admin não pode modificar superadmin. Admin não pode atribuir role superadmin. Mudança de `tenant_id` validada contra `getAccessibleTenantIds`. Mudança de senha incrementa `token_version` (revoga sessões existentes).
+
+**Arquivos:** `api/routes/userRoutes.js`
+
+### SEC-07 — Isolar administração e ocultar credenciais
+
+**Problema:** `GET /api/integration/offices` retornava `SELECT *` (incluindo `api_key`). Rotação de chave retornava a nova chave sem aviso.
+
+**Solução:** listagem agora usa projeção explícita sem `api_key`. Rotação mostra a chave apenas na resposta, com aviso para guardá-la. Chave anterior invalidada automaticamente.
+
+**Arquivos:** `api/routes/integrationRoutes.js`
+
+### SEC-08 — Aprovação real e ACL da conversa nas tools
+
+**Problema:** `POST /assistant/tools/execute` não verificava acesso à `conversation_id` antes de executar tools — qualquer usuário podia executar tools em conversas alheias.
+
+**Solução:** se `conversation_id` é fornecido, `checkConversationAccess()` é chamado antes da execução. Sem acesso → 404 (não vaza existência).
+
+**Arquivos:** `api/routes/assistantRoutes.js`
+
+### SEC-09 — Autorizar workflow antes da execução
+
+**Problema:** `POST /api/workflows/:id/execute` não verificava tenant, status ativo, ou papel do usuário — qualquer autenticado podia executar qualquer workflow.
+
+**Solução:** workflow deve pertencer ao tenant do usuário (`tenant_id = ANY($tenantIds)`), estar ativo (`active = true`), e usuário deve ter papel de escrita (não `client`/`viewer`).
+
+**Arquivos:** `api/server.js`
+
+### SEC-10 — Eliminar fallback de segredo e callbacks inseguros
+
+**Problema:** `WEBHOOK_KEY` em `inboxRoutes.js` tinha fallback `'contaux-mail-2024'` — se a env var não existisse, qualquer pessoa podia enviar webhooks.
+
+**Solução:** sem fallback — se `CLOUDFLARE_WORKER_API_KEY` não configurado, webhook retorna 503. Validação de header `x-webhook-key` reforçada (rejeita ausência).
+
+**Arquivos:** `api/routes/inboxRoutes.js`
+
+### SEC-05 e SEC-11 — Pendentes
+
+- **SEC-05** (retirar escrita implícita em tenant nulo): parcialmente mitigado pelo `requireWriteRole` e `editableFields`. Mutação global por papel específico ainda precisa de refinamento.
+- **SEC-11** (sanitizar conteúdo exibido): pendente — requer revisão de templates HTML no portal e detalhes.
+
+### SAFE-01 — Não emitir confirmação fictícia
+
+Identificado mas não alterado nesta onda: conversão de orçamento, emissão NFe, relatórios, MFA e encerramento de sessão anunciam sucesso sem produzir o efeito. A contenção (desabilitar botões enganosos) e a implementação real são ondas subsequentes (CTX-02+).
