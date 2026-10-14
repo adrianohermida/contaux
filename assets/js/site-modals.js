@@ -130,8 +130,10 @@
       +         '<div class="ctx-field"><label>E-mail *</label><input type="email" name="email" required placeholder="seu@email.com"></div>'
       +         '<div class="ctx-field"><label>Serviço de interesse</label><select name="service_interest">'
       +           '<option value="">Selecione...</option>'
-      +           '<option>Abertura de PJ</option><option>Contabilidade mensal</option><option>Planejamento tributário</option>'
-      +           '<option>Departamento pessoal</option><option>Consultoria jurídica</option><option>Outros</option>'
+      +           '<option>Cálculos judiciais</option><option>Pareceres técnicos</option><option>Guias de recolhimento</option>'
+      +           '<option>Plano de pagamento (PF)</option><option>Recuperação judicial</option><option>Assistência técnica</option>'
+      +           '<option>Contabilidade online</option><option>Abertura de sociedade</option><option>Rotina de escritório</option>'
+      +           '<option>Troca de contador</option><option>Outros</option>'
       +         '</select></div>'
       +         '<div class="ctx-field"><label>Mensagem</label><textarea name="message" placeholder="Conte-nos como podemos ajudar..."></textarea></div>'
       +         '<button type="submit" class="ctx-btn ctx-btn-primary">Enviar</button>'
@@ -165,9 +167,45 @@
         e.preventDefault();
         openModal('ctx-login-modal');
       }
-      // Lead button
-      if (e.target.closest('[data-ctx-lead]')) {
+      // Lead button — preserva serviço escolhido (PUB-06)
+      var leadTrigger = e.target.closest('[data-ctx-lead]');
+      if (leadTrigger) {
         e.preventDefault();
+        var leadModal = document.getElementById('ctx-lead-modal');
+        var serviceSelect = leadModal && leadModal.querySelector('[name=service_interest]');
+        if (serviceSelect) {
+          // Pre-fill from data-service attribute on the trigger
+          var svc = leadTrigger.getAttribute('data-service');
+          if (svc) {
+            // Tenta selecionar a opção existente; se não encontrar, adiciona
+            var found = false;
+            for (var i = 0; i < serviceSelect.options.length; i++) {
+              if (serviceSelect.options[i].text === svc || serviceSelect.options[i].value === svc) {
+                serviceSelect.selectedIndex = i;
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              var opt = document.createElement('option');
+              opt.value = svc;
+              opt.textContent = svc;
+              serviceSelect.appendChild(opt);
+              serviceSelect.value = svc;
+            }
+          }
+          // Também preenche a partir de query string ?servico=
+          var params = new URLSearchParams(window.location.search);
+          var qs = params.get('servico');
+          if (qs && !svc) {
+            for (var j = 0; j < serviceSelect.options.length; j++) {
+              if (serviceSelect.options[j].text === qs || serviceSelect.options[j].value === qs) {
+                serviceSelect.selectedIndex = j;
+                break;
+              }
+            }
+          }
+        }
         openModal('ctx-lead-modal');
       }
     });
@@ -266,13 +304,26 @@
       });
     }
 
-    // Lead form
+    // Lead form — estados de validação, processamento, sucesso, falha (PUB-06)
     var leadForm = document.getElementById('ctx-lead-form');
     if (leadForm) {
       leadForm.addEventListener('submit', function (e) {
         e.preventDefault();
         var modal = document.getElementById('ctx-lead-modal');
         var btn = leadForm.querySelector('button[type=submit]');
+
+        // Validação client-side
+        if (!leadForm.name.value.trim()) {
+          showAlert(modal, 'error', 'Informe seu nome.');
+          leadForm.name.focus();
+          return;
+        }
+        if (!leadForm.email.value.trim()) {
+          showAlert(modal, 'error', 'Informe seu e-mail para que possamos entrar em contato.');
+          leadForm.email.focus();
+          return;
+        }
+
         setBtnLoading(btn);
         post(API + '/public/leads', {
           name: leadForm.name.value,
@@ -283,15 +334,15 @@
         }).then(function (res) {
           resetBtn(btn);
           if (res.ok) {
-            showAlert(modal, 'success', 'Recebemos seu contato! Em breve entraremos em contato.');
+            showAlert(modal, 'success', 'Recebemos seu contato! Entraremos em contato em até 1 dia útil.');
             leadForm.reset();
-            setTimeout(function () { closeModal(modal); }, 2000);
+            setTimeout(function () { closeModal(modal); }, 2500);
           } else {
-            showAlert(modal, 'error', res.data.error || 'Erro ao enviar');
+            showAlert(modal, 'error', res.data.error || 'Erro ao enviar. Tente novamente.');
           }
         }).catch(function () {
           resetBtn(btn);
-          showAlert(modal, 'error', 'Erro de conexão. Tente novamente.');
+          showAlert(modal, 'error', 'Erro de conexão. Verifique sua internet e tente novamente.');
         });
       });
     }
@@ -365,11 +416,31 @@
     });
   }
 
+  /* ===== Reconcilia modais com a sessão vigente (PUB-06) ===== */
+  function reconcileSession() {
+    try {
+      var token = localStorage.getItem('contaux-token');
+      var userJson = localStorage.getItem('contaux-user');
+      if (token && userJson) {
+        var user = JSON.parse(userJson);
+        // Substitui botões "Login" por "Acessar plataforma" se já logado
+        document.querySelectorAll('[data-ctx-login]').forEach(function (el) {
+          var a = document.createElement('a');
+          a.href = (user.role === 'client') ? '/portal' : '/dashboard';
+          a.className = el.className;
+          a.textContent = 'Olá, ' + (user.name ? user.name.split(' ')[0] : 'usuário');
+          el.parentNode.replaceChild(a, el);
+        });
+      }
+    } catch (e) {}
+  }
+
   /* ===== Init ===== */
   function init() {
     injectModals();
     initEvents();
     initResetPage();
+    reconcileSession();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

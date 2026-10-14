@@ -348,7 +348,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'contato@contaux.com.br';
 app.locals.sendMail = sendMail;
 app.locals.emailTemplates = emailTemplates;
 
-// Endpoint do formulário de contato
+// Endpoint do formulário de contato — persiste no banco e envia email (PUB-06)
 app.post('/api/contact', async (req, res) => {
   const { name, subject, email, phone, message } = req.body;
 
@@ -357,12 +357,28 @@ app.post('/api/contact', async (req, res) => {
   }
 
   try {
-    const tpl = await emailTemplates.render('contact', { name, email, phone, subject, message });
-    await sendMail({ to: TO_EMAIL, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: email });
-    return res.status(200).json({ success: true, message: 'Mensagem enviada com sucesso.' });
+    // Persiste no banco antes de confirmar recebimento (PUB-06: persistência real)
+    await query(
+      `INSERT INTO leads (name, email, phone, service_interest, message, source)
+       VALUES ($1, $2, $3, $4, $5, 'contact')`,
+      [name.trim(), email.toLowerCase().trim(), phone || null, subject || null, message.trim()],
+    );
+
+    // Envia email de notificação — não bloqueia a resposta se falhar
+    try {
+      const tpl = await emailTemplates.render('contact', { name, email, phone, subject, message });
+      await sendMail({ to: TO_EMAIL, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: email });
+    } catch (mailErr) {
+      console.warn('Aviso: email de contato não enviado, mas mensagem foi persistida:', mailErr.message);
+    }
+
+    return res.status(200).json({ success: true, message: 'Mensagem registrada com sucesso. Entraremos em contato em até 1 dia útil.' });
   } catch (error) {
-    console.error('Erro ao enviar email:', error.message);
-    return res.status(500).json({ error: 'Erro ao enviar mensagem. Tente novamente.' });
+    console.error('Erro ao registrar contato:', error.message);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Parece que já recebemos sua mensagem. Em breve entraremos em contato.' });
+    }
+    return res.status(503).json({ error: 'Serviço indisponível no momento. Tente novamente em alguns instantes ou nos contate diretamente.' });
   }
 });
 

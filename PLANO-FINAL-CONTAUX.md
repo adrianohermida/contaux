@@ -52,7 +52,7 @@ Nenhuma onda anterior é descartada ou revogada. As ondas PUB são aditivas: tra
 | PUB-03 | Home, jornadas, catálogo e Como funciona | ✅ Concluída |
 | PUB-04 | Serviços de contadoria para processos | ✅ Concluída |
 | PUB-05 | Contabilidade online, planos e parceiros | ✅ Concluída |
-| PUB-06 | Conversão, acesso, suporte, chat e newsletter | 🔲 Não iniciada |
+| PUB-06 | Conversão, acesso, suporte, chat e newsletter | ✅ Concluída |
 | PUB-07 | Confiança, responsabilidade e políticas | 🔲 Não iniciada |
 | PUB-08 | Conteúdo, exemplos e comunicação HMADV | 🔲 Não iniciada |
 | PUB-09 | SEO/build, regressão e liberação controlada | 🔲 Não iniciada |

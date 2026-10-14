@@ -199,14 +199,8 @@
                     <div class="col-lg-5 col-12">
                         <div class="single-head">
                             <div class="contant-inner-title">
-                                <h4>Informações de Contato</h4>
-                                <p>Contaux Contabilidade<br>CNPJ: 07.772.334/0001-22</p>
-                            </div>
-                            <div class="single-info">
-                                <i class="lni lni-phone"></i>
-                                <ul>
-                                    <li>+55-51-2391-1854</li>
-                                </ul>
+                                <h4>Comercial</h4>
+                                <p>Para propostas, orçamentos e dúvidas sobre serviços.</p>
                             </div>
                             <div class="single-info">
                                 <i class="lni lni-envelope"></i>
@@ -215,24 +209,38 @@
                                 </ul>
                             </div>
                             <div class="single-info">
+                                <i class="lni lni-phone"></i>
+                                <ul>
+                                    <li>+55 51 2391-1854</li>
+                                </ul>
+                            </div>
+                            <div class="single-info" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee;">
+                                <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Suporte</h4>
+                                <p style="font-size: 13px; color: #777; margin-bottom: 10px;">Para clientes com contrato ativo — chamados e atendimento técnico.</p>
+                            </div>
+                            <div class="single-info">
+                                <i class="lni lni-help"></i>
+                                <ul>
+                                    <li><a href="https://contauxcontadoria.freshdesk.com/support/tickets/new">Abrir chamado no portal</a></li>
+                                    <li><a href="https://contauxcontadoria.freshdesk.com/support/home">Central de ajuda</a></li>
+                                </ul>
+                            </div>
+                            <div class="single-info" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee;">
+                                <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Endereço</h4>
+                            </div>
+                            <div class="single-info">
                                 <i class="lni lni-map"></i>
                                 <ul>
-                                    <li>AAv. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</li>
+                                    <li>Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/RS</li>
                                 </ul>
                             </div>
                             <div class="contact-social">
                                 <h5>Siga-nos</h5>
                                 <ul>
                                     <li>
-                                        <a href="https://www.facebook.com/Contaux-Contabilidade-102168895580002">
-                                            <span class="icon-1"><i class="lni lni-facebook-filled"></i></span>
-                                            <span class="icon-2"><i class="lni lni-facebook-filled"></i></span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a href="https://twitter.com/Contaux_c">
-                                            <span class="icon-1"><i class="lni lni-twitter-original"></i></span>
-                                            <span class="icon-2"><i class="lni lni-twitter-original"></i></span>
+                                        <a href="https://www.instagram.com/contauxcontadoria/">
+                                            <span class="icon-1"><i class="lni lni-instagram"></i></span>
+                                            <span class="icon-2"><i class="lni lni-instagram"></i></span>
                                         </a>
                                     </li>
                                     <li>
@@ -242,9 +250,15 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a href="https://www.instagram.com/contauxcontadoria/">
-                                            <span class="icon-1"><i class="lni lni-instagram"></i></span>
-                                            <span class="icon-2"><i class="lni lni-instagram"></i></span>
+                                        <a href="https://twitter.com/Contaux_c">
+                                            <span class="icon-1"><i class="lni lni-twitter-original"></i></span>
+                                            <span class="icon-2"><i class="lni lni-twitter-original"></i></span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.facebook.com/contauxcontadoria">
+                                            <span class="icon-1"><i class="lni lni-facebook-filled"></i></span>
+                                            <span class="icon-2"><i class="lni lni-facebook-filled"></i></span>
                                         </a>
                                     </li>
                                 </ul>
@@ -253,39 +267,37 @@
                     </div>
                     <div class="col-lg-7 col-12">
                         <div class="form-main">
-                            <form class="form" id="contact-form" method="post" action="/api/contact">
+                            <div id="contact-form-status" style="display:none; padding:14px 18px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.5;"></div>
+                            <form class="form" id="contact-form" method="post" action="/api/contact" novalidate>
                                 <div class="row">
                                     <div class="col-lg-6 col-12">
                                         <div class="form-group">
-                                            <input name="name" type="text" placeholder="Nome" required="required">
+                                            <input name="name" type="text" placeholder="Nome *" required>
                                         </div>
                                     </div>
                                     <div class="col-lg-6 col-12">
                                         <div class="form-group">
-                                            <input name="subject" type="text" placeholder="Assunto"
-                                                required="required">
+                                            <input name="subject" type="text" placeholder="Assunto">
                                         </div>
                                     </div>
                                     <div class="col-lg-6 col-12">
                                         <div class="form-group">
-                                            <input name="email" type="email" placeholder="Endereço eletrônico"
-                                                required="required">
+                                            <input name="email" type="email" placeholder="E-mail *" required>
                                         </div>
                                     </div>
                                     <div class="col-lg-6 col-12">
                                         <div class="form-group">
-                                            <input name="phone" type="text" placeholder="Celular"
-                                                required="required">
+                                            <input name="phone" type="text" placeholder="Celular (opcional)">
                                         </div>
                                     </div>
                                     <div class="col-12">
                                         <div class="form-group message">
-                                            <textarea name="message" placeholder="Escreva sua mensagem"></textarea>
+                                            <textarea name="message" placeholder="Escreva sua mensagem *" required></textarea>
                                         </div>
                                     </div>
                                     <div class="col-12">
                                         <div class="form-group button">
-                                            <button type="submit" class="btn ">Enviar mensagem</button>
+                                            <button type="submit" class="btn" id="contact-submit-btn">Enviar mensagem</button>
                                         </div>
                                     </div>
                                 </div>
@@ -331,7 +343,7 @@
                     <div class="subscribe-text wow fadeInLeft">
                         <h4>Boletim Informativo</h4>
                         <p class="">Inscreva-se e receba conteúdo exclusivo sobre contadoria especializada no setor jurídico</p>
-                        <form action="/api/newsletter" method="post" class="newsletter-inner" id="newsletter-form">
+                        <form class="newsletter-inner" id="newsletter-form">
                             <input name="EMAIL" placeholder="Seu endereço de e-mail" class="common-input"
                                 onfocus="this.placeholder = ''" onblur="this.placeholder = 'Seu endereço de e-mail'"
                                 required="" type="email">
@@ -535,34 +547,88 @@
 </a>
 -->
 
-<!-- Script de envio do formulário de contato -->
+<!-- Script de envio do formulário de contato — estados completos (PUB-06) -->
 <script>
-document.getElementById('contact-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    var btn = this.querySelector('button[type="submit"]');
+(function() {
+    var form = document.getElementById('contact-form');
+    var btn = document.getElementById('contact-submit-btn');
+    var statusEl = document.getElementById('contact-form-status');
     var originalText = btn.textContent;
-    btn.textContent = 'Enviando...';
-    btn.disabled = true;
-    try {
-        var formData = new FormData(this);
-        var response = await fetch('/api/contact', {
-            method: 'POST',
-            body: JSON.stringify(Object.fromEntries(formData)),
-            headers: { 'Content-Type': 'application/json' }
-        });
-        if (response.ok) {
-            window.location.href = 'mail-success.html';
-        } else {
-            alert('Erro ao enviar mensagem. Tente novamente ou nos contate diretamente.');
+
+    function showStatus(type, msg) {
+        var bg = type === 'success' ? '#ecfdf5' : type === 'error' ? '#fef2f2' : type === 'warning' ? '#fffbeb' : '#eff6ff';
+        var color = type === 'success' ? '#065f46' : type === 'error' ? '#991b1b' : type === 'warning' ? '#92400e' : '#1e40af';
+        var border = type === 'success' ? '#a7f3d0' : type === 'error' ? '#fecaca' : type === 'warning' ? '#fde68a' : '#bfdbfe';
+        statusEl.style.cssText = 'display:block; padding:14px 18px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.5; background:' + bg + '; color:' + color + '; border:1px solid ' + border + ';';
+        statusEl.textContent = msg;
+    }
+
+    function hideStatus() { statusEl.style.display = 'none'; }
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        hideStatus();
+
+        // Validação client-side
+        var data = Object.fromEntries(new FormData(form));
+        if (!data.name || !data.name.trim()) {
+            showStatus('error', 'Informe seu nome.');
+            form.querySelector('[name=name]').focus();
+            return;
+        }
+        if (!data.email || !data.email.trim()) {
+            showStatus('error', 'Informe seu e-mail para que possamos responder.');
+            form.querySelector('[name=email]').focus();
+            return;
+        }
+        if (!data.message || !data.message.trim()) {
+            showStatus('error', 'Escreva sua mensagem antes de enviar.');
+            form.querySelector('[name=message]').focus();
+            return;
+        }
+
+        // Estado de processamento
+        btn.textContent = 'Enviando...';
+        btn.disabled = true;
+
+        try {
+            var response = await fetch('/api/contact', {
+                method: 'POST',
+                body: JSON.stringify(data),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            var result = await response.json();
+
+            if (response.ok) {
+                // Estado de sucesso — confirmação real após persistência
+                showStatus('success', result.message || 'Mensagem registrada com sucesso. Entraremos em contato em até 1 dia útil.');
+                form.reset();
+                btn.textContent = originalText;
+                btn.disabled = false;
+            } else if (response.status === 409) {
+                // Duplicação
+                showStatus('warning', result.error || 'Parece que já recebemos sua mensagem. Em breve entraremos em contato.');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            } else if (response.status === 503) {
+                // Indisponibilidade
+                showStatus('error', result.error || 'Serviço indisponível no momento. Tente novamente em alguns instantes.');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            } else {
+                // Falha genérica
+                showStatus('error', result.error || 'Erro ao enviar mensagem. Tente novamente ou nos contate diretamente.');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            // Falha de conexão — retomada disponível
+            showStatus('error', 'Erro de conexão. Verifique sua internet e tente novamente. Se persistir, escreva para contato@contaux.com.br');
             btn.textContent = originalText;
             btn.disabled = false;
         }
-    } catch (err) {
-        alert('Erro de conexão. Verifique sua internet e tente novamente.');
-        btn.textContent = originalText;
-        btn.disabled = false;
-    }
-});
+    });
+})();
 </script>
 <script src="/assets/js/public-chat-widget.js"></script>
 </body>
