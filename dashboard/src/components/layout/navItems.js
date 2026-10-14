@@ -10,6 +10,7 @@ import {
   UploadCloud,
   Library,
   CheckSquare,
+  Cloud,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
@@ -24,4 +25,5 @@ export const NAV_ITEMS = [
   { icon: CheckSquare, label: 'Tarefas', path: '/tarefas' },
   { icon: Settings, label: 'Administração', path: '/admin' },
   { icon: UploadCloud, label: 'Importar Dados', path: '/importar' },
+  { icon: Cloud, label: 'Google', path: '/google' },
 ]

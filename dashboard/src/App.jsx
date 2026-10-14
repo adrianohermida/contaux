@@ -16,6 +16,7 @@ const AdminPage = lazy(() => import('@/modules/admin/AdminPage'))
 const ImportPage = lazy(() => import('@/modules/import/ImportPage'))
 const ConhecimentoPage = lazy(() => import('@/modules/conhecimento/ConhecimentoPage'))
 const TarefasPage = lazy(() => import('@/modules/tarefas/TarefasPage'))
+const GooglePage = lazy(() => import('@/modules/google/GooglePage'))
 
 // Portal do Cliente
 const PortalLayout = lazy(() => import('@/pages/portal/PortalLayout'))
@@ -81,6 +82,7 @@ export default function App() {
 
         {/* Importação de Dados */}
         <Route path="/importar" element={withSuspense(<ImportPage />)} />
+      <Route path="/google" element={withSuspense(<GooglePage />)} />
 
         {/* Administração */}
         <Route path="/admin" element={withSuspense(<AdminPage view="settings" />)} />

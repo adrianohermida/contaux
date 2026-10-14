@@ -11,6 +11,7 @@ const statsRoutes = require('./routes/statsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const googleRoutes = require('./routes/googleRoutes');
 const { sendMail } = require('./services/mailService');
 const emailTemplates = require('./services/emailTemplates');
 const workflowEngine = require('./services/workflowEngine');
@@ -77,6 +78,9 @@ app.use('/api/assistant', assistantRoutes);
 
 // Orquestração de tarefas — transições de status com log durável (AC-GLOBAL-04)
 app.use('/api/tasks-orchestration', taskRoutes);
+
+// Integrações Google (Calendar, Drive, Tasks, Sheets, Docs, Forms, Ads)
+app.use('/api/google', googleRoutes);
 
 // ===== Workflow Engine — execução de automações =====
 const { requireAuth, getAccessibleTenantIds } = require('./middleware/auth');
