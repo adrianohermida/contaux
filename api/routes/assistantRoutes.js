@@ -16,7 +16,7 @@ const { validateFile } = require('../services/mimeValidator');
 const { checkConversationAccess } = require('../services/conversationAccess');
 const {
   generateSuggestions, listPendingSuggestions, dismissSuggestion, actOnSuggestion,
-  isProactiveEnabled, getBudgetStatus,
+  isProactiveEnabled, getBudgetStatus, recordUsage,
 } = require('../services/assistantProactive');
 
 // ===== Diretório de uploads do assistente =====
@@ -84,6 +84,14 @@ router.post('/tools/execute', async (req, res) => {
       } catch (e) {
         // Não bloqueia a resposta se falhar ao salvar
       }
+    }
+
+    // C-11/P1: registra custo da tool no orçamento do usuário
+    const toolCost = result.cost_estimate?.tokens || 100;
+    try {
+      await recordUsage(req.user.id, req.user.tenant_id, toolCost, 0);
+    } catch (e) {
+      // Não bloqueia a resposta se falhar ao registrar orçamento
     }
 
     res.json(result);
@@ -411,13 +419,29 @@ router.get('/conversations/:id', async (req, res) => {
     const conv = await checkConversationAccess(req.params.id, req.user);
     if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
+    // C-08/P1: paginação de mensagens — carrega as mais recentes primeiro,
+    // depois reordena para apresentação cronológica.
+    const msgOffset = Math.max(0, parseInt(req.query.offset || '0', 10));
+    const msgLimit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+
     const msgResult = await query(
       `SELECT id, role, text, sources, author_id, author_name, event_type, created_at
-       FROM assistant_messages
-       WHERE conversation_id = $1
+       FROM (
+         SELECT id, role, text, sources, author_id, author_name, event_type, created_at
+         FROM assistant_messages
+         WHERE conversation_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $3
+       ) recent
        ORDER BY created_at ASC`,
+      [conv.id, msgLimit, msgOffset],
+    );
+
+    const msgCountResult = await query(
+      `SELECT count(*) AS total FROM assistant_messages WHERE conversation_id = $1`,
       [conv.id],
     );
+    const msgTotal = parseInt(msgCountResult.rows[0].total, 10);
 
     const partResult = await query(
       `SELECT p.user_id, p.role, p.display_name
@@ -437,6 +461,12 @@ router.get('/conversations/:id', async (req, res) => {
         id: String(m.id),
         sources: typeof m.sources === 'string' ? JSON.parse(m.sources) : m.sources,
       })),
+      messages_pagination: {
+        total: msgTotal,
+        offset: msgOffset,
+        limit: msgLimit,
+        has_more: msgOffset + msgResult.rows.length < msgTotal,
+      },
       participants: partResult.rows.map((p) => ({ ...p, user_id: p.user_id ? String(p.user_id) : null })),
     });
   } catch (err) {

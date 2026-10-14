@@ -279,13 +279,17 @@ app.post('/api/knowledge-base/ask', requireAuth, async (req, res) => {
       };
     }
 
-    // Registra uso no orçamento (estimativa: ~500 tokens por requisição)
+    // C-11/P1: usa tokens reais do OpenAI quando disponíveis; estimativa como fallback.
+    const realTokens = result.tokenUsage?.total_tokens || null;
     const estimatedTokens = result.configured ? 500 : 200;
-    await recordUsage(req.user.id, req.user.tenant_id, estimatedTokens, 0);
+    const tokensToRecord = realTokens !== null ? realTokens : estimatedTokens;
+    const tokenSource = realTokens !== null ? 'actual' : 'estimated';
+    await recordUsage(req.user.id, req.user.tenant_id, tokensToRecord, 0);
 
     res.json({
       ...result,
-      budget: { ...budget, tokens_used: budget.tokens_used + estimatedTokens },
+      budget: { ...budget, tokens_used: budget.tokens_used + tokensToRecord },
+      token_source: tokenSource,
       savedMessages,
     });
   } catch (err) {

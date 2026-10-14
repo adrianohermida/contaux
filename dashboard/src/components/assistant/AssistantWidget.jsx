@@ -33,21 +33,20 @@ export default function AssistantWidget() {
   }
 
   if (panelMode === 'expanded') {
+    // C-06/P1: árvore única — um AssistantPanel, responsivo via CSS.
+    // Desktop: coluna docked 360px no layout. Mobile: overlay fullscreen com backdrop.
     return (
       <>
+        {/* Backdrop mobile — hidden no desktop */}
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={collapse}
+          aria-hidden="true"
+        />
         <aside
-          className="hidden lg:flex w-[360px] shrink-0 sticky top-0 h-screen flex-col border-l border-border bg-card"
-          role="complementary"
-          aria-label="Assistente Contaux"
-        >
-          <AssistantPanel onClose={collapse} onFullscreen={enterFullscreen} />
-        </aside>
-
-        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={collapse} aria-hidden="true" />
-        <aside
-          className="fixed inset-0 z-50 flex flex-col bg-card shadow-xl lg:hidden"
+          className="fixed inset-0 z-50 flex flex-col bg-card shadow-xl lg:static lg:z-auto lg:flex lg:w-[360px] lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:flex-col lg:border-l lg:border-border lg:shadow-none"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
-          role="dialog"
+          role="complementary"
           aria-label="Assistente Contaux"
         >
           <AssistantPanel onClose={collapse} onFullscreen={enterFullscreen} />

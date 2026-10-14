@@ -687,13 +687,67 @@ Executar uma onda (CQ) por invocação, na branch autorizada. PT-BR em toda UI, 
 
 **Arquivos:** `api/services/aiService.js` (`askPublic`, `searchPublicKnowledgeBase`), `api/routes/publicRoutes.js`.
 
-### P1 remanescentes (não bloqueantes)
+### P1 remanescentes — corrigidos em CTX-05
 
-Os seguintes P1 da auditoria não foram abordados nesta onda (não são P0 e não bloqueiam a federação):
+Os seguintes P1 da auditoria foram corrigidos na onda CTX-05:
 
-- **C-06/P1**: `AssistantWidget` monta dois painéis desktop/mobile CSS-hidden; extrair uma árvore de apresentação e ciclo de efeitos.
-- **C-07/P1**: prompts de módulo não bastam; intenção → ferramenta → serviço → permissão → confirmação → resultado/recibo.
-- **C-08/P1**: lista/histórico precisam paginação real e participação autorizada (parcialmente implementado — listagem já é paginada com offset/limit).
-- **C-11/P1**: tokens estimados não são consumo real; preservar serviço de créditos e reconciliação.
+- **C-06/P1**: corrigido — árvore única de apresentação (ver CTX-05).
+- **C-07/P1**: corrigido — recibo estruturado em tool execution (ver CTX-05).
+- **C-08/P1**: corrigido — paginação de mensagens na conversa (ver CTX-05).
+- **C-11/P1**: corrigido — tokens reais do OpenAI + custo de tools no orçamento (ver CTX-05).
 
 **Gate:** conversa estrangeira não é lida/escrita pelo endpoint de IA ✓; Dot derivado do vínculo governado ✓; erros não vazam existência ✓; P1 já corrigidos confirmados ✓.
+
+## CTX-05 — P1 remanescentes da auditoria
+
+**Status:** Concluída (C-06, C-07, C-08, C-11).
+
+**Foco:** quatro P1 remanescentes da auditoria externa: árvore única de apresentação no widget, recibo estruturado em tools, paginação de mensagens, e tokens reais no orçamento.
+
+**Gate:** widget renderiza um único AssistantPanel; tools retornam recibo com quem/quando/o quê; mensagens paginadas com total/has_more; orçamento registra tokens reais quando disponíveis.
+
+### C-06/P1 — Árvore única de apresentação no widget
+
+**Problema:** `AssistantWidget` no estado expandido montava dois `<AssistantPanel>` — um desktop (`hidden lg:flex`) e um mobile (`lg:hidden`) — cada um com sua própria árvore de componentes, estado e efeitos. Dois painéis CSS-hidden significavam efeitos duplicados (polling, carregamento de conversas, etc.) e potencial de dessincronização.
+
+**Solução:** um único `<aside>` com classes responsivas que transicionam entre overlay mobile (`fixed inset-0 z-50`) e coluna docked desktop (`lg:static lg:w-[360px] lg:sticky lg:top-0 lg:h-screen lg:border-l`). Um único `<AssistantPanel>` é renderizado para ambos os viewports.
+
+**Arquivos:** `dashboard/src/components/assistant/AssistantWidget.jsx`.
+
+### C-07/P1 — Recibo estruturado em tool execution
+
+**Problema:** a execução de tools retornava `result` e `cost_estimate`, mas sem um recibo estruturado que registrasse quem executou, quando, com quais parâmetros, e qual o resultado — o pipeline intenção → ferramenta → serviço → permissão → confirmação → resultado não produzia um artefato auditável.
+
+**Solução:** `executeTool()` agora retorna um `receipt` com: `tool` (nome), `category` (consulta/escrita/navegação), `executed_by` (user_id + role), `executed_at` (ISO timestamp), `params` (parâmetros validados), `approved` (null para tools sem aprovação, true/false para tools com aprovação), e `result_summary` (sumário legível do resultado). A função `summarizeResult()` produz um sumário em PT-BR sem vazar dados sensíveis.
+
+**Arquivos:** `api/services/assistantTools.js` (`summarizeResult`, `executeTool` com receipt).
+
+### C-08/P1 — Paginação de mensagens na conversa
+
+**Problema:** `GET /conversations/:id` carregava TODAS as mensagens de uma conversa sem paginação — conversas longas podiam retornar centenas de mensagens em uma única resposta. A listagem de conversas já era paginada (offset/limit com total/hasMore), mas as mensagens dentro de uma conversa não.
+
+**Solução:** o endpoint agora aceita `offset` e `limit` como query params (padrão: offset=0, limit=50, máx: 100). A query usa subquery com `ORDER BY created_at DESC LIMIT $2 OFFSET $3` e reordena com `ORDER BY created_at ASC` no wrapper — carrega as mensagens mais recentes da janela solicitada em ordem cronológica. A resposta inclui `messages_pagination` com `total`, `offset`, `limit`, e `has_more`.
+
+**Arquivos:** `api/routes/assistantRoutes.js` (endpoint `GET /conversations/:id`).
+
+### C-11/P1 — Tokens reais no orçamento
+
+**Problema:** o orçamento de tokens usava estimativa fixa (`500` para LLM, `200` para busca textual) — não refletia o consumo real do OpenAI. Tools também não registravam custo no orçamento. Não havia como reconciliar estimado vs. real.
+
+**Solução:**
+- `tryLLMResponse()` agora captura `data.usage` do OpenAI (prompt_tokens, completion_tokens, total_tokens) e retorna `{ answer, usage }`.
+- `ask()` e `askPublic()` retornam `tokenUsage` com os tokens reais quando disponíveis.
+- `server.js` usa `result.tokenUsage.total_tokens` quando disponível (token_source='actual'); fallback para estimativa (token_source='estimated'). A resposta inclui `token_source` para reconciliação.
+- `assistantRoutes.js` registra o custo de tools no orçamento via `recordUsage()`.
+
+**Arquivos:** `api/services/aiService.js` (`tryLLMResponse`, `ask`, `askPublic`), `api/server.js` (endpoint `/knowledge-base/ask`), `api/routes/assistantRoutes.js` (tool execution com `recordUsage`).
+
+**Testes executados (curl, admin@contaux.com.br):**
+- C-07: `get_dashboard_summary` → receipt com tool, category, executed_by.role, result_summary="resumo operacional", approved=null ✓
+- C-07: `create_task` com `approved: true` → receipt.approved=true ✓
+- C-08: conversa com 4 mensagens, `limit=2&offset=0` → 2 mensagens, total=4, has_more=true ✓
+- C-11: `/knowledge-base/ask` → token_source="estimated" (sem OPENAI_API_KEY), budget.tokens_used registrado ✓
+- C-11: budget após testes: tokens_used=650, requests_today=4 (ask + tool) ✓
+- Cleanup: conversa de teste deletada ✓
+
+**Gate:** widget renderiza um único AssistantPanel ✓; tools retornam recibo ✓; mensagens paginadas com total/has_more ✓; orçamento registra tokens com source ✓.

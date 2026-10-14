@@ -114,7 +114,9 @@ async function tryLLMResponse(question, contextText, conversationHistory = [], s
 
     const data = await response.json();
     const answer = data.choices?.[0]?.message?.content;
-    return answer || null;
+    // C-11/P1: captura uso real de tokens retornado pelo OpenAI
+    const usage = data.usage || null;
+    return answer ? { answer, usage } : null;
   } catch (err) {
     console.error('[aiService] Erro ao chamar OpenAI:', err.message);
     return null;
@@ -198,8 +200,11 @@ async function askPublic(question) {
   if (llmAnswer) {
     return {
       configured: true,
-      answer: llmAnswer,
+      answer: llmAnswer.answer,
       sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+      tokenUsage: llmAnswer.usage
+        ? { prompt_tokens: llmAnswer.usage.prompt_tokens, completion_tokens: llmAnswer.usage.completion_tokens, total_tokens: llmAnswer.usage.total_tokens }
+        : null,
     };
   }
 
@@ -207,6 +212,7 @@ async function askPublic(question) {
     configured: false,
     answer: buildSearchAnswer(sources),
     sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+    tokenUsage: null,
   };
 }
 
@@ -236,8 +242,11 @@ async function ask(question, userContext = null) {
   if (llmAnswer) {
     return {
       configured: true,
-      answer: llmAnswer,
+      answer: llmAnswer.answer,
       sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+      tokenUsage: llmAnswer.usage
+        ? { prompt_tokens: llmAnswer.usage.prompt_tokens, completion_tokens: llmAnswer.usage.completion_tokens, total_tokens: llmAnswer.usage.total_tokens }
+        : null,
     };
   }
 
@@ -246,6 +255,7 @@ async function ask(question, userContext = null) {
     configured: false,
     answer: buildSearchAnswer(sources),
     sources: sources.map((s) => ({ title: s.title, type: s.type, source: s.source })),
+    tokenUsage: null,
   };
 }
 
