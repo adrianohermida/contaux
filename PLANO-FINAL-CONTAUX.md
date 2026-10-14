@@ -48,7 +48,7 @@ Nenhuma onda anterior é descartada ou revogada. As ondas PUB são aditivas: tra
 |---|---|---|
 | PUB-00 | Inventário, revisão, fatos e mapa de páginas | ✅ Concluída |
 | PUB-01 | Remover conteúdo demonstrativo e conter alegações | ✅ Concluída (páginas principais) |
-| PUB-02 | Componentes públicos e responsividade | 🔲 Não iniciada |
+| PUB-02 | Componentes públicos e responsividade | ✅ Concluída (páginas principais) |
 | PUB-03 | Home, jornadas, catálogo e Como funciona | 🔲 Não iniciada |
 | PUB-04 | Serviços de contadoria para processos | 🔲 Não iniciada |
 | PUB-05 | Contabilidade online, planos e parceiros | 🔲 Não iniciada |
