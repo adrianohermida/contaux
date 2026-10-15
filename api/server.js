@@ -382,24 +382,6 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// Endpoint de newsletter
-app.post('/api/newsletter', async (req, res) => {
-  const { EMAIL } = req.body;
-
-  if (!EMAIL) {
-    return res.status(400).json({ error: 'Email é obrigatório.' });
-  }
-
-  try {
-    const tpl = await emailTemplates.render('newsletter', { email: EMAIL });
-    await sendMail({ to: TO_EMAIL, subject: tpl.subject, text: tpl.text, html: tpl.html });
-    return res.status(200).json({ success: true, message: 'Inscrição realizada com sucesso.' });
-  } catch (error) {
-    console.error('Erro ao registrar newsletter:', error.message);
-    return res.status(500).json({ error: 'Erro ao registrar inscrição.' });
-  }
-});
-
 // ===== Templates de email — listar, preview, teste =====
 
 // Lista todos os templates disponíveis
