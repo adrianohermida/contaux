@@ -40,6 +40,24 @@ export function AuthProvider({ children }) {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Erro ao entrar')
+    // MFA: não define token — retorna flag para a UI pedir o código TOTP
+    if (data.mfa_required) {
+      return { mfa_required: true, mfa_token: data.mfa_token }
+    }
+    setAccessToken(data.token)
+    setUser(data.user)
+    return data.user
+  }
+
+  const loginWithMfa = async (mfaToken, totpCode) => {
+    const res = await fetch('/api/auth/login/mfa', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfa_token: mfaToken, token: totpCode }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Código inválido')
     setAccessToken(data.token)
     setUser(data.user)
     return data.user
@@ -62,7 +80,7 @@ export function AuthProvider({ children }) {
   const isAdmin = ['superadmin', 'admin'].includes(user?.role)
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshSession, isClient, isStaff, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithMfa, logout, refreshSession, isClient, isStaff, isAdmin }}>
       {children}
     </AuthContext.Provider>
   )

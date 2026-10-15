@@ -351,9 +351,9 @@ As trilhas CQ e CTX permanecem concluídas. CQ-09 (orquestra orçamento e aceite
 | Integração HMADV: homologação bilateral pendente | PUB-08 | `docs/specs/INTEGRATION_HERMIDA_MAIA.md` |
 | Catálogo real de serviços de contabilidade online | PUB-04, PUB-05 | — |
 | Google OAuth: GOOGLE_CLIENT_ID/SECRET não configurados | PUB-06 (login social) | `.base44/environment.json` |
-| MFA/TOTP: não implementado | PUB-06 (acesso) | Known issues |
-| Revogação de sessão (denylist): não implementada | PUB-06 (acesso) | Known issues |
-| Log de auditoria automático para CRUD: não implementado | PUB-07 (responsabilidade) | Known issues |
+| ~~MFA/TOTP: não implementado~~ | ✅ Implementado (TOTP + QR code + backup codes) | — |
+| ~~Revogação de sessão (denylist): não implementada~~ | ✅ Implementado (JTI denylist + gestão de sessões) | — |
+| ~~Log de auditoria automático para CRUD: não implementado~~ | ✅ Implementado (log automático em POST/PATCH/DELETE) | — |
 
 Fato pendente bloqueia a alegação ou página dependente, não tarefas independentes. Não publicar VALIDAR, lorem, números simulados ou "Em breve" para declarar conclusão.
 

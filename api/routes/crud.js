@@ -10,6 +10,7 @@ function createCrudRouter(table, opts = {}) {
   const router = express.Router();
   const { query } = require('../db');
   const { requireAuth, getAccessibleTenantIds } = require('../middleware/auth');
+  const { logAudit, getRequestIp } = require('../services/auditLog');
 
   const jsonbFields = new Set(opts.jsonbFields || []);
   const searchFields = opts.searchFields || ['name', 'client_name'];
@@ -160,6 +161,15 @@ function createCrudRouter(table, opts = {}) {
         `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
         values,
       );
+      // Log de auditoria
+      logAudit({
+        user: req.user.email,
+        action: 'create',
+        entityType: table,
+        entityId: result.rows[0]?.id,
+        details: JSON.stringify({ fields }),
+        ip: getRequestIp(req),
+      });
       res.status(201).json(parseRow(result.rows[0]));
     } catch (err) {
       console.error(`[${table}] Erro ao criar:`, err.message);
@@ -196,6 +206,15 @@ function createCrudRouter(table, opts = {}) {
       }
       const result = await query(sql, params);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
+      // Log de auditoria
+      logAudit({
+        user: req.user.email,
+        action: 'update',
+        entityType: table,
+        entityId: req.params.id,
+        details: JSON.stringify({ fields }),
+        ip: getRequestIp(req),
+      });
       res.json(parseRow(result.rows[0]));
     } catch (err) {
       console.error(`[${table}] Erro ao atualizar:`, err.message);
@@ -218,6 +237,15 @@ function createCrudRouter(table, opts = {}) {
       }
       const result = await query(sql, params);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
+      // Log de auditoria
+      logAudit({
+        user: req.user.email,
+        action: 'delete',
+        entityType: table,
+        entityId: req.params.id,
+        details: null,
+        ip: getRequestIp(req),
+      });
       res.json({ success: true });
     } catch (err) {
       console.error(`[${table}] Erro ao deletar:`, err.message);

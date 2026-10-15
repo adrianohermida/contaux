@@ -30,10 +30,15 @@ const ACCESS_EXPIRES = '15m';
 const REFRESH_EXPIRES_DAYS = 7;
 const REFRESH_COOKIE = 'contaux-refresh';
 
-/** Gera um access token JWT curto com token_version para revogação */
+/** Gera um access token JWT curto com token_version e jti para revogação */
 function signAccessToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role, tenant_id: user.tenant_id, name: user.name, v: user.token_version || 0 },
+    {
+      id: user.id, email: user.email, role: user.role,
+      tenant_id: user.tenant_id, name: user.name,
+      v: user.token_version || 0,
+      jti: crypto.randomBytes(12).toString('hex'),
+    },
     JWT_SECRET,
     { expiresIn: ACCESS_EXPIRES },
   );
@@ -81,6 +86,14 @@ async function requireAuth(req, res, next) {
     // Verifica revogação: token_version do JWT deve bater com o do usuário
     if (decoded.v !== undefined && decoded.v !== result.rows[0].token_version) {
       return res.status(401).json({ error: 'Sessão revogada' });
+    }
+
+    // Verifica denylist de JTI (revogação individual de sessão)
+    if (decoded.jti) {
+      const jtiResult = await query('SELECT 1 FROM revoked_jti WHERE jti = $1', [decoded.jti]);
+      if (jtiResult.rows.length > 0) {
+        return res.status(401).json({ error: 'Sessão revogada' });
+      }
     }
 
     req.user = result.rows[0];

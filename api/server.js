@@ -328,7 +328,7 @@ const crudConfig = {
   blog_posts:      { searchFields: ['title', 'slug', 'category'], editableFields: ['title', 'slug', 'excerpt', 'category', 'author', 'status', 'published_date', 'views'] },
   loyalty_programs: { jsonbFields: ['tier_thresholds', 'rewards'], searchFields: ['name'], editableFields: ['name', 'description', 'points_per_real', 'active', 'tier_thresholds', 'rewards'] },
   customer_points:  { searchFields: ['client_name'], editableFields: ['client_name', 'points_balance', 'tier', 'program_id'] },
-  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'], editableFields: [], writeRoles: [] },
+  audit_logs:       { searchFields: ['user', 'action', 'details'], allowedRoles: ['superadmin', 'admin'], editableFields: [], writeRoles: [], noTenant: true },
   workflows:        { jsonbFields: ['conditions', 'actions'], searchFields: ['name'], editableFields: ['name', 'trigger', 'conditions', 'actions', 'active'] },
   documents:        { searchFields: ['name', 'category'], editableFields: ['name', 'type', 'category'] },
   reports:          { searchFields: ['name', 'type'], editableFields: ['name', 'type', 'format', 'schedule', 'last_run'] },

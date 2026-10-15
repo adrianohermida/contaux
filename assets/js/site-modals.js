@@ -66,6 +66,12 @@
       +         '<div style="text-align:right;margin-bottom:14px;"><button type="button" class="ctx-link" data-open="ctx-reset-modal" data-close-parent="ctx-login-modal">Esqueci minha senha</button></div>'
       +         '<button type="submit" class="ctx-btn ctx-btn-primary">Entrar</button>'
       +       '</form>'
+      +       '<form id="ctx-login-mfa-form" style="display:none;">'
+      +         '<div class="ctx-field"><label>Código TOTP</label><input type="text" name="totp" required maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:4px;font-size:18px;"></div>'
+      +         '<p style="font-size:13px;color:#666;margin-bottom:14px;">Digite o código de 6 dígitos do seu app autenticador.</p>'
+      +         '<button type="submit" class="ctx-btn ctx-btn-primary">Verificar e entrar</button>'
+      +         '<button type="button" class="ctx-btn ctx-btn-secondary" id="ctx-mfa-back" style="margin-top:8px;">Voltar</button>'
+      +       '</form>'
       +       '<div class="ctx-divider"><span>ou</span></div>'
       +       '<button class="ctx-btn ctx-btn-secondary" data-open="ctx-register-modal" data-close-parent="ctx-login-modal">Criar nova conta</button>'
       +     '</div>'
@@ -220,6 +226,17 @@
 
     // Login form
     var loginForm = document.getElementById('ctx-login-form');
+    var mfaForm = document.getElementById('ctx-login-mfa-form');
+    var pendingMfaToken = null;
+
+    function doLoginRedirect(user) {
+      localStorage.setItem('contaux-user', JSON.stringify(user));
+      showAlert(document.getElementById('ctx-login-modal'), 'success', 'Login realizado! Redirecionando...');
+      setTimeout(function () {
+        window.location.href = (user.role === 'client') ? '/portal' : '/dashboard';
+      }, 800);
+    }
+
     if (loginForm) {
       loginForm.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -233,12 +250,13 @@
           resetBtn(btn);
           if (res.ok && res.data.token) {
             localStorage.setItem('contaux-token', res.data.token);
-            localStorage.setItem('contaux-user', JSON.stringify(res.data.user));
-            showAlert(modal, 'success', 'Login realizado! Redirecionando...');
-            var role = res.data.user.role;
-            setTimeout(function () {
-              window.location.href = (role === 'client') ? '/portal' : '/dashboard';
-            }, 800);
+            doLoginRedirect(res.data.user);
+          } else if (res.ok && res.data.mfa_required) {
+            // MFA: mostra formulário TOTP
+            pendingMfaToken = res.data.mfa_token;
+            loginForm.style.display = 'none';
+            mfaForm.style.display = 'block';
+            mfaForm.querySelector('[name=totp]').focus();
           } else {
             showAlert(modal, 'error', res.data.error || 'Credenciais inválidas');
           }
@@ -247,6 +265,41 @@
           showAlert(modal, 'error', 'Erro de conexão. Tente novamente.');
         });
       });
+    }
+
+    // MFA login form
+    if (mfaForm) {
+      mfaForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var modal = document.getElementById('ctx-login-modal');
+        var btn = mfaForm.querySelector('button[type=submit]');
+        setBtnLoading(btn);
+        post(API + '/auth/login/mfa', {
+          mfa_token: pendingMfaToken,
+          token: mfaForm.totp.value,
+        }).then(function (res) {
+          resetBtn(btn);
+          if (res.ok && res.data.token) {
+            localStorage.setItem('contaux-token', res.data.token);
+            doLoginRedirect(res.data.user);
+          } else {
+            showAlert(modal, 'error', res.data.error || 'Código inválido');
+          }
+        }).catch(function () {
+          resetBtn(btn);
+          showAlert(modal, 'error', 'Erro de conexão. Tente novamente.');
+        });
+      });
+      // Back button
+      var mfaBack = document.getElementById('ctx-mfa-back');
+      if (mfaBack) {
+        mfaBack.addEventListener('click', function () {
+          mfaForm.style.display = 'none';
+          loginForm.style.display = 'block';
+          pendingMfaToken = null;
+          mfaForm.reset();
+        });
+      }
     }
 
     // Register form
