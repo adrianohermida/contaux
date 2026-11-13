@@ -72,6 +72,7 @@ async function requireAuth(req, res, next) {
     // Busca dados atualizados do usuário + tipo do tenant + token_version
     const result = await query(
       `SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.client_id, u.active, u.token_version,
+              (u.pin_hash IS NOT NULL AND u.pin_hash <> '') AS has_pin, u.mfa_enabled,
               t.type as tenant_type, t.parent_id as tenant_parent_id
        FROM users u
        LEFT JOIN tenants t ON u.tenant_id = t.id
