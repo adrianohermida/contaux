@@ -288,7 +288,7 @@ router.post('/logout', async (req, res) => {
 router.get('/sessions', requireAuth, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, created_at, expires_at, 
+      `SELECT id, created_at, expires_at,
               CASE WHEN token_hash = $2 THEN true ELSE false END as is_current
        FROM refresh_tokens
        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
@@ -353,7 +353,7 @@ router.get('/me', requireAuth, async (req, res) => {
     tenant_id: u.tenant_id,
     tenant_name: tenantResult.rows[0]?.name || null,
     tenant_type: u.tenant_type,
-    has_pin: !!u.pin_hash,
+    has_pin: !!u.has_pin,
     mfa_enabled: !!u.mfa_enabled,
   });
 });
